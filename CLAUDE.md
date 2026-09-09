@@ -212,6 +212,32 @@ Laufzeit-Gate. Er ist an kein Auslöser-Muster gebunden — wer ihn nicht fährt
 
 ### Release-Workflow (ein Script für alles!)
 
+> ### ⭐ VOR `release.sh`: das Add-on im HAOS-Lab installieren und durchklicken (seit 09.09.)
+>
+> **Das Lab existiert genau dafür** — VM 214 `haos-lab` auf `.198`, erreichbar unter
+> `10.100.1.167` (HAOS + Mosquitto + echte Recorder-DB + Winterborn- und Demo-Anlage). Es fängt die
+> Klasse „ausgelieferte Regression", die kein `pytest` und kein `check:*` sieht, weil sie erst beim
+> Einlesen durch einen echten Supervisor oder beim Klicken entsteht. **v4.0.44 ging ohne diesen
+> Durchlauf raus** — das ist der Grund, warum die Praxis jetzt hier steht und nicht in einem Projektplan.
+>
+> ```bash
+> # 1. Den GETAGGTEN Stand spiegeln, nicht HEAD (HEAD trägt oft schon Folge-Commits)
+> git archive <tag> eedc/ | tar -x -C /tmp/rc && \
+>   rsync -a --delete --exclude config.yaml.original /tmp/rc/eedc/ root@10.100.1.167:/addons/eedc/
+> # 2. ⛔ GATE: die image:-Zeile MUSS in der Lab-Kopie fehlen, sonst zieht der Supervisor das
+> #    veröffentlichte ghcr-Image und man klickt das ALTE Release durch.
+> ssh root@10.100.1.167 'cp /addons/eedc/config.yaml /addons/eedc/config.yaml.original;
+>   sed -i "/^image: /d" /addons/eedc/config.yaml; grep -c "^image:" /addons/eedc/config.yaml'   # muss 0 sein
+> # 3. ⚠ `ha store reload` — `ha addons reload` genügt NICHT, der Store-Cache bleibt sonst stehen
+> ssh root@10.100.1.167 'ha store reload && sleep 8 && ha apps update local_eedc'
+> # 4. Prüfen (lokaler Build ≈ 30 s; im Log muss `local/amd64-addon-eedc:<version>` stehen)
+> ssh root@10.100.1.167 'curl -s http://local-eedc:8099/api/health;
+>   curl -s http://local-eedc:8099/api/ha-statistics/status'
+> ```
+>
+> **Bei einem RC ist die Versionsnummer schon gebumpt** — sonst sieht der Supervisor kein Update.
+> Wer den Durchlauf auslässt, sagt das ausdrücklich; er ist an kein Auslöser-Muster gebunden.
+
 ```bash
 cd /home/gernot/claude/eedc-homeassistant
 ./scripts/release.sh <version>   # Zielversion, z. B. die nächste Patch-Nummer laut CHANGELOG

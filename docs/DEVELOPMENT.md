@@ -101,13 +101,64 @@ open http://localhost:8099
 
 ## Home Assistant Add-on Test
 
-Für Tests in einer echten Home Assistant Umgebung:
+Es gibt zwei Wege, und sie haben verschiedene Zwecke.
+
+### A) Veröffentlichten Stand prüfen (der Weg, den auch Anwender gehen)
 
 1. Repository zu HA Add-on Repositories hinzufügen:
    - Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories
    - URL: `https://github.com/supernova1963/eedc-homeassistant`
 2. Add-on installieren und starten
 3. Über Sidebar "eedc" öffnen
+
+Damit testet man **das, was schon draußen ist** — nützlich zur Reproduktion einer Meldung,
+nutzlos als Abnahme vor einem Release.
+
+### B) Release-Kandidat prüfen, BEVOR er veröffentlicht wird (HAOS-Test-Lab)
+
+**Das ist der Pflichtweg vor jedem Release** (Praxis seit 2026-09-09). Er fängt die Klasse
+Fehler, die weder `pytest` noch ein `check:*`-Skript sehen kann, weil sie erst entsteht, wenn
+ein **echter Supervisor** die `config.yaml` einliest oder wenn jemand klickt. Beispiel aus der
+Praxis: der Supervisor meldet `map`-Optionen als veraltet — das sieht kein Gate im Repo.
+
+**Umgebung:** VM `haos-lab` unter `10.100.1.167` (HAOS mit Mosquitto, echter Recorder-Datenbank
+und zwei Anlagen). Das Add-on liegt dort als **lokales** Add-on unter `/addons/eedc` und wird
+**auf der Maschine gebaut**, nicht aus der Registry gezogen.
+
+```bash
+# 1. Den GETAGGTEN Stand spiegeln — nicht HEAD.
+#    HEAD trägt nach einem Release oft schon Commits der Folgeversion; die gehören nicht in den Test.
+git archive <tag> eedc/ | tar -x -C /tmp/rc
+rsync -a --delete --exclude config.yaml.original /tmp/rc/eedc/ root@10.100.1.167:/addons/eedc/
+
+# 2. GATE — die image:-Zeile MUSS in der Lab-Kopie fehlen.
+#    Bleibt sie stehen, zieht der Supervisor das veröffentlichte ghcr-Image: man klickt dann
+#    das ALTE Release durch und hält es für den Kandidaten.
+ssh root@10.100.1.167 'cp /addons/eedc/config.yaml /addons/eedc/config.yaml.original
+                       sed -i "/^image: /d" /addons/eedc/config.yaml
+                       grep -c "^image:" /addons/eedc/config.yaml'      # muss 0 ergeben
+
+# 3. Store neu einlesen und aktualisieren.
+#    "ha addons reload" genügt NICHT — der Store-Cache bleibt sonst auf der alten Version stehen.
+ssh root@10.100.1.167 'ha store reload && sleep 8 && ha apps update local_eedc'
+
+# 4. Prüfen. Im Supervisor-Log muss "local/amd64-addon-eedc:<version>" stehen (lokaler Build, ca. 30 s).
+ssh root@10.100.1.167 'curl -s http://local-eedc:8099/api/health
+                       curl -s http://local-eedc:8099/api/ha-statistics/status'
+```
+
+**Der Kandidat braucht eine erhöhte Versionsnummer** — sonst sieht der Supervisor kein Update.
+
+**Worauf zu achten ist:**
+
+| | |
+|---|---|
+| `/api/health` | `status: healthy`, erwartete Version, `database: connected` |
+| `/api/ha-statistics/status` | muss `SQLite` melden. Fällt es auf WebSocket zurück, ist der `config`-Mount kaputt |
+| Supervisor-Log | `WARNING [supervisor.apps.validate]` — Meldungen zur `config.yaml` erscheinen **nur hier** |
+| Oberfläche | die Sichten durchklicken, die das Release berührt hat |
+
+Wer den Durchlauf auslässt, sagt das ausdrücklich; er ist an kein Auslöser-Muster gebunden.
 
 ---
 

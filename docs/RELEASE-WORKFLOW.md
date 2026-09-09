@@ -23,7 +23,17 @@ eedc-community (unabhängig)
 
 ## Release erstellen
 
-Ein Befehl macht alles:
+### Schritt 0 (Pflicht seit 2026-09-09): den Kandidaten im HAOS-Test-Lab durchklicken
+
+**Bevor `release.sh` läuft.** Das Lab (`10.100.1.167`) baut das Add-on lokal und lässt es von
+einem echten Supervisor einlesen — das fängt Fehler, die im Repo unsichtbar sind, weil weder
+`pytest` noch ein `check:*`-Skript einen Supervisor hat. Ablauf, Gate und Prüfpunkte stehen in
+[DEVELOPMENT.md → Home Assistant Add-on Test, Weg B](DEVELOPMENT.md#b-release-kandidat-prüfen-bevor-er-veröffentlicht-wird-haos-test-lab).
+
+⛔ **Das Gate in einem Satz:** In der Lab-Kopie der `config.yaml` muss die `image:`-Zeile fehlen —
+sonst zieht der Supervisor das bereits veröffentlichte Image, und man klickt das alte Release durch.
+
+### Danach: ein Befehl macht alles
 
 ```bash
 cd /home/gernot/claude/eedc-homeassistant
