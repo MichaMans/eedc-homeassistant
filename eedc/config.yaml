@@ -84,7 +84,19 @@ schema:
 # Persistenter Speicher
 map:
   - data:rw
-  - config:ro  # Lesezugriff auf HA-Config für statistics Datenbank-Abfrage
+  # Lesezugriff auf die HA-Konfiguration: Recorder-Datei (Langzeitstatistik, Weg 2 der
+  # Kaskade) und `.storage/core.energy` (Vorschläge im Setup-Wizard, #197).
+  #
+  # `path: /config` ist Absicht und kein Versehen. Die frühere Kurzform `config:ro` ist seit
+  # HA 2023.10 veraltet — der Supervisor warnt beim Einlesen. Der neue Name allein würde das
+  # Verzeichnis aber nach `/homeassistant` einhängen (Supervisor `docker/const.py`:
+  # PATH_HOMEASSISTANT_CONFIG), und beide Lesestellen im Backend suchen unter `/config`:
+  # `services/ha_statistics_service.py` und `services/ha_energy_service.py`. Ohne `path` fiele
+  # die Statistik still auf den langsameren WebSocket-Weg zurück und die Energy-Vorschläge
+  # ersatzlos aus. Dieselbe Form nutzt das Add-on „Studio Code Server" aus demselben Grund.
+  - type: homeassistant_config
+    read_only: true
+    path: /config
 
 # Hot-Backup-Konsistenz: WAL ins Hauptfile zurückspielen + truncaten, bevor
 # der Supervisor /data tarballt. App bleibt online, MQTT-Inbound läuft weiter.

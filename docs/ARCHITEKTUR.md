@@ -1151,7 +1151,7 @@ eedc/{anlage_id}/{key}/attributes                   → Attributes
 | # | Transport | Voraussetzung |
 | --- | --- | --- |
 | 1 | `HA_RECORDER_DB_URL` (SQL) | externer Recorder, MariaDB/MySQL |
-| 2 | Recorder-Datei (SQL) | Volume-Mapping `config:ro` auf `/config/home-assistant_v2.db` |
+| 2 | Recorder-Datei (SQL) | Volume-Mapping `homeassistant_config` (read-only, `path: /config`) auf `/config/home-assistant_v2.db` |
 | 3 | **WebSocket** `recorder/statistics_during_period` | nur die HA-Verbindung (Supervisor oder Long-Lived-Token) |
 
 Die SQL-Wege behalten den Vorrang, wo sie verfügbar sind — synchron, kein Netz,
@@ -1168,7 +1168,7 @@ identisch bis auf den Tag.
 ⚠ **Warum der dritte Weg gebraucht wird:** Wer eedc als eigenen Container neben
 HA betreibt, hat weder `/config` noch `HA_RECORDER_DB_URL` — Tageswerte
 entstanden dort ausschließlich aus eedcs eigenen 5-Minuten-Snapshots, also ab
-Installation **vorwärts**. `config:ro` hilft dort auch nicht generell: es setzt
+Installation **vorwärts**. Das Konfig-Mapping hilft dort auch nicht generell: es setzt
 denselben Host **und** eine laufende HA voraus (eine WAL-Datenbank braucht auch
 als Leser eine schreibbare `-shm`) und trägt bei MariaDB-Recorder gar nicht.
 
