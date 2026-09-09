@@ -224,42 +224,18 @@ Das Script macht automatisch:
 4. Synchronisiert backend/ + frontend/ nach eedc-Standalone
 5. Committed + taggt + pusht eedc
 
-> ⚠ **Einmal beobachtet am 2026-09-02, KEIN Fund (Entscheid Gernot) — aber beim nächsten Lauf
-> gezielt nachsehen.** Bei v4.0.38 brach `release.sh` in Schritt 4 ab: `git push origin "vX"`
-> meldete `cannot lock ref … reference already exists`, obwohl der Tag im selben Lauf erst
-> angelegt worden war. Wegen `set -euo pipefail` endete das Script dort und übersprang damit
-> **Schritt 5–7** — den Standalone-Sync **und** `warte-auf-image.sh`, also ausgerechnet die
-> Prüfung, die den fehlenden Build gemeldet hätte. Folge: Code und Tag waren draußen, der
-> **Release-Workflow lief nie** (er hört auf `push: tags: 'v*'`, und ein Push-Event für den Tag
-> gab es nicht) ⇒ kein Image, kein GitHub-Release; die HA-App fand nichts.
+> ⚑ **Bricht `release.sh` beim Tag-Push ab** (`cannot lock ref … reference already exists`),
+> endet es wegen `set -euo pipefail` dort und überspringt Standalone-Sync **und**
+> `warte-auf-image.sh` — der Release-Workflow hört auf das Push-Event und läuft dann nie.
+> **Fix:** `git push --delete origin vX` und identisch neu pushen; Schritt 5–6 aus
+> `release.sh` (Zeilen 314–404) nachfahren. *Einmal aufgetreten (v4.0.38, 02.09.), Ursache
+> ungeklärt, seither vier saubere Läufe (v4.0.39 · .41 · .43 · .44) — nicht neu aufrollen.*
 >
-> **Behoben durch:** Tag remote löschen und identisch neu pushen (`git push --delete origin vX`
-> dann `git push origin vX`) — das erzeugt das Event, der Workflow läuft. Schritt 5–6 lassen sich
-> aus `release.sh` (Zeilen 314–404) als Wiederaufnahme-Skript nachfahren.
->
-> ⛔ **Ursache ungeklärt und NICHT geraten:** `push.followTags` ist nicht gesetzt, es gibt keine
-> Hooks und keine Push-Refspec, und im **eedc-Repo lief derselbe Scriptcode sauber**
-> (`* [new tag]`). Eine Parallel-Session scheidet aus — deren Tag-Push hätte den Workflow
-> ausgelöst. GitHub-Status am selben Tag geprüft: kein Incident.
->
-> ⚑ **Deshalb ist es kein Fund:** ein Einzelfall ohne reproduzierbare Ursache. **Tritt es beim
-> nächsten Release WIEDER auf, ist es die zweite Runde und wird ein Fund** — dann trägt die
-> Beobachtung, und der Fix ist ohnehin ursachenunabhängig: ein abgebrochener Tag-Push darf nicht
-> dazu führen, dass die Image-Prüfung entfällt.
->
-> ✅ **Nachgesehen bei v4.0.39 (04.09.), wie hier verlangt: NICHT wieder aufgetreten.** Beide
-> Repos getaggt und gepusht (`* [new tag] v4.0.39` in beiden), Schritt 5–7 vollständig gelaufen,
-> `warte-auf-image.sh` samt Positivkontrolle gegen v4.0.38 grün, Image amd64 + aarch64 da,
-> GitHub-Release publiziert. **Damit bleibt es ein Einzelfall** — die Beobachtung steht weiter
-> hier, aber sie hat jetzt eine Gegenprobe. Beim übernächsten Release nicht erneut aufrollen:
-> zwei saubere Läufe hintereinander wären der Anlass, diesen Kasten zu kürzen, nicht ihn zu
-> erweitern.
->
-> ⚠ **Und ein Prüfer-Hinweis aus demselben Vorgang:** Ein `curl` gegen die GHCR-Manifest-API
-> **ohne `Accept`-Header antwortet 404**, auch wenn das Image existiert. Wer so misst, meldet
-> ein fehlendes Image, das da ist — am 02.09. genau so passiert. Immer mit
-> `Accept: application/vnd.oci.image.index.v1+json,…` und **immer mit Positivkontrolle gegen die
-> Vorgängerversion**.
+> ⚠ **Prüfer-Hinweis:** Ein `curl` gegen die GHCR-Manifest-API **ohne `Accept`-Header antwortet
+> 404**, auch wenn das Image existiert — wer so misst, meldet ein fehlendes Image, das da ist
+> (am 02.09. genau so passiert). Immer mit
+> `Accept: application/vnd.oci.image.index.v1+json,…` und **immer mit Positivkontrolle gegen
+> die Vorgängerversion**.
 
 **Versionsdateien (5 Stück, alle in eedc/):**
 
