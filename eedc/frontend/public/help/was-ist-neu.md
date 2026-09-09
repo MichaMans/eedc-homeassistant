@@ -1,11 +1,42 @@
 # Was ist neu
 
-> **Stand:** September 2026 (v4.0.44)
+> **Stand:** September 2026 (v4.0.44) — der Abschnitt ganz oben gilt der **kommenden** Version und trägt ihre Nummer, sobald sie feststeht.
 > **Diese Seite** zeigt pro Version, was sich für dich als Anwender geändert hat — kürzer als der technische [CHANGELOG](https://github.com/supernova1963/eedc-homeassistant/blob/main/CHANGELOG.md), ausführlicher als die Schnellübersicht-Tabelle in der [Übersicht](BENUTZERHANDBUCH.md#was-ist-neu-seit-v316).
 >
 > **Kein Banner, kein Pop-up:** eedc zeigt diese Liste nicht ungefragt an. HA-App-Nutzer sehen den Changelog ohnehin schon im Add-on-Store, GitHub-Releases haben einen eigenen. Wer wissen will, was neu ist, schaut hier rein — Pull statt Push.
 >
 > **Lesehinweis:** Die jüngsten Versionen stehen oben. Jeder Punkt verlinkt entweder auf die zuständige Hilfe-Sektion oder direkt auf die App-Funktion (sofern erreichbar). Anker-URLs (`?doc=was-ist-neu`) sind teilbar.
+
+---
+
+## Unveröffentlicht — kommt mit der nächsten Version
+
+**Der Browser füllt Suchfelder nicht mehr von sich aus aus**
+
+Mit 4.0.44 hat die Suche in den Einstellungen ein eigenes ✕ zum Leeren bekommen. Für den
+Melder, dessen Bericht dazu geführt hatte, war das Feld damit trotzdem nicht loszuwerden:
+Sein Browser hatte sich den Begriff gemerkt und setzte ihn nach **jedem** Löschen sofort
+wieder ein. Am Ende half nur, das automatische Ausfüllen im Browser selbst abzuschalten.
+
+Der Grund, warum das ausgerechnet hier so unangenehm ist: Ein automatisch eingesetzter
+Begriff steht in einem Filterfeld genauso da wie ein getippter — die Liste darunter ist
+leer, und die Seite ist von einer kaputten Seite nicht mehr zu unterscheiden. In einem
+Feld, in das du Daten einträgst, ist automatisches Ausfüllen eine Hilfe; in einem Feld,
+das eine Liste verengt, ist es eine Sackgasse.
+
+Deshalb sagen jetzt **alle Such- und Filterfelder** dem Browser, dass sie nicht ausgefüllt
+werden sollen: die Suche in den Einstellungen, die Sensor- und Gateway-Auswahl unter
+*Datenquellen* und die beiden Filter der Protokollansicht. Das PIN-Feld der
+Einstellungssperre ist bewusst ausgenommen — dort soll dein Passwortmanager weiterhin
+helfen dürfen.
+
+**Betrifft dich das?** Jeden, dessen Browser sich Eingaben merkt. **Was du tun musst:**
+nichts. ⚠ **Eine Einschränkung, die dazugehört:** Ob ein Browser sich daran hält,
+entscheidet er selbst — es gibt dafür keine Garantie, nur die vorgesehene Angabe, und wir
+haben es nicht in jedem Browser nachgemessen. Wenn dein Browser weiterhin ausfüllt, bleibt
+der Weg über seine eigenen Einstellungen.
+
+*Gemeldet von Radiocarbonat im simon42-Forum.*
 
 ---
 

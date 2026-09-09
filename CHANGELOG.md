@@ -7,6 +7,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Such- und Filterfelder sagen dem Browser, dass sie nicht ausgefüllt werden sollen** (gemeldet von **Radiocarbonat** im simon42-Forum). Mit 4.0.44 hat die Suche in den Einstellungen ein eigenes ✕ bekommen — für den Melder war das Feld damit trotzdem nicht zu leeren: Sein Browser setzte den einmal gemerkten Begriff nach **jedem** Löschen sofort wieder ein, bis er das automatische Ausfüllen im Browser selbst abschaltete. ⭐ **Ein automatisch eingesetzter Begriff steht in einem Filterfeld genauso da wie ein getippter** — die Liste darunter ist leer, und die Sicht ist von einem Defekt nicht mehr zu unterscheiden. Genau das ist der Unterschied zu einem Datenfeld, in dem Autofill hilft. Sechs Felder tragen den Riegel: die Einstellungen-Suche, die beiden Sensor-Picker der Datenquellen, der Gateway-Picker und die zwei Filter der Protokollansicht. ⛔ **Bewusst außen vor:** das PIN-Feld der Einstellungssperre (dort ist ein Passwortmanager erwünscht, und Browser ignorieren den Riegel auf Passwortfeldern ohnehin) und das Beschreibungsfeld des Datei-Uploads — ein Datenfeld, kein Filter. ⚠ **Nicht behauptet wird, dass jeder Browser sich daran hält:** `autocomplete="off"` ist das standardkonforme Mittel, keine Garantie; das Verhalten ist browserabhängig und von uns nicht gemessen. **Es ändert sich keine Zahl und kein Suchverhalten.**
+
+- **Das Add-on-Volume-Mapping folgt der aktuellen Home-Assistant-Schreibweise.** Der Supervisor meldet die bisherige Kurzform `config:ro` seit HA 2023.10 als veraltet — aufgefallen, als zum ersten Mal ein echter Supervisor unsere Add-on-Konfiguration eingelesen hat. Das Add-on deklariert jetzt `homeassistant_config` und hängt es ausdrücklich unter `/config` ein. ⭐ **Der ausdrückliche Pfad ist der eigentliche Punkt:** Unter dem neuen Namen allein läge das Home-Assistant-Konfigurationsverzeichnis nach `/homeassistant`, während eedc an zwei Stellen unter `/config` sucht — die **Recorder-Datenbank** (der schnelle Weg zur Langzeitstatistik) und die **Energie-Konfiguration** (die Vorschläge im Einrichtungsassistenten, #197). Die Statistik wäre still auf den langsameren Weg gefallen, die Vorschläge ersatzlos ausgefallen. ⚠ **Für dich ändert sich nichts** — der Container sieht exakt dasselbe Verzeichnis wie zuvor, kein Zugriff kommt hinzu, keine Neuinstallation ist nötig.
+
+---
+
 ## [4.0.44] - 2026-09-09 — Eine halbe Prognose ist keine Prognose — und die Ersparnis nennt ihre Alternative beim Namen
 
 ### Changed
