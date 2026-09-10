@@ -27,6 +27,7 @@ import { baueMonatKpis, MonatBilanz, type GleicheMonatStats } from './MonatBilan
 import { monatBilanzParkIds } from './bilanzParkIds'
 import { MONAT_PARK_KEY } from './monatParkScope'
 import { baueKomponentenBloecke } from './KomponentenSektionen'
+import type { WaermeVerlaufPunkt } from './waermeVerlauf'
 import { baueMonatAuswertungBloecke } from './MonatAuswertungBloecke'
 import { MonatsRail, type RailEintrag } from './MonatsRail'
 import { MonatStepper } from './MonatStepper'
@@ -241,6 +242,53 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
     },
   )
   const monatAusw = auswQ.data ?? null
+
+  // ── Wärme/Klima-Verlauf (Konzept §8, Bauschnitt 4): x = Tage des Monats ──
+  //
+  // ⚠ **Eigener Abruf, und das ist die Entscheidung.** Die Tageszeilen von
+  // `getTageWerte` liegen oben schon geladen — sie tragen die Größen aber
+  // nicht: `wp_strom` ist dort die Σ der Stundenleistungen (Leistungspfad),
+  // während Kachel und Aufteilung mit dem Zählerpfad rechnen. Zwei Zahlen für
+  // dieselbe Größe in EINEM Bild wären W-17b ein zweites Mal (dietmar1968 sah
+  // 30 kWh Balken unter einer 284-kWh-Kachel). Betriebsart-Aufteilung und
+  // gemessene Wärme je Tag fehlen dort ohnehin.
+  //
+  // Er lädt **neben** der Sicht: Bleibt er aus, fehlt der Verlauf-Block und
+  // sonst nichts — wie die Auswertungs-Blöcke darunter.
+  const verlaufQ = useApiData(
+    () => {
+      const spanne = monatsSpanne(gewaehlt!)
+      return energieProfilApi.getWaermeVerlauf(anlageId!, spanne.von, spanne.bis)
+    },
+    [anlageId, gewaehlt?.jahr, gewaehlt?.monat],
+    {
+      enabled: !!anlageId && !!gewaehlt,
+      swrKey: `v4-monat-waermeverlauf:${anlageId}:${gewaehlt?.jahr}-${gewaehlt?.monat}`,
+      keepPreviousData: true,
+    },
+  )
+  const wpVerlauf = useMemo<WaermeVerlaufPunkt[]>(
+    () => (verlaufQ.data ?? []).map((t) => ({
+      // Die x-Achse trägt die Tagesnummer — der Monat steht in der Sicht.
+      name: String(Number(t.datum.slice(8, 10))),
+      temperatur_c: t.temperatur_c,
+      wp_strom_kwh: t.wp_strom_kwh,
+      wp_waerme_kwh: t.wp_waerme_kwh,
+      // ⚠ Auf Tagesebene gibt es keine abgeleitete Wärme — sie entsteht an den
+      // Monatszeilen. Was hier steht, ist gemessen (SOLL §3.3/S4).
+      wp_waerme_abgeleitet_kwh: null,
+      wp_modus_strom_heizen_kwh: t.wp_modus_strom_heizen_kwh,
+      wp_modus_strom_warmwasser_kwh: t.wp_modus_strom_warmwasser_kwh,
+      wp_modus_strom_kuehlen_kwh: t.wp_modus_strom_kuehlen_kwh,
+      wp_modus_strom_lueften_kwh: t.wp_modus_strom_lueften_kwh,
+      wp_modus_strom_entfeuchten_kwh: t.wp_modus_strom_entfeuchten_kwh,
+      wp_modus_nicht_aufgeteilt_kwh: t.wp_modus_nicht_aufgeteilt_kwh,
+      wp_modus_gemessen: t.wp_modus_gemessen,
+      wp_modus_abdeckung_h: t.wp_modus_abdeckung_h,
+      wp_modus_strom_bezug_kwh: t.wp_modus_strom_bezug_kwh,
+    })),
+    [verlaufQ.data],
+  )
   const loading = monateQ.loading || (!!gewaehlt && tageQ.loading)
   const reloading = tageQ.reloading
   const error = monateQ.data == null && monateQ.error
@@ -423,7 +471,7 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
       // /Park-Lage (Element-Park-Doktrin).
       ...(monatAusw ? baueMonatAuswertungBloecke(monatAusw, park, monatData?.nicht_vergueteter_erloes_euro) : []),
       // Komponenten-Detailblöcke (aktiv-gegatet, B6/B7).
-      ...(monatData ? baueKomponentenBloecke(monatData, park) : []),
+      ...(monatData ? baueKomponentenBloecke(monatData, park, 'monat', null, wpVerlauf) : []),
       // Finanz-Teaser (B5) — bewusst GANZ UNTEN: Netto-Ertrag/Monatsergebnis stehen
       // bereits in den Kennzahlen (D), hier nur Aufschlüsselung + Tarif + Cross-Link.
       // #377 — Verbrauchszähler: nur wenn wirklich einer gepflegt ist.
@@ -437,7 +485,7 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
       }] : []),
       ...(finanzBlock ? [finanzBlock] : []),
     ]
-  }, [gewaehlt, tage, monatData, monatAusw, vormonatAgg, glMonStats, park, zaehlerstaende])
+  }, [gewaehlt, tage, monatData, monatAusw, vormonatAgg, glMonStats, park, zaehlerstaende, wpVerlauf])
 
   if (!anlageId) {
     return (

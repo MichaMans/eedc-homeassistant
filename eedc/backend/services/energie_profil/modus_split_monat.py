@@ -256,6 +256,55 @@ async def lade_modus_split_tag(
     return {i: s for i, s in splits.items() if not s.ist_leer}
 
 
+async def lade_modus_split_je_tag(
+    db: AsyncSession,
+    anlage_id: int,
+    *,
+    von: date,
+    bis: date,
+) -> dict[date, dict[str, ModusSplit]]:
+    """Die Tages-Splits eines **Bereichs**, je Tag und Wärmepumpe.
+
+    **Die Ebene zwischen den beiden bestehenden Ladern** und der Grund, warum
+    der Monats-Verlauf (Konzept Wärme/Klima §8, Bauschnitt 4) keine 28–31
+    Einzelaufrufe braucht:
+
+    * {@link lade_modus_split_tag} liefert **einen** Tag,
+    * {@link lade_modus_split_je_monat} faltet dieselben Tage und **summiert**
+      sie je Monat weg,
+    * diese Funktion bleibt bei den Tagen stehen.
+
+    ⭐ **Derselbe Ladepfad, dieselbe Faltung, kein zweiter Rechenweg** —
+    ``_lade_tages_eingaenge`` ist bereits ein Bereichs-Leser (zwei Queries für
+    den ganzen Zeitraum), und die Normierung auf die Tages-Zählersumme
+    (``falte_modus_split_tag``, W-17b) passiert ohnehin tagesweise. Es fehlte
+    allein ein Einstieg auf dieser Ebene.
+
+    Args:
+        von: erster Tag, **einschließlich**.
+        bis: letzter Tag, **einschließlich**.
+
+    Returns:
+        ``{datum: {investitions_id_str: ModusSplit}}``. Geräte ohne **eine
+        einzige** erfasste Stunde erscheinen nicht (ADR-002/P4: keine Aussage
+        statt einer 0), Tage ohne jeden Beitrag ebenfalls nicht.
+    """
+    je_tag, zaehler_je_tag = await _lade_tages_eingaenge(
+        db, anlage_id, von, bis + timedelta(days=1),
+    )
+    ergebnis: dict[date, dict[str, ModusSplit]] = {}
+    for datum, eingang in je_tag.items():
+        zaehler = zaehler_je_tag.get(datum, {})
+        splits = {
+            inv_id: falte_modus_split_tag(stunden, tages_kwh=zaehler.get(inv_id))
+            for inv_id, stunden in eingang.stunden_je_inv.items()
+        }
+        gefiltert = {i: s for i, s in splits.items() if not s.ist_leer}
+        if gefiltert:
+            ergebnis[datum] = gefiltert
+    return ergebnis
+
+
 async def lade_modus_split_monat(
     db: AsyncSession, anlage_id: int, jahr: int, monat: int
 ) -> dict[str, ModusSplit]:

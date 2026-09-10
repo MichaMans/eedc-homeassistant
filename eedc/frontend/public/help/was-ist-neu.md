@@ -109,6 +109,46 @@ Messreihe lassen die Linie aussetzen, statt sie auf 0 °C zu ziehen.
 
 ---
 
+**Wärme/Klima im Monat: derselbe Verlauf, nur Tag für Tag**
+
+Was der Jahres-Block über die Monate zeigt, zeigt der Monats-Block jetzt über die
+**Tage**: unten der Strom, gestapelt nach Betriebsart, darüber die gemessene
+Wärme als Linie, dazu die Außentemperatur auf der rechten Skala.
+
+Der Gewinn ist ein anderer als im Jahr. Eine Monatssumme sagt dir, *wie viel*
+zusammengekommen ist — der Tagesverlauf sagt dir, *woran es lag*: an welchen
+Tagen die Anlage überhaupt lief, wie sie auf einen Kälteeinbruch reagiert hat,
+und ob die drei kalten Tage am Monatsanfang den ganzen Verbrauch erklären.
+
+Die Tageswerte kommen aus denselben Wärmemengenzählern, aus denen *Cockpit → Tag*
+rechnet. Derselbe Tag zeigt an beiden Orten dieselbe Zahl.
+
+**Auch hier gilt: nur gemessene Wärme.** Tage ohne Wärmemengenzähler lassen die
+Linie aussetzen. Und Tage, an denen eedc keine Betriebsart erkennen konnte,
+fehlen im Stapel, statt als Nullbalken dazustehen — sonst sähe ein Tag ohne
+Erkennung aus wie ein Tag ohne Betrieb.
+
+**Betrifft dich das?** Jeden mit Wärmepumpe oder Klimaanlage.
+**Was du tun musst:** nichts.
+
+---
+
+**Die Anzeige stockt nicht mehr, wenn eedc eine Datenlücke nachholt**
+
+Fehlt eedc für einen Tag ein Zählerstand, holt es ihn aus der
+Home-Assistant-Langzeitstatistik nach und merkt ihn sich — beim nächsten Mal ist
+er da. Diese Abfrage lief bisher im selben Arbeitsstrang wie die Oberfläche:
+Bei mehreren Lücken hintereinander stand die App so lange, bis alle geholt waren.
+
+Jetzt läuft sie daneben. **Es ändert sich keine Zahl** — nur die Zeit, die eine
+Seite mit Lücken zum Öffnen braucht.
+
+**Betrifft dich das?** Jeden, dessen Sensoren mal ausgefallen sind oder der einen
+Zähler erst später zugeordnet hat.
+**Was du tun musst:** nichts.
+
+---
+
 **Ein Zähler, der null meldet, ist kein fehlender Zähler**
 
 Wer Heizwärme und Warmwasser getrennt misst, sah unter *Cockpit → Tag* an einem

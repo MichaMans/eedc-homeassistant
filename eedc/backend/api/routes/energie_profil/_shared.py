@@ -316,6 +316,48 @@ class TagesZusammenfassungResponse(BaseModel):
     einspeisung_neg_preis_kwh: Optional[float] = None
 
 
+class WaermeVerlaufTagResponse(BaseModel):
+    """Eine Tageszeile des Wärme/Klima-Verlaufs (Konzept §8, Bauschnitt 4).
+
+    **Warum ein eigenes Schema und nicht ``TagWerteResponse``.** Die Feldnamen
+    sind hier bewusst **deckungsgleich mit der Jahres-Reihe** — der Client baut
+    beide über dieselbe reine Funktion (``v4/waermeVerlauf.ts``), Jahr liefert
+    Monate, Monat liefert Tage. ``TagWerteResponse`` dagegen ist an die
+    Frontend-**Registry** gekoppelt (`lib/werte`), und ihr ``wp_strom`` ist die
+    Σ der Stundenleistungen — der **Leistungspfad**. Der Verlauf braucht den
+    **Zählerpfad**, sonst stünde in einem Bild eine Grundmenge, die nicht zur
+    Kachel darüber passt (W-17b).
+
+    ⚠ **Kein ``wp_waerme_abgeleitet_kwh``.** Auf Tagesebene gibt es keine
+    abgeleitete Wärme: Sie entsteht aus ``Strom × Arbeitszahl`` an den
+    Monatszeilen. Was hier steht, ist gemessen — oder es fehlt.
+    """
+
+    datum: date
+    #: Der gesamte Wärmepumpen-Strom des Tages (Zählerpfad).
+    wp_strom_kwh: Optional[float] = None
+    #: Σ der **gemessenen** Wärme (Heizung + Warmwasser). ``None`` = keine
+    #: Aussage; der Verlauf lässt die Linie dort aussetzen, statt sie auf 0 zu
+    #: ziehen.
+    wp_waerme_kwh: Optional[float] = None
+    #: Tagesmittel der Außentemperatur (°C) — zweite Achse.
+    temperatur_c: Optional[float] = None
+    # ── Der Betriebsart-Stapel; ``None``, wo der Tag keine Aufteilung trägt ──
+    wp_modus_strom_heizen_kwh: Optional[float] = None
+    wp_modus_strom_warmwasser_kwh: Optional[float] = None
+    wp_modus_strom_kuehlen_kwh: Optional[float] = None
+    wp_modus_strom_lueften_kwh: Optional[float] = None
+    wp_modus_strom_entfeuchten_kwh: Optional[float] = None
+    wp_modus_nicht_aufgeteilt_kwh: Optional[float] = None
+    #: ⚠ **Die Grundmenge des Stapels** — Σ der Bezugsmengen der Geräte **mit**
+    #: Aufteilung, nicht der gesamte WP-Strom. Die Differenz benennt der Client
+    #: mit derselben Zeile wie der Balken darunter (W-17b).
+    wp_modus_strom_bezug_kwh: Optional[float] = None
+    wp_modus_abdeckung_h: Optional[float] = None
+    #: Kam die Aufteilung aus **gemessenen** Betriebsart-Zählern?
+    wp_modus_gemessen: Optional[bool] = None
+
+
 class TagWerteResponse(BaseModel):
     """Tageszeile für die Werte/Tabelle-Embed-Sicht in Tagesgranularität
     (IA v4 E3, Cockpit/Monat). Feldnamen sind **deckungsgleich mit den

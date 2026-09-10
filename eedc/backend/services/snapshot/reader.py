@@ -12,9 +12,10 @@ reader → writer ist explizit gewollt (writer importiert nichts aus reader).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -198,7 +199,7 @@ async def zaehler_faellt_im_fenster(
         startstand: der Stand am Fensteranfang (``s0``).
         endstand: der Stand am Fensterende (``s1``).
     """
-    zwischenstaende = [w for _ts, w in await _reihe_im_fenster(
+    zwischenstaende = [w for _ts, w in await reihe_im_fenster(
         db, anlage_id, sensor_key, von, bis
     )]
     if not zwischenstaende:
@@ -228,6 +229,70 @@ def _ist_ruecksprung(vorher: float, nachher: float, toleranz_kwh: float) -> bool
     return nachher < vorher - toleranz_kwh
 
 
+def tageswert_aus_reihe(
+    s0: float,
+    s1: float,
+    zwischenstaende: Sequence[float],
+    toleranz_kwh: float = TAGESRESET_TOLERANZ_KWH,
+) -> Optional[float]:
+    """Die Menge eines kumulativen Zaehlers ueber ein Fenster — **die Regel selbst**.
+
+    **Warum es sie als reine Funktion gibt.** Sie stand bis zum 10.09.2026
+    **zweimal** im Baum, und beide Stellen behaupteten im eigenen Docstring, der
+    eine Ort zu sein: ``delta`` („Der eine Ort fuer die Fenster-Regel") und
+    ``snapshot/aggregator._tageswert_aus_raendern`` („Der eine Ort fuer die
+    Tagesfenster-Regel"). Sie waren inhaltlich gleich und **formal schon
+    auseinander**: hier die Konstante ``TAGESRESET_TOLERANZ_KWH``, dort das
+    Literal ``-0.01``. Genau die F-56-Form, vor der beide Docstrings warnen —
+    und an diesem Feld ist die Regel schon einmal gedriftet (N-341: Weg 2 fehlte
+    im Monatspfad einen Tag laenger als im Tagespfad, gemessen 5,6 statt
+    140,0 kWh).
+
+    Den dritten Aufrufer brachte der Waerme/Klima-Verlauf: Ein Bereichs-Leser
+    ueber einen ganzen Monat kann nicht je Tag drei Datenbankabfragen stellen,
+    er laedt **eine** Standreihe und wendet die Regel lokal an. Ohne diese
+    Funktion haette er sie ein **drittes** Mal hingeschrieben.
+
+    **Ein Ruecksprung hinterlaesst zwei Spuren, und beide sind hier geprueft:**
+
+    1. **Randdifferenz negativ** — der Ruecksprung liegt zwischen den Raendern
+       und ist an ihnen selbst ablesbar.
+    2. **Monotonie der Folge verletzt** — irgendwo in der Reihe faellt der
+       Stand. Dieser Weg laeuft **immer**, nicht nur bei verdaechtig kleinem
+       Delta: Werden **beide** Raender eines Tagesreset-Zaehlers vor dem Reset
+       abgetastet, ist die Randdifferenz positiv, plausibel und still falsch.
+
+    ⚠ **Ohne Zwischenstaende gilt nur Weg 1** — dieselbe Grenze, die
+    {@link zaehler_faellt_im_fenster} mit ihrem fruehen ``False`` zieht: ohne
+    Reihe ist ein Tagesreset-Zaehler von einem ruhenden Geraet nicht zu
+    unterscheiden. Das ist keine Nachlaessigkeit, sondern die ehrliche Auskunft.
+
+    ⛔ **Ein erkannter Ruecksprung endet in ``None``, nicht in einer
+    hochgerechneten Menge** (Entscheid Gernot, 28.08.2026, s. Kanon-Kasten oben).
+
+    Args:
+        s0: Stand am Fensteranfang.
+        s1: Stand am Fensterende.
+        zwischenstaende: die Staende **zwischen** den Raendern, in zeitlicher
+            Reihenfolge. Leer ⇒ nur Weg 1.
+
+    Returns:
+        Menge in kWh (>= 0), oder ``None`` — „keine Aussage", nie „null"
+        (ADR-002/P4). Der Aufrufer protokolliert; diese Funktion ist stumm,
+        damit sie rein bleibt.
+    """
+    d = s1 - s0
+    if d < -toleranz_kwh:
+        return None
+    if zwischenstaende:
+        folge = [s0, *zwischenstaende, s1]
+        if any(
+            _ist_ruecksprung(a, b, toleranz_kwh) for a, b in zip(folge, folge[1:])
+        ):
+            return None
+    return max(0.0, d)
+
+
 async def finde_zaehler_ruecksprunge(
     db: AsyncSession,
     anlage_id: int,
@@ -252,7 +317,7 @@ async def finde_zaehler_ruecksprunge(
         ``[(zeitpunkt_des_falls, stand_vorher, stand_nachher), …]`` in
         zeitlicher Reihenfolge; leer, wenn die Reihe monoton ist.
     """
-    reihe = await _reihe_im_fenster(db, anlage_id, sensor_key, von, bis)
+    reihe = await reihe_im_fenster(db, anlage_id, sensor_key, von, bis)
     return [
         (ts_b, a, b)
         for (_ts_a, a), (ts_b, b) in zip(reihe, reihe[1:])
@@ -260,7 +325,7 @@ async def finde_zaehler_ruecksprunge(
     ]
 
 
-async def _reihe_im_fenster(
+async def reihe_im_fenster(
     db: AsyncSession,
     anlage_id: int,
     sensor_key: str,
@@ -277,6 +342,11 @@ async def _reihe_im_fenster(
 
     Beide Ränder sind **exklusiv** — sie kommen als Zählerstände vom Aufrufer,
     aus der Self-Healing-Kaskade und nicht aus dieser Tabelle.
+
+    ⚑ **Öffentlich seit dem 10.09.2026**, weil sie einen zweiten Leser bekommen
+    hat: `snapshot/aggregator` holt die Reihe jetzt selbst, statt die
+    Reset-Prüfung als zweite Fassung mitzuschleppen (s.
+    {@link tageswert_aus_reihe}).
     """
     return [
         (ts, wert) for ts, wert in (await db.execute(
@@ -414,7 +484,20 @@ async def get_snapshot(
         if ha_svc.is_available:
             # F-58: Auch der Self-Healing-Read muss die richtige Spalte
             # nehmen — sonst repariert er eine Lücke mit der falschen Größe.
-            wert = ha_svc.get_value_at(
+            # ⚠ **`get_value_at` ist synchrones SQLAlchemy gegen die
+            # Recorder-Datenbank.** Direkt im `async def` gerufen hielt es den
+            # Event-Loop von eedc an — je Zähler, je Rand. Der Snapshot-**Writer**
+            # zieht diese Lehre seit Langem und begründet sie in seinem eigenen
+            # Kommentar; der Reader tat es bis zum 10.09.2026 nicht. Aufgefallen
+            # beim Bereichs-Leser des Wärme/Klima-Verlaufs, der über einen ganzen
+            # Monat viele Ränder heilt statt zwei — die Blockade gab es aber schon
+            # vorher, bei jedem Aufruf von *Cockpit → Tag* mit einer Lücke.
+            # ⛔ `als_stand` MUSS als Schlüsselwort übergeben werden: der vierte
+            # positionelle Parameter von `get_value_at` heißt `short_term`. Ein
+            # positionelles Argument landete dort und läse still die falsche
+            # Spalte — genau die F-58-Klasse, die diese Zeile bewacht.
+            wert = await asyncio.to_thread(
+                ha_svc.get_value_at,
                 sensor_id, zeitpunkt, ha_toleranz_minuten,
                 als_stand=ist_stand_sensor_key(sensor_key),
             )
@@ -495,22 +578,23 @@ async def delta(
     if snap_von is None or snap_bis is None:
         return None
 
-    d = snap_bis - snap_von
-    if d < -TAGESRESET_TOLERANZ_KWH:
+    # Die Regel selbst steht in {@link tageswert_aus_reihe} — hier wird nur
+    # geladen und protokolliert. Bis 10.09.2026 stand sie hier ausgeschrieben,
+    # ein zweites Mal in `snapshot/aggregator._tageswert_aus_raendern`, und die
+    # beiden waren formal schon auseinander (Konstante gegen Literal).
+    zwischenstaende = [w for _ts, w in await reihe_im_fenster(
+        db, anlage_id, sensor_key, von, bis
+    )]
+    wert = tageswert_aus_reihe(snap_von, snap_bis, zwischenstaende)
+    if wert is None:
         logger.info(
-            f"Zähler-Rücksprung (negative Randdifferenz) für anlage={anlage_id} "
-            f"key={sensor_key} ({von} → {bis}): {d:.3f} kWh — keine Aussage"
+            f"Zähler-Rücksprung im Fenster für anlage={anlage_id} "
+            f"key={sensor_key} ({von} → {bis}): "
+            f"{snap_von:.3f} → {snap_bis:.3f} über {len(zwischenstaende)} "
+            f"Zwischenstände — keine Aussage"
         )
         return None
-    if await zaehler_faellt_im_fenster(
-        db, anlage_id, sensor_key, von, bis, snap_von, snap_bis
-    ):
-        logger.info(
-            f"Zähler fällt innerhalb des Fensters für anlage={anlage_id} "
-            f"key={sensor_key} ({von} → {bis}) → Reset-Zähler, keine Aussage"
-        )
-        return None
-    return max(0.0, round(d, 3))
+    return round(wert, 3)
 
 
 async def get_counter_lifetime(

@@ -541,6 +541,34 @@ export interface ReaggregateTagResponse {
   komponenten_ohne_wert: string[]
 }
 
+/**
+ * Eine Tageszeile des Wärme/Klima-Verlaufs (Konzept §8, Bauschnitt 4).
+ *
+ * ⚠ **Feldnamen deckungsgleich mit der Jahres-Reihe** — beide gehen durch
+ * dieselbe reine Funktion (`v4/waermeVerlauf.ts`): Jahr liefert Monate, Monat
+ * liefert Tage. Deshalb ein eigener Typ statt `TagWerte`: dessen `wp_strom` ist
+ * die Σ der Stundenleistungen (Leistungspfad), der Verlauf braucht den
+ * Zählerpfad — sonst passte die Grundmenge nicht zur Kachel darüber (W-17b).
+ *
+ * ⚠ **Kein `wp_waerme_abgeleitet_kwh`** — auf Tagesebene gibt es keine
+ * abgeleitete Wärme; sie entsteht an den Monatszeilen.
+ */
+export interface WaermeVerlaufTag {
+  datum: string
+  wp_strom_kwh: number | null
+  wp_waerme_kwh: number | null
+  temperatur_c: number | null
+  wp_modus_strom_heizen_kwh: number | null
+  wp_modus_strom_warmwasser_kwh: number | null
+  wp_modus_strom_kuehlen_kwh: number | null
+  wp_modus_strom_lueften_kwh: number | null
+  wp_modus_strom_entfeuchten_kwh: number | null
+  wp_modus_nicht_aufgeteilt_kwh: number | null
+  wp_modus_strom_bezug_kwh: number | null
+  wp_modus_abdeckung_h: number | null
+  wp_modus_gemessen: boolean | null
+}
+
 export const energieProfilApi = {
   getStunden: (anlageId: number, datum: string): Promise<StundenAntwort> =>
     api.get(`/energie-profil/${anlageId}/stunden?datum=${datum}`),
@@ -553,6 +581,10 @@ export const energieProfilApi = {
 
   getTageWerte: (anlageId: number, von: string, bis: string): Promise<TagWerte[]> =>
     api.get(`/energie-profil/${anlageId}/tage-werte?von=${von}&bis=${bis}`),
+
+  /** Die Tagesreihe des Wärme/Klima-Verlaufs. Zeitraum max. 31 Tage. */
+  getWaermeVerlauf: (anlageId: number, von: string, bis: string): Promise<WaermeVerlaufTag[]> =>
+    api.get(`/energie-profil/${anlageId}/waerme-verlauf?von=${von}&bis=${bis}`),
 
   getTagDetail: (anlageId: number, datum: string): Promise<TagDetail> =>
     api.get(`/energie-profil/${anlageId}/tag-detail?datum=${datum}`),

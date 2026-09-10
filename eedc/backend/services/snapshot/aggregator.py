@@ -62,9 +62,11 @@ from backend.services.snapshot.plausibility import (
 )
 from backend.services.snapshot.reader import (
     MQTT_AKTIV_TAGE,
+    TAGESRESET_TOLERANZ_KWH,
     get_snapshot,
     mqtt_zaehler_keys,
-    zaehler_faellt_im_fenster,
+    reihe_im_fenster,
+    tageswert_aus_reihe,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,7 +158,7 @@ async def _tageswert_aus_raendern(
 
     1. **Randdifferenz negativ** — der Rücksprung liegt zwischen den Rändern und
        ist an ihnen selbst ablesbar.
-    2. **Monotonie der Zwischenstände verletzt** (`zaehler_faellt_im_fenster`) —
+    2. **Monotonie der Zwischenstände verletzt** (`tageswert_aus_reihe`) —
        ein Zwischenstand liegt über dem End- oder unter dem Startstand.
 
     Weg 2 läuft **immer**, nicht nur bei verdächtig kleinem Delta. Der Grund ist
@@ -165,22 +167,25 @@ async def _tageswert_aus_raendern(
     **positiv, plausibel und still falsch**. Weg 1 sieht davon nichts, und ein
     „nur bei d ≈ 0 nachsehen" hätte ihn ebenfalls durchgelassen.
     """
-    d = s1 - s0
-    if d < -0.01:
+    # ⛔ **Hier stand die Regel bis 10.09.2026 ein ZWEITES Mal ausgeschrieben** —
+    # mit dem Literal `-0.01`, während `reader.delta` dieselbe Schwelle als
+    # Konstante `TAGESRESET_TOLERANZ_KWH` führte. Zwei Stellen, beide mit dem
+    # Anspruch „der eine Ort", formal schon auseinander: genau die F-56-Form,
+    # vor der dieser Docstring warnt. Die Regel selbst steht jetzt als reine
+    # Funktion in `reader.tageswert_aus_reihe`; hier wird geladen und
+    # protokolliert.
+    zwischenstaende = [w for _ts, w in await reihe_im_fenster(
+        db, anlage_id, sensor_key, ts_start, ts_ende
+    )]
+    wert = tageswert_aus_reihe(s0, s1, zwischenstaende)
+    if wert is None:
         logger.info(
-            f"Zähler-Rücksprung über das Tagesfenster für anlage={anlage_id} "
-            f"key={sensor_key} ({datum}): {d:.3f} → keine Tagesaussage"
+            f"Zähler-Rücksprung im Tagesfenster für anlage={anlage_id} "
+            f"key={sensor_key} ({datum}): {s0:.3f} → {s1:.3f} über "
+            f"{len(zwischenstaende)} Zwischenstände → keine Tagesaussage"
         )
         return None
-    if await zaehler_faellt_im_fenster(
-        db, anlage_id, sensor_key, ts_start, ts_ende, s0, s1
-    ):
-        logger.info(
-            f"Zähler fällt innerhalb des Tages für anlage={anlage_id} "
-            f"key={sensor_key} ({datum}) → Tagesreset-Zähler, keine Tagesaussage"
-        )
-        return None
-    return max(0.0, d)
+    return wert
 
 
 def _fill_gaps_linear(snaps_per_hour: dict[int, Optional[float]]) -> None:
@@ -384,7 +389,15 @@ async def get_hourly_kwh_by_category(
             if s0 is None or s1 is None:
                 continue  # Kategorie unvollständig für diese Stunde
             d = s1 - s0
-            if d < -0.01:
+            # ⚠ **Dieselbe Schwelle wie im Tagesfenster, aber eine ANDERE Frage**
+            # — und deshalb bewusst eine andere Antwort. Der Tag lehnt einen
+            # zurückgesetzten Zähler ab (`tageswert_aus_reihe`); der Slot über
+            # Mitternacht wertet ihn mit `s1` (der Energie seit dem Reset), weil
+            # das für DIESE Stunde die richtige Zahl ist. *Gleiche Formel,
+            # verschiedene Fenster, verschiedene Wahrheit* — s. Docstring von
+            # `_tageswert_aus_raendern`. Geteilt wird nur die **Schwelle**, seit
+            # 10.09.2026 als Konstante statt als Literal.
+            if d < -TAGESRESET_TOLERANZ_KWH:
                 # Tagesreset-Zähler (HA utility_meter mit daily cycle): s0 ≈ Tagesendwert,
                 # s1 ≈ 0 nach Mitternachts-Reset. Slot wird mit s1 (Energie seit Reset)
                 # gewertet statt verworfen, sonst bliebe Slot 0 dauerhaft None und
@@ -896,6 +909,42 @@ class TagesDetail:
     grund_je_feld: dict[str, str]
 
 
+#: **(typ, mapping-feld) → semantischer Ausgabe-Key** — die Feldmenge, die
+#: `get_tagesdetail_kwh` erhebt und die der Bereichs-Leser des Wärme/Klima-
+#: Verlaufs teilt.
+#:
+#: ⭐ **Warum sie eine Modul-Konstante ist** (10.09.2026): Sie stand als lokale
+#: Variable in `get_tagesdetail_kwh` und war damit für jeden anderen Leser
+#: unerreichbar — obwohl `core/berechnungen/waermepumpe_kennzahl.py` künftige
+#: Leser ausdrücklich hierher schickt (*„die AUSGABE-Tabelle … erweitern, damit
+#: ihn niemand neu suchen muss"*, Weg zur Tages-Kühlzahl). Der Monats-Verlauf
+#: brauchte dieselbe Menge für 28–31 Tage; eine zweite Liste hätte bedeutet,
+#: dass **Bauschnitt 6** (Kälte je Tag) an zwei Stellen gebaut werden muss.
+#:
+#: Alle Felder liegen in `KUMULATIVE_ZAEHLER_FELDER`, sind also per
+#: Boundary-Diff erhebbar. Wichtig: speicher- und emob-`ladung_netz_kwh` sind
+#: verschiedene Begriffe → getrennte Ausgabe-Keys (sonst Vermischung). Wallbox
+#: und E-Auto fließen in DENSELBEN emob-Key (Σ).
+TAGESDETAIL_AUSGABE: dict[tuple[str, str], str] = {
+    ("waermepumpe", "strom_heizen_kwh"): "wp_strom_heizen_kwh",
+    ("waermepumpe", "strom_warmwasser_kwh"): "wp_strom_warmwasser_kwh",
+    # thermische Wärme (nur mit Wärmemengenzähler-Sensor; in der Bilanz
+    # ausgeschlossen, hier für Tages-JAZ/Wärme).
+    ("waermepumpe", "heizenergie_kwh"): "wp_heizung_kwh",
+    ("waermepumpe", "warmwasser_kwh"): "wp_warmwasser_kwh",
+    ("speicher", "ladung_netz_kwh"): "speicher_ladung_netz_kwh",
+    ("wallbox", "ladung_pv_kwh"): "emob_ladung_pv_kwh",
+    ("wallbox", "ladung_netz_kwh"): "emob_ladung_netz_kwh",
+    ("e-auto", "ladung_pv_kwh"): "emob_ladung_pv_kwh",
+    ("e-auto", "ladung_netz_kwh"): "emob_ladung_netz_kwh",
+}
+
+#: Die Wärme-Ausgabekeys — die Teilmenge, die der Verlauf als Linie zeichnet.
+WAERME_AUSGABE_KEYS: frozenset[str] = frozenset(
+    {"wp_heizung_kwh", "wp_warmwasser_kwh"}
+)
+
+
 async def get_tagesdetail_kwh(
     db: AsyncSession,
     anlage,
@@ -940,23 +989,7 @@ async def get_tagesdetail_kwh(
             ts_start, ts_ende, datum,
         )
 
-    # (typ, mapping-feld) → semantischer Ausgabe-Key. Alle Felder sind in
-    # KUMULATIVE_ZAEHLER_FELDER, also per Boundary-Diff erhebbar. Wichtig: speicher-
-    # und emob-`ladung_netz_kwh` sind verschiedene Begriffe → getrennte Ausgabe-Keys
-    # (sonst Vermischung). Wallbox + E-Auto fließen in DENSELBEN emob-Key (Σ).
-    AUSGABE = {
-        ("waermepumpe", "strom_heizen_kwh"): "wp_strom_heizen_kwh",
-        ("waermepumpe", "strom_warmwasser_kwh"): "wp_strom_warmwasser_kwh",
-        # thermische Wärme (nur mit Wärmemengenzähler-Sensor; in der Bilanz
-        # ausgeschlossen, hier für Tages-JAZ/Wärme).
-        ("waermepumpe", "heizenergie_kwh"): "wp_heizung_kwh",
-        ("waermepumpe", "warmwasser_kwh"): "wp_warmwasser_kwh",
-        ("speicher", "ladung_netz_kwh"): "speicher_ladung_netz_kwh",
-        ("wallbox", "ladung_pv_kwh"): "emob_ladung_pv_kwh",
-        ("wallbox", "ladung_netz_kwh"): "emob_ladung_netz_kwh",
-        ("e-auto", "ladung_pv_kwh"): "emob_ladung_pv_kwh",
-        ("e-auto", "ladung_netz_kwh"): "emob_ladung_netz_kwh",
-    }
+    AUSGABE = TAGESDETAIL_AUSGABE
     summen: dict[str, float] = {}
     # W-18: Warum ein Ausgabe-Key FEHLT — je Key der Zustand, der ihn verhindert
     # hat. Er entsteht in **derselben** Schleife wie der Wert; eine zweite

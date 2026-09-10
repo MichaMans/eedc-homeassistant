@@ -63,6 +63,7 @@ from ._shared import (
     TagStatusResponse,
     TagesZusammenfassungResponse,
     TagWerteResponse,
+    WaermeVerlaufTagResponse,
     TagesprofilStunde,
     WochenmusterPunkt,
     _key_to_serie_info,
@@ -257,6 +258,90 @@ def _tageswert_grund_kombiniert(
     return tageswert_grund_text(grund, key)
 
 
+@router.get(
+    "/{anlage_id}/waerme-verlauf",
+    response_model=list[WaermeVerlaufTagResponse],
+)
+async def get_waerme_verlauf(
+    anlage_id: int,
+    von: date = Query(..., description="Startdatum (inklusiv)"),
+    bis: date = Query(..., description="Enddatum (inklusiv)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Die Tagesreihe des Wärme/Klima-Verlaufs für *Cockpit → Monat*.
+
+    **Warum eine eigene Route neben ``/tage-werte``** (Konzept §8, Bauschnitt 4):
+    Jene Route beliefert fünf Konsumenten — die Monats- und die Tagessicht, die
+    Auswertungen-Tabelle mit bis zu 366 Tagen und den Monatsbericht — und ihr
+    Schema ist an die Frontend-Registry gekoppelt. Ihr ``wp_strom`` ist die Σ
+    der Stundenleistungen (**Leistungspfad**); der Verlauf braucht den
+    **Zählerpfad**, weil die Kachel darüber und die Aufteilung darunter damit
+    rechnen. Zwei Zahlen für dieselbe Größe in **einem** Bild wären genau
+    W-17b, den dietmar1968 gemeldet hat.
+
+    ⚠ **Der Zeitraum ist auf einen Monat begrenzt.** Die Wärme entsteht aus
+    Zähler-Randständen; über ein Jahr wären das Reihen, die niemand für eine
+    Linie braucht — die Jahressicht hat ihre eigene Quelle (Monatszeilen).
+    """
+    result = await db.execute(select(Anlage).where(Anlage.id == anlage_id))
+    anlage = result.scalar_one_or_none()
+    if not anlage:
+        raise not_found("Anlage", anlage_id)
+
+    if (bis - von).days > 31:
+        raise bad_request("Zeitraum darf maximal 31 Tage umfassen")
+
+    from backend.services.energie_profil.waerme_verlauf import lade_waerme_verlauf
+
+    inv_result = await db.execute(
+        select(Investition).where(Investition.anlage_id == anlage_id)
+    )
+    investitionen_by_id = {str(inv.id): inv for inv in inv_result.scalars().all()}
+    zeilen = await lade_waerme_verlauf(
+        db, anlage, investitionen_by_id, von, bis,
+    )
+    return [
+        WaermeVerlaufTagResponse(
+            datum=z.datum,
+            wp_strom_kwh=z.strom_kwh,
+            wp_waerme_kwh=z.waerme_kwh,
+            temperatur_c=(
+                round(z.temperatur_c, 1) if z.temperatur_c is not None else None
+            ),
+            # ⚠ **Alles-oder-nichts je Tag** — dieselbe Bauform wie in der
+            # Tagesantwort: Wo es keine Aufteilung gibt, stehen `None` statt
+            # sechs Nullen. Eine Null sähe aus wie „nichts gelaufen", während
+            # die Kachel Strom zeigt.
+            wp_modus_strom_heizen_kwh=(
+                round(z.stapel.heizen_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_strom_warmwasser_kwh=(
+                round(z.stapel.warmwasser_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_strom_kuehlen_kwh=(
+                round(z.stapel.kuehlen_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_strom_lueften_kwh=(
+                round(z.stapel.lueften_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_strom_entfeuchten_kwh=(
+                round(z.stapel.entfeuchten_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_nicht_aufgeteilt_kwh=(
+                round(z.stapel.nicht_aufgeteilt_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_strom_bezug_kwh=(
+                round(z.stapel.bezug_kwh, 2) if z.stapel.hat_split else None
+            ),
+            wp_modus_abdeckung_h=(
+                round(z.stapel.abdeckung_h, 1) if z.stapel.hat_split else None
+            ),
+            wp_modus_gemessen=z.stapel.hat_gemessen if z.stapel.hat_split else None,
+        )
+        for z in zeilen
+    ]
+
+
 @router.get("/{anlage_id}/tag-detail", response_model=TagDetailResponse)
 async def get_tag_detail(
     anlage_id: int,
@@ -327,20 +412,13 @@ async def get_tag_detail(
     # Monatssicht summiert sie nur hinterher auf. Hier bleibt sie eine Ebene
     # früher stehen — derselbe Ladepfad, dieselbe Faltung.
     #
-    # ⚠ **Die Teilmengen-Invariante gilt hier genauso** (`teilmengen_passen`):
-    # passt ein Gerät nicht, wird es **ganz** ausgelassen statt gekappt — eine
-    # stille Kappung machte aus einem Widerspruch eine plausible Zahl.
-    from backend.core.berechnungen import (
-        abdeckung_ueber_geraete, teilmengen_passen,
-        waermepumpe_kwh_je_investition,
-    )
-    from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+    from backend.core.berechnungen import waermepumpe_kwh_je_investition
+    from backend.core.berechnungen.tages_stapel import falte_tages_stapel
     from backend.core.berechnungen.waermepumpe_kennzahl import (
         GRUND_KEIN_KUEHLBETRIEB, GRUND_KUEHLZAHL_NUR_MONAT, abgrenzungs_grund,
         ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
         arbeitszahl, arbeitszahl_je_funktion, waerme_gesamt_kwh,
     )
-    from backend.core.betriebsmodus import HEIZEN, KUEHLEN, WARMWASSER
     from backend.core.investition_parameter import (
         abgrenzung_stoerung, ist_luft_luft_waermepumpe,
     )
@@ -348,41 +426,20 @@ async def get_tag_detail(
     from backend.services.energie_profil import lade_modus_split_tag
     from backend.services.snapshot.aggregator import get_betriebsart_strom_tageswerte
 
-    heizen_tag = kuehlen_tag = rest_tag = abdeckung_tag = 0.0
-    # N-336: nur der abgeleitete Zweig fuellt sie — s. `ModusStromZeile`.
-    warmwasser_tag = 0.0
-    # W-17b: die Grundmenge, auf die sich der Balken bezieht — die Σ der
-    # Bezugsmengen der Geraete, die eine Aufteilung beigesteuert haben. Sie ist
-    # bewusst NICHT `wp_strom_tag`: dort steckt auch der Strom von Geraeten
-    # ohne Modus-Signal, der sonst als „nicht aufgeteilt" beim falschen Geraet
-    # erschiene (an einer Instanz gemessen: 96,4 statt 6,4 kWh, s. Docstring
-    # `WpFakten.modus_nicht_aufgeteilt_kwh`). Genau diese Differenz muss der
-    # Balken benennen, statt sie stumm zu lassen.
-    # E4 (Konzept §2.3, 26.08.): eigene Segmente statt stummer Restmenge.
-    lueften_tag = entfeuchten_tag = 0.0
-    bezug_tag = 0.0
-    hat_split = False
-    hat_gemessen = False
-
-    # ── Zweig 1: gemessene Betriebsart-Zähler (#263, Vorrang) ─────────────
-    #
-    # **Warum dieser Zweig hier überhaupt steht.** Er fehlte, und das war eine
-    # Lücke, keine Grenze: `wp_modus_gemessen` gab es in der Monats- und der
-    # Jahressicht, im Tag **gar nicht** — weder im Schema noch in der
-    # Erhebung. Wer die mit v4.0.24 eingeführten Betriebsart-Zähler zuordnete,
-    # sah die Aufteilung in Monat und Jahr und unter *Tag* nie. Dieselbe
-    # Blockfabrik im Frontend liest beide Felder (`KomponentenSektionen.tsx`);
-    # ohne das Flag blieb der Block dort unsichtbar.
+    # ── Zweig 1 laden: gemessene Betriebsart-Zähler (#263) ────────────────
     #
     # **Gemessen schlägt abgeleitet — ganz oder gar nicht je Gerät**
-    # (ADR-002/P8, SoT `core/berechnungen/betriebsart_gemessen.py`). Die Weiche
-    # wird **nicht** hier nachgebaut: `modus_strom_zeile` bekommt das
-    # Tages-Dict mit den **unveränderten** Feldnamen (samt Innengerät-Suffix)
-    # und löst *Gerätefeld gewinnt, sonst Σ Innengeräte* selbst auf. Genau
-    # diese Regel ein zweites Mal zu schreiben war F-56.
+    # (SOLL §6.1/F4, Invariante K2; SoT `core/berechnungen/betriebsart_gemessen.py`).
+    # Die Weiche wird **nicht** hier nachgebaut: die Feldnamen gehen
+    # **unverändert** weiter, samt Innengerät-Suffix, und `modus_strom_zeile`
+    # löst *Gerätefeld gewinnt, sonst Σ Innengeräte* selbst auf. Genau diese
+    # Regel ein zweites Mal zu schreiben war F-56.
     gemessen_je_inv = await get_betriebsart_strom_tageswerte(
         db, anlage, investitionen_by_id, datum,
     )
+    # Der Bezug je Gerät kommt aus dem **Zählerpfad** (`komponenten_kwh`), nicht
+    # aus der Stundensumme des Leistungspfads — die weicht ab, und genau daran
+    # hängt W-17b (30 kWh Balken unter einer 284-kWh-Kachel).
     wp_kwh_je_inv: dict[str, float] = {}
     if gemessen_je_inv:
         tz_komp = (await db.execute(
@@ -393,78 +450,34 @@ async def get_tag_detail(
         )).scalar_one_or_none()
         wp_kwh_je_inv = waermepumpe_kwh_je_investition(tz_komp or {})
 
-    gemessene_geraete: set[str] = set()
-    for inv_id_str, felder in gemessen_je_inv.items():
-        inv = investitionen_by_id.get(inv_id_str)
-        if inv is None or not inv.ist_aktiv_an(datum):
-            continue
-        zeile = modus_strom_zeile(felder)
-        if not zeile.gemessen:
-            continue
-        # ⚠ **Dieselbe Teilmengen-Invariante wie im abgeleiteten Zweig**
-        # (`teilmengen_passen`, Toleranz 0.5 kWh): Ohne Tages-Bezug gibt es
-        # nichts, wovon die Teilmenge eine Teilmenge wäre — und passt sie
-        # nicht, wird das Gerät **ganz** ausgelassen statt gekappt. Eine
-        # stille Kappung machte aus einem Widerspruch eine plausible Zahl.
-        bezug = wp_kwh_je_inv.get(inv_id_str)
-        if bezug is None:
-            continue
-        if zeile.heizen_kwh + zeile.kuehlen_kwh > float(bezug) + 0.5:
-            continue
-        hat_split = True
-        hat_gemessen = True
-        gemessene_geraete.add(inv_id_str)
-        bezug_tag += float(bezug)
-        heizen_tag += zeile.heizen_kwh
-        kuehlen_tag += zeile.kuehlen_kwh
-        # ⛔ **Hier stand bis zum 26.08.2026:** „Lüften/Entfeuchten haben eigene
-        # Zähler, aber kein eigenes Segment — sie fallen wie im Monat unter
-        # ‚nicht aufgeteilt' (Entscheid Gernot 2026-08-25: erst differenzieren,
-        # wenn Anwender es verlangen)."
-        #
-        # **Abgelöst durch E4** (Konzept §2.3, Entscheid Gernot 26.08.): *„Lüften
-        # und Entfeuchten sind erfassbar, aber keine bewertete Funktion — sie
-        # **erscheinen in der Aufteilung**, bekommen aber keine Kennzahl."* Der
-        # frühere Entscheid war eine Umfangs-Abwägung ohne Konzept; jetzt gibt es
-        # eines, und es sagt zur selben Frage etwas anderes. Der Zustand davor
-        # war die P-6-Falle: ein Feld anbieten, den Wert entgegennehmen und ihn
-        # nirgends zeigen.
-        lueften_tag += zeile.lueften_kwh
-        entfeuchten_tag += zeile.entfeuchten_kwh
-        rest_tag += max(
-            0.0,
-            float(bezug) - zeile.heizen_kwh - zeile.kuehlen_kwh
-            - zeile.lueften_kwh - zeile.entfeuchten_kwh,
-        )
-
-    # ── Zweig 2: aus dem Betriebsmodus abgeleitet ─────────────────────────
-    for inv_id_str, split in (await lade_modus_split_tag(db, anlage_id, datum)).items():
-        # Gemessen schlägt abgeleitet: ein Gerät, das oben schon gezählt hat,
-        # darf hier nicht ein zweites Mal beitragen.
-        if inv_id_str in gemessene_geraete:
-            continue
-        inv = investitionen_by_id.get(inv_id_str)
-        if inv is None or not inv.ist_aktiv_an(datum):
-            continue
-        if not teilmengen_passen(split, split.bezug_kwh):
-            continue
-        hat_split = True
-        bezug_tag += float(split.bezug_kwh or 0.0)
-        heizen_tag += split.teilmenge_kwh(HEIZEN)
-        kuehlen_tag += split.teilmenge_kwh(KUEHLEN)
-        warmwasser_tag += split.teilmenge_kwh(WARMWASSER)
-        rest_tag += max(
-            0.0,
-            float(split.bezug_kwh or 0.0)
-            - split.teilmenge_kwh(HEIZEN) - split.teilmenge_kwh(KUEHLEN)
-            - split.teilmenge_kwh(WARMWASSER),
-        )
-        # W-17: Die Schleife laeuft ueber die GERAETE des Tages. Zwei
-        # Waermepumpen mit je 18 erfassten Stunden ergeben nicht 36 Stunden
-        # Erkenntnis, sondern hoechstens 18 — ein Tag hat 24. Genau diese Zahl
-        # hat dietmar1968 gemeldet (T89667 #210). Die Regel steht im
-        # Layer-SoT, nicht hier: sie gilt an drei Stellen.
-        abdeckung_tag = abdeckung_ueber_geraete(abdeckung_tag, split.abdeckung_h)
+    # ⭐ **Die Zusammenführung beider Zweige steht seit dem 10.09.2026 im Layer**
+    # (`core/berechnungen/tages_stapel.py`) und nicht mehr hier. Auslöser war der
+    # Monats-Verlauf (Konzept Wärme/Klima §8, Bauschnitt 4): Er braucht denselben
+    # Stapel für 28–31 Tage, und in einer Route ist er für ihn unerreichbar. Ihn
+    # dort ein zweites Mal hinzuschreiben wäre F-56 gewesen — die Probe
+    # `test_263_t3_gemessene_betriebsart_tag.py` sagt im Kopf, warum das teuer
+    # ist: *„die beiden Zweige treffen sich in `get_tag_detail`, die
+    # Vorrang-Regel ist nur im Paar prüfbar."*
+    #
+    # **Geladen wird weiter hier, gefaltet wird dort** — dieselbe Bauform wie
+    # `_lade_tages_eingaenge` neben `falte_modus_split_tag`.
+    stapel = falte_tages_stapel(
+        gemessen_je_inv,
+        wp_kwh_je_inv,
+        await lade_modus_split_tag(db, anlage_id, datum),
+        investitionen_by_id,
+        datum,
+    )
+    heizen_tag = stapel.heizen_kwh
+    kuehlen_tag = stapel.kuehlen_kwh
+    warmwasser_tag = stapel.warmwasser_kwh
+    lueften_tag = stapel.lueften_kwh
+    entfeuchten_tag = stapel.entfeuchten_kwh
+    rest_tag = stapel.nicht_aufgeteilt_kwh
+    bezug_tag = stapel.bezug_kwh
+    abdeckung_tag = stapel.abdeckung_h
+    hat_split = stapel.hat_split
+    hat_gemessen = stapel.hat_gemessen
 
     # ── Wärme gesamt + Arbeitszahl des Tages, beide aus dem Layer ──────────
     #

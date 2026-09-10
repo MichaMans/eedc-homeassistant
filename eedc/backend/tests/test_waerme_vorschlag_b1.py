@@ -1,5 +1,8 @@
 """B1 — der Wärme-Vorschlag rechnet mit dem Strom derselben Funktion und sagt, dass er schätzt.
 
+Schwesterdateien: ``test_waerme_verlauf_bereichs_leser.py`` (die Wärme je Tag),
+``test_soll_waerme_klima_achse3_aufloesung.py`` (was je Auflösung entstehen kann).
+
 SOLL Wärme/Klima §6, Präzisierung F2–F5 (05.09.2026): abgeleitete Wärme ist als
 **gekennzeichnete Schätzung** zulässig, nie Kennzahl-Basis — und sie entsteht nur
 aus dem Strom derselben Funktion. Gemessen am Code vom 05.09.: (1) ohne getrennte
