@@ -141,6 +141,12 @@ export interface AktuellerMonatResponse {
   wp_jaz_nenner_kwh?: number | null
   /** Ist ein Teil der Wärme aus `Strom × JAZ` gerechnet statt gemessen? */
   wp_waerme_abgeleitet?: boolean | null
+  /** **Wie viel** davon gerechnet ist. Das Flag darüber sagt „irgendein Teil"
+   *  und ist für die **Kennzahl** richtig so (alles-oder-nichts, sonst käme
+   *  gemessene Wärme ÷ Gesamtstrom heraus). Für eine **Menge** — etwa die
+   *  Wärmelinie im Verlauf, die nur Gemessenes zeigen darf — ist die Differenz
+   *  `wp_waerme_kwh − wp_waerme_abgeleitet_kwh` die richtige Größe. */
+  wp_waerme_abgeleitet_kwh?: number | null
   /** B4 (C-2): Herkunft der Wärme („gemessen" | „geschätzt: Strom × JAZ 3,5") und der
    *  Vorbehalt an Ersparnis/CO₂ — fertig aus dem Layer, dieselben Worte wie im Hub. */
   wp_waerme_herkunft?: string | null

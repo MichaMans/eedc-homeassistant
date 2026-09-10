@@ -181,6 +181,12 @@ async def test_c2_monat_traegt_herkunft_und_vorbehalt(db):
     assert m.wp_waerme_abgeleitet is True
     assert m.wp_waerme_herkunft == "geschätzt: Strom × JAZ 3,5"
     assert m.wp_ersparnis_vorbehalt == VORBEHALT_ABGELEITET
+    # Konzept Wärme/Klima §8/E7: Neben dem Flag steht die MENGE. Das Flag sagt
+    # „irgendein Teil irgendeines Geräts" und ist für die Kennzahl richtig so
+    # (alles-oder-nichts, `jaz_belastbar`); eine Menge — die Wärmelinie im
+    # Verlauf zeigt nur Gemessenes — braucht die Differenz. Hier ist die ganze
+    # Wärme geschätzt, also deckt der abgeleitete Anteil sie vollständig.
+    assert m.wp_waerme_abgeleitet_kwh == pytest.approx(m.wp_waerme_kwh)
 
     b = await _anlage(db, "C-2 F12")
     await _geraet(db, b, *SPROSSEN["F12_bivalent"])

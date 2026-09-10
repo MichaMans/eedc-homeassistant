@@ -34,12 +34,13 @@ import { BlockShell, BlockStackSkeleton, KpiStrip, type Block, type KpiStripItem
 import { ParkProvider, ParkFuss, Parkbar, usePark } from '../components/park'
 import ZaehlerstaendeBlock, { useZaehlerstaende, zaehlerParkIds } from '../components/zaehler/ZaehlerstaendeBlock'
 import { useApiData, useScrollErhalt } from '../hooks'
-import { BLOCK_IDENTITAET, formatCo2 } from '../lib'
+import { BLOCK_IDENTITAET, formatCo2, MONAT_KURZ } from '../lib'
 import { baueJahrKpis, JahrBilanz } from './JahrBilanz'
 import { monatBilanzParkIds } from './bilanzParkIds'
 import { baueKomponentenBloecke } from './KomponentenSektionen'
 import { finanzTeaserBlock } from './MonatRahmen'
 import { JahrVerlaufChart, baueJahrChartDaten } from './JahrVerlaufChart'
+import type { WaermeVerlaufPunkt } from './waermeVerlauf'
 import { JahrCo2Chart, baueJahrCo2ChartDaten, co2JahresSumme, CO2_TABELLEN_SPALTEN } from './JahrCo2Chart'
 import { JahrSpeicherTabelle, baueSpeicherZeilen, jahrSpeicherParkIds } from './JahrSpeicherTabelle'
 import { verlaufTabellenSpalten } from './verlaufVergleich'
@@ -195,6 +196,29 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
   const jahrVglData = jahrQ.data?.dVgl ?? null
   // #358: die Monats-Antworten des Jahres für den Speicher-Block.
   const jahrAntworten = useMemo(() => jahrQ.data?.antworten ?? [], [jahrQ.data])
+  // Wärme/Klima-Verlauf (Konzept §8): x = Monate des Jahres. Die Reihe kommt aus
+  // DENSELBEN Monats-Antworten, aus denen `d` gefaltet ist — kein zusätzlicher
+  // Abruf und keine zweite Wahrheit, wie schon bei der Speicher-Monatstabelle.
+  const wpVerlauf = useMemo<WaermeVerlaufPunkt[]>(
+    () => [...jahrAntworten]
+      .sort((a, b) => a.monat - b.monat)
+      .map((m) => ({
+        name: MONAT_KURZ[m.monat],
+        wp_strom_kwh: m.wp_strom_kwh,
+        wp_waerme_kwh: m.wp_waerme_kwh,
+        wp_waerme_abgeleitet_kwh: m.wp_waerme_abgeleitet_kwh,
+        wp_modus_strom_heizen_kwh: m.wp_modus_strom_heizen_kwh,
+        wp_modus_strom_warmwasser_kwh: m.wp_modus_strom_warmwasser_kwh,
+        wp_modus_strom_kuehlen_kwh: m.wp_modus_strom_kuehlen_kwh,
+        wp_modus_strom_lueften_kwh: m.wp_modus_strom_lueften_kwh,
+        wp_modus_strom_entfeuchten_kwh: m.wp_modus_strom_entfeuchten_kwh,
+        wp_modus_nicht_aufgeteilt_kwh: m.wp_modus_nicht_aufgeteilt_kwh,
+        wp_modus_gemessen: m.wp_modus_gemessen,
+        wp_modus_abdeckung_h: m.wp_modus_abdeckung_h,
+        wp_modus_strom_bezug_kwh: m.wp_modus_strom_bezug_kwh,
+      })),
+    [jahrAntworten],
+  )
   const speicherZeilen = useMemo(() => baueSpeicherZeilen(jahrAntworten), [jahrAntworten])
   const loading = monateQ.loading || (jahr != null && jahrQ.loading)
   const reloading = jahrQ.reloading
@@ -443,7 +467,7 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
         ),
       }]),
       ...(co2Block ? [co2Block] : []),
-      ...(d ? baueKomponentenBloecke(d, park, 'jahr') : []),
+      ...(d ? baueKomponentenBloecke(d, park, 'jahr', null, wpVerlauf) : []),
       // #358 Phase 1 — die Tiefe unter dem Speicher-Abschnitt: Monatstabelle
       // (Vollzyklen · Solar-Anteil · Auslastung · Netto-Nutzen) + Saison-
       // Vergleich. Nur wenn überhaupt ein Speicher Bewegung hatte; die Zeilen
@@ -471,7 +495,7 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
       ...(finanzBlock ? [finanzBlock] : []),
     ]
   }, [jahr, jahrData, jahrVglData, vorjahr, oeJahr, vjFenster, ojFenster, istFenster,
-      kennzahlenFenster, monatsZeilen, park, jahrAntworten, speicherZeilen,
+      kennzahlenFenster, monatsZeilen, park, jahrAntworten, wpVerlauf, speicherZeilen,
       co2Punkte, co2Monate.length, co2Kumuliert, co2Fehler, co2Reload, zaehlerstaende,
       co2Q.data])
 

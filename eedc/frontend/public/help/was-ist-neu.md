@@ -11,6 +11,46 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Wärme/Klima im Jahr: endlich zu sehen, WANN etwas passiert ist**
+
+Der Wärme/Klima-Block unter *Cockpit → Jahr* zeigte bisher nur Summen — wie viel
+Strom, wie viel Wärme, wie sie sich aufteilen. Wann im Jahr das passiert ist,
+stand nirgends.
+
+Jetzt steht dort ein **Verlauf über die Monate**: unten der Strom, gestapelt nach
+Betriebsart (Heizen, Warmwasser, Kühlen und, falls du sie erfasst, Lüften und
+Entfeuchten), darüber die **gemessene Wärme** als Linie. Ein Klick in die Legende
+blendet eine Reihe aus, wenn sie stört.
+
+Der Sinn liegt in der Kombination: Ein reiner Stromverlauf sagt dir, wann viel
+verbraucht wurde. Erst Strom **und** Wärme im selben Bild zeigen, ob ein
+verbrauchsstarker Monat auch entsprechend viel Wärme gebracht hat — oder eben
+nicht.
+
+**Die Wärmelinie zeigt nur Gemessenes.** Wenn eedc die Wärme mangels
+Wärmemengenzähler aus *Strom × Arbeitszahl* schätzt, bleibt die Linie dort
+unterbrochen. Das ist Absicht: Eine geschätzte Wärme ist immer ein festes
+Vielfaches des Stroms und hätte haargenau die Form der Fläche darunter — sie
+sähe aus wie eine zweite Messung, ohne eine zu sein. Die geschätzte Menge steht
+weiterhin in der Kachel, mit dem Vermerk, woher sie kommt.
+
+**Betrifft dich das?** Jeden mit Wärmepumpe oder Klimaanlage.
+**Was du tun musst:** nichts. Der Block ist wie jeder andere verschiebbar,
+fokussierbar und parkbar.
+
+⚠ **Zwei Dinge, die dir auffallen könnten.** Steht unter dem Verlauf
+*„Aufgeteilte Menge 30 von 284 kWh"*, dann beschreibt der Stapel nur die Geräte,
+bei denen eedc die Betriebsart erkennt — die Kachel darüber zählt alle. Und wer
+gar keine Betriebsart erfasst, sieht **keinen** Stapel statt einer Reihe von
+Nullen.
+
+⚑ **Die Außentemperatur kommt noch.** Sie ist als zweite Linie vorgesehen — sehr
+nützlich, weil ein kalter Monat mehr Strom braucht, ohne dass die Anlage
+schlechter arbeitet. Beim Bau hat sich gezeigt, dass der Monats-Temperaturwert
+seit einiger Zeit nicht mehr automatisch geholt wird; das reparieren wir zuerst.
+
+---
+
 **Ein Zähler, der null meldet, ist kein fehlender Zähler**
 
 Wer Heizwärme und Warmwasser getrennt misst, sah unter *Cockpit → Tag* an einem

@@ -21,6 +21,8 @@ import { Parkbar, NOOP_PARK, type ParkApi } from '../components/park'
 // N-327: der Wortlaut zu „Nicht aufgeteilt" steht genau einmal — in der
 // SoT-Komponente des Komponenten-Hubs, nicht als Kopie hier.
 import { ModusSplitErklaerung } from '../components/waermepumpe'
+import { WaermeVerlaufChart } from './WaermeVerlaufChart'
+import { baueWaermeVerlauf, type WaermeVerlaufPunkt } from './waermeVerlauf'
 import {
   KOMPONENTEN_IDENTITAET, INVESTITION_TYP_ORDER, SONSTIGES_ERZEUGER_FARBE, ROLLEN_BG,
   SPEICHER_KPI, WP_KPI, EAUTO_KPI, BKW_KPI,
@@ -216,6 +218,12 @@ export function baueKomponentenBloecke(
    *  weil er aus den Stundenwerten stammt und keine Summe ist. Monat/Jahr geben
    *  `null`; ein Monats-Mittel über SoC-Stände wäre eine Zahl ohne Aussage. */
   socTag?: { min: number; max: number; ende: number } | null,
+  /** Die Perioden-Reihe für den Wärme/Klima-Verlauf (Konzept Wärme/Klima §8).
+   *  Nur die Sicht kennt sie — das Aggregat `d` ist eine Summe und hat keine
+   *  Zeitachse. Gleiche Bauform wie `socTag` darüber: ein zusätzlicher
+   *  Eingang, ohne den sich nichts ändert. Jahr liefert Monate, später Monat
+   *  die Tage und Tag die Stunden. */
+  wpVerlauf?: WaermeVerlaufPunkt[] | null,
 ): Block[] {
   const istTag = periode === 'tag'
   const bloecke: Block[] = []
@@ -485,6 +493,36 @@ export function baueKomponentenBloecke(
     // Wärme-Aufteilung Heizung/Warmwasser (VerteilungsBalken, B7) + Strom-Split (Detail)
     // + Geräte-Hinweis — je ein parkbares Element.
     const wpEls: SektionElement[] = []
+    // ── Verlauf (Konzept Wärme/Klima §8) ──────────────────────────────────
+    // Reihenfolge im Block: **Kacheln → Verlauf → Aufteilung**. Der Verlauf ist
+    // ein neues Element, kein Umbau — die Aufteilungs-Balken darunter bleiben,
+    // wo sie waren.
+    //
+    // ⚠ **Der Stapel summiert auf die Aufteilungs-Grundmenge, nicht auf die
+    // Kachel „Strom verbraucht"** — `modus_strom_bezug_kwh` zählt nur Geräte
+    // mit Aufteilung. Genau dafür trägt der Balken darunter seit W-17b die
+    // Zeile „Aufgeteilte Menge" (dietmar1968 sah 30 kWh Balken unter 284 kWh
+    // Kachel). Der Verlauf erbt sie, statt eine zweite Antwort zu erfinden.
+    const verlauf = wpVerlauf && wpVerlauf.length > 0 ? baueWaermeVerlauf(wpVerlauf) : null
+    if (verlauf && (verlauf.hatStapel || verlauf.hatGemesseneWaerme)) wpEls.push({
+      id: 'el:wp-verlauf',
+      // W-8 — der Titel nennt die Größen, nicht nur „Verlauf": im Block liegen
+      // gleich darunter zwei Balken mit denselben Farben und anderer Einheit.
+      titel: verlauf.hatGemesseneWaerme
+        ? (verlauf.hatStapel ? 'Verlauf · Strom nach Betriebsart und gemessene Wärme' : 'Verlauf · gemessene Wärme')
+        : 'Verlauf · Strom nach Betriebsart',
+      node: (
+        <div className="space-y-3">
+          <WaermeVerlaufChart rows={verlauf.rows} stapel={verlauf.stapel} linien={verlauf.linien} />
+          {verlauf.hatStapel && Math.abs(verlauf.bezugKwh - verlauf.stromKwh) > 0.05 && (
+            <DetailListe rows={[{
+              label: 'Aufgeteilte Menge',
+              wert: `${fmt(verlauf.bezugKwh)} von ${fmt(verlauf.stromKwh)} kWh`,
+            }]} />
+          )}
+        </div>
+      ),
+    })
     if (hat(d.wp_heizung_kwh) || hat(d.wp_warmwasser_kwh)) wpEls.push({
       id: 'el:wp-aufteilung', titel: 'Wärme-Aufteilung',
       node: <VerteilungsBalken segmente={[

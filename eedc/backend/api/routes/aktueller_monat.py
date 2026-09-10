@@ -325,6 +325,21 @@ class AktuellerMonatResponse(BaseModel):
     #: Gleicher Name wie im Komponenten-Hub (`KomponentenMonat`), damit dieselbe
     #: Größe in beiden Sichten gleich heißt (S1).
     wp_waerme_abgeleitet: bool = False
+    #: **Wie viel** davon gerechnet ist — die Menge neben dem Flag darüber.
+    #:
+    #: ⚠ Das Flag beantwortet „ist *irgendein* Teil gerechnet?" und ist damit
+    #: für eine **Kennzahl** die richtige Auskunft: `jaz_belastbar`
+    #: (`monats_fakten.py`) sperrt alles-oder-nichts, und zwar mit Grund —
+    #: gemessene Wärme durch den **Gesamt**strom geteilt gäbe eine zu kleine
+    #: JAZ, also falsch statt unbekannt.
+    #:
+    #: ⭐ Für eine **Menge** gilt das nicht. Ein Verlauf, der nur gemessene
+    #: Wärme zeigen soll (Konzept Wärme/Klima §8/E7, SOLL §3.3), braucht
+    #: `waerme_kwh − waerme_abgeleitet_kwh` — und das ist bei gemischter Lage
+    #: (Wärmepumpe mit Wärmemengenzähler + Klimaanlage ohne) eine ganz andere
+    #: Aussage als das Flag: dort ist der größte Teil der Wärme gemessen,
+    #: während das Flag bereits True ist. **Zwei Objekte, zwei Regeln.**
+    wp_waerme_abgeleitet_kwh: Optional[float] = None
     # B4 (05.09.2026, C-2): Herkunft der Wärme und Vorbehalt an Ersparnis/CO₂,
     # fertig formuliert aus dem Layer (`waermepumpe_kennzahl.waerme_herkunft` /
     # `ersparnis_vorbehalt`) — dieselben Worte wie im Komponenten-Hub (B3).
@@ -2706,6 +2721,12 @@ async def get_aktueller_monat(
         wp_jaz_zaehler_kwh=wp_arbeitszahl.zaehler_kwh,
         wp_jaz_nenner_kwh=wp_arbeitszahl.nenner_kwh,
         wp_waerme_abgeleitet=wp_waerme_abgeleitet_kwh > 0,
+        # Die Menge nur, wo es überhaupt Wärme gibt — sonst stünde eine 0
+        # neben einem „—" und sähe aus wie „nichts gerechnet" statt „nichts
+        # gemessen". Gleiche Rundung wie `wp_waerme_kwh` daneben.
+        wp_waerme_abgeleitet_kwh=(
+            round(wp_waerme_abgeleitet_kwh, 2) if wp_waerme is not None else None
+        ),
         wp_waerme_herkunft=wp_waerme_herkunft,
         wp_ersparnis_vorbehalt=wp_ersparnis_vorbehalt,
         wp_ersparnis_berechnung=wp_ersparnis_berechnung_text,

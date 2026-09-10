@@ -212,6 +212,36 @@ export const CHART_COLORS = {
   speicherZyklen: '#8b5cf6',     // Vollzyklen-Verlauf
   wpWarmwasser: '#3b82f6',       // WP-Warmwasser = blau (Gernot 2026-06-25 nach detLAN: „Wasser=blau" — Tester-Wunsch übersteuert die kurzzeitige rot-400-Variante). Heizung = wpWaerme (rot)
   emobV2h: '#06b6d4',            // Vehicle-to-Home-Rückspeisung
+  // ── Betriebsarten der Wärme/Klima-Geräte (Chart-Zwillinge zu {@link ROLLEN_BG}) ──
+  //
+  // ⭐ **Keine neuen Farbentscheidungen** — die Töne sind unten bei `ROLLEN_BG`
+  // samt Begründung gefallen (#263 K-2 für Kühlung, E4 für Lüften/Entfeuchten).
+  // Hier stehen nur ihre Hex-Zwillinge, weil ein Chart `fill`/`stroke` braucht
+  // und keine Tailwind-Klasse. Ohne sie hätte der Verlauf im Wärme/Klima-Block
+  // eigene Werte erfunden — genau die Drift, gegen die Regel 0a gebaut ist.
+  // `heizung` und `warmwasser` brauchen keinen Eintrag: das sind `wpWaerme`
+  // (red-500) und `wpWarmwasser` (blue-500) darüber, identisch mit `ROLLEN_BG`.
+  //
+  // ⚠ `modusKuehlen` teilt den Hexwert mit `niederschlag` (beide sky-500). Das
+  // ist hingenommen und keine Verwechslung: Wetter- und Betriebsart-Serien
+  // treffen in keinem Chart aufeinander, und der Ton der Kühlung ist gegen
+  // `blue` (Warmwasser) und `cyan` (Wallbox) bewusst gewählt worden.
+  // Die **gemessene Nutzwärme** als Linie über dem Strom-Stapel (Konzept
+  // Wärme/Klima §8). Sie braucht einen eigenen Ton und darf NICHT `wpWaerme`
+  // (rot) sein: Rot ist in dieser Fläche die **Funktion Heizen** — sowohl im
+  // Wärme- als auch im Strom-Balken (`ROLLEN_BG.heizung`). Die Linie ist aber
+  // eine Menge **über alle Funktionen** (Heizen + Warmwasser); rot hieße dort
+  // „das ist Heizung", und sie läge unlesbar auf dem gleichfarbigen Segment.
+  //
+  // ⭐ Orange ist kein neuer Ton, sondern ein **freigewordener**: es war bis
+  // zur Regel-A-Umstellung die Farbe der WP-Heizwärme (siehe `ROLLEN_BG.heizung`:
+  // „war orange"). In diesem Chart kommt keine der drei Rollen vor, die es
+  // sonst trägt (`wpCop`, `direktverbrauch`, `speicherLadung`).
+  waermeGemessen: '#f97316',        // Orange-500
+  modusKuehlen: '#0ea5e9',          // = ROLLEN_BG.kuehlung (sky-500)
+  modusLueften: '#818cf8',          // = ROLLEN_BG.lueftung (indigo-400)
+  modusEntfeuchten: '#4f46e5',      // = ROLLEN_BG.entfeuchtung (indigo-600)
+  modusNichtAufgeteilt: '#9ca3af',  // = ROLLEN_BG.nicht_aufgeteilt (gray-400)
 }
 
 /** Börsenpreis-Stufen (#335) — EINE Datenrolle (Strompreis), nach Preisniveau abgestuft.
