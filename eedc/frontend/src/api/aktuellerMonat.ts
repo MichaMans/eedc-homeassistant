@@ -141,6 +141,10 @@ export interface AktuellerMonatResponse {
   wp_jaz_nenner_kwh?: number | null
   /** Ist ein Teil der Wärme aus `Strom × JAZ` gerechnet statt gemessen? */
   wp_waerme_abgeleitet?: boolean | null
+  /** Steht mindestens eine hier gesperrte Kennzahl im Komponenten-Hub?
+   *  Die Entscheidung fällt im Layer (`GRUENDE_HUB_HILFT`) — der Client
+   *  vergleicht bewusst keine Grund-Texte. */
+  wp_hub_hilft?: boolean | null
   /** **Wie viel** davon gerechnet ist. Das Flag darüber sagt „irgendein Teil"
    *  und ist für die **Kennzahl** richtig so (alles-oder-nichts, sonst käme
    *  gemessene Wärme ÷ Gesamtstrom heraus). Für eine **Menge** — etwa die

@@ -84,6 +84,12 @@ export interface AggregierteMonatsdaten {
   netzbezug_kwh: number
   globalstrahlung_kwh_m2: number | null
   sonnenstunden: number | null
+  /** Monatsmittel der Außentemperatur (°C) — die zweite Linie des
+   *  Wärme/Klima-Verlaufs. **Nicht** das Formularfeld
+   *  `durchschnittstemperatur`: das ist seit dem V4-Flip leer (N-426). Der
+   *  Wert kommt aus den eigenen Messreihen (Stundenwerte, sonst Tages-Min/Max);
+   *  Vorrangkette in `services/mitteltemperatur.py`. `null` = keine Spur. */
+  durchschnittstemperatur_c?: number | null
   // Dynamischer Monats-Ø-Netzbezugspreis (Flex-Tarif). null = kein Flex-Wert
   // → Fallback auf statischen Tarif, gleiche Quelle wie Cockpit (#326).
   netzbezug_durchschnittspreis_cent?: number | null

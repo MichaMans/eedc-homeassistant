@@ -12,7 +12,7 @@
  * Aktiv-Gating: ein Block erscheint nur, wenn die Komponente im Monat Daten hat.
  */
 import type { ReactNode } from 'react'
-import { Battery, TrendingUp, TrendingDown, Plug, Power, Clock } from 'lucide-react'
+import { Battery, TrendingUp, TrendingDown, Plug, Power, Clock, ExternalLink } from 'lucide-react'
 import { fmtCalc } from '../components/ui'
 import FormelTooltip from '../components/ui/FormelTooltip'
 import QuelleBadge from '../components/ui/QuelleBadge'
@@ -508,12 +508,15 @@ export function baueKomponentenBloecke(
       id: 'el:wp-verlauf',
       // W-8 — der Titel nennt die Größen, nicht nur „Verlauf": im Block liegen
       // gleich darunter zwei Balken mit denselben Farben und anderer Einheit.
+      // W-8 — der Titel nennt, was wirklich drinsteht. Die Temperatur ist
+      // Kontext, keine Größe der Anlage; sie steht deshalb nicht im Titel.
       titel: verlauf.hatGemesseneWaerme
         ? (verlauf.hatStapel ? 'Verlauf · Strom nach Betriebsart und gemessene Wärme' : 'Verlauf · gemessene Wärme')
         : 'Verlauf · Strom nach Betriebsart',
       node: (
         <div className="space-y-3">
-          <WaermeVerlaufChart rows={verlauf.rows} stapel={verlauf.stapel} linien={verlauf.linien} />
+          <WaermeVerlaufChart rows={verlauf.rows} stapel={verlauf.stapel} linien={verlauf.linien}
+            rechteEinheit="°C" />
           {verlauf.hatStapel && Math.abs(verlauf.bezugKwh - verlauf.stromKwh) > 0.05 && (
             <DetailListe rows={[{
               label: 'Aufgeteilte Menge',
@@ -607,6 +610,29 @@ export function baueKomponentenBloecke(
     })
     const wpGeraete = geraeteNamen(d, 'waermepumpe')
     if (wpGeraete.length >= 2) wpEls.push({ id: 'el:wp-geraete', titel: 'Geräte-Hinweis', node: <GeraeteHinweis namen={wpGeraete} /> })
+    // ── Weg zu den Gerätezahlen (Konzept §4, SOLL §3.3/S3) ────────────────
+    // S3 sagt: Eine Sicht, die weniger zeigt, sagt **warum**. Der Link ist die
+    // Fortsetzung — sie sagt auch **wo es steht**. Bis hierher hatte die
+    // Blockfabrik NULL Cross-Links; der Grund stand da, der Weg nicht.
+    //
+    // ⛔ **Nicht bei jeder gesperrten Kennzahl.** Der Hub rechnet je Gerät und
+    // sperrt bei einer gemeldeten Abgrenzungs-Störung, bei abgeleiteter Wärme
+    // und bei fehlendem Zähler **genauso**. Ein Link dorthin wäre ein
+    // vergeblicher Weg — schlechter als keiner. Welche Gründe der Hub wirklich
+    // beantwortet, entscheidet der Layer (`GRUENDE_HUB_HILFT`); der Client
+    // vergleicht keine Grund-Texte, sonst stünde dieselbe Regel an zwei Orten.
+    if (d.wp_hub_hilft) wpEls.push({
+      id: 'el:wp-hub-link', titel: 'Zahlen je Gerät',
+      node: (
+        <a href="#/komponenten/waermepumpe"
+           className="inline-flex items-center gap-1 text-sm text-primary-700 dark:text-primary-300 hover:underline">
+          <ExternalLink className="h-4 w-4" />
+          {wpGeraete.length >= 2
+            ? 'Arbeitszahlen je Gerät im Komponenten-Hub'
+            : 'Arbeitszahl je Gerät im Komponenten-Hub'} →
+        </a>
+      ),
+    })
     if (!alleGeparkt(park, wpKpis, wpEls)) bloecke.push({
       id: 'k-waermepumpe', title: KOMPONENTEN_IDENTITAET['waermepumpe'].label, ...ident('waermepumpe'), defaultOpen: false,
       // Summary aus den vorhandenen Werten (Wärme/JAZ wenn da — Monat/Jahr/Tag-mit-WMZ;

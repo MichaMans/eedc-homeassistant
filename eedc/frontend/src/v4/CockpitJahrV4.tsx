@@ -200,10 +200,19 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
   // DENSELBEN Monats-Antworten, aus denen `d` gefaltet ist — kein zusätzlicher
   // Abruf und keine zweite Wahrheit, wie schon bei der Speicher-Monatstabelle.
   const wpVerlauf = useMemo<WaermeVerlaufPunkt[]>(
-    () => [...jahrAntworten]
+    () => {
+      // Die Temperatur kommt aus der aggregierten Monatsliste (`monateQ`), die
+      // Mengen aus den Monats-Antworten — zwei Quellen, aber kein zusätzlicher
+      // Abruf: Beide liegen für diese Sicht ohnehin geladen vor.
+      const tempJeMonat = new Map(
+        alleMonate.filter((m) => m.jahr === jahr)
+          .map((m) => [m.monat, m.durchschnittstemperatur_c ?? null]),
+      )
+      return [...jahrAntworten]
       .sort((a, b) => a.monat - b.monat)
       .map((m) => ({
         name: MONAT_KURZ[m.monat],
+        temperatur_c: tempJeMonat.get(m.monat) ?? null,
         wp_strom_kwh: m.wp_strom_kwh,
         wp_waerme_kwh: m.wp_waerme_kwh,
         wp_waerme_abgeleitet_kwh: m.wp_waerme_abgeleitet_kwh,
@@ -216,8 +225,9 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
         wp_modus_gemessen: m.wp_modus_gemessen,
         wp_modus_abdeckung_h: m.wp_modus_abdeckung_h,
         wp_modus_strom_bezug_kwh: m.wp_modus_strom_bezug_kwh,
-      })),
-    [jahrAntworten],
+      }))
+    },
+    [jahrAntworten, alleMonate, jahr],
   )
   const speicherZeilen = useMemo(() => baueSpeicherZeilen(jahrAntworten), [jahrAntworten])
   const loading = monateQ.loading || (jahr != null && jahrQ.loading)

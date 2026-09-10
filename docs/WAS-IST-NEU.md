@@ -31,6 +31,12 @@ weiterhin der Grund.
 **Betrifft dich das?** Jeden mit mehr als einem Wärme-/Klimagerät.
 **Was du tun musst:** nichts.
 
+Und wo eine Zahl weiterhin fehlt, weil sie wirklich mehrere Geräte vermischt,
+steht jetzt ein **Link zu *Komponenten → Wärme/Klima*** darunter — dort rechnet
+eedc je Gerät. ⚠ Der Link erscheint nur, wenn dort auch wirklich etwas steht:
+Fehlt der Wärmemengenzähler oder hast du eine Abgrenzungs-Störung gepflegt,
+schweigt der Hub aus demselben Grund, und dann schicken wir dich nicht hin.
+
 ⚠ **Wo eedc weiterhin schweigt:** wenn du eine *Abgrenzungs-Störung* gepflegt
 hast (Heizstab auf dem Wärmepumpen-Zähler, zweiter Erzeuger am Wärmekreis).
 Diese Angabe sagt nicht, welche Funktion betroffen ist — also gibt eedc keine
@@ -90,10 +96,16 @@ bei denen eedc die Betriebsart erkennt — die Kachel darüber zählt alle. Und 
 gar keine Betriebsart erfasst, sieht **keinen** Stapel statt einer Reihe von
 Nullen.
 
-⚑ **Die Außentemperatur kommt noch.** Sie ist als zweite Linie vorgesehen — sehr
-nützlich, weil ein kalter Monat mehr Strom braucht, ohne dass die Anlage
-schlechter arbeitet. Beim Bau hat sich gezeigt, dass der Monats-Temperaturwert
-seit einiger Zeit nicht mehr automatisch geholt wird; das reparieren wir zuerst.
+⭐ **Und die Außentemperatur liegt als zweite Linie darüber** — mit eigener
+Skala rechts, ein Klick in die Legende blendet sie aus. Sie ist der Schlüssel
+zum Einordnen: Ein kalter Monat braucht mehr Strom, ohne dass deine Anlage
+schlechter arbeitet. Ohne diese Linie sieht ein kalter Januar aus wie ein
+Effizienzproblem.
+
+Die Werte kommen aus eedcs **eigenen Messreihen** — den Stundenwerten, und wo
+die nicht mehr da sind (älter als zwei Jahre), aus dem gespeicherten Tages-Minimum
+und -Maximum. Kein zusätzlicher Wetterabruf, keine Pflege nötig. Monate ohne
+Messreihe lassen die Linie aussetzen, statt sie auf 0 °C zu ziehen.
 
 ---
 

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from backend.core.exceptions import not_found
 from backend.core.berechnungen.erzeuger_traeger import erzeuger_traeger
+from backend.core.berechnungen.waermepumpe_kennzahl import hub_hilft
 from backend.core.investition_kennwerte import get_erzeuger_kwp, get_speicher_kapazitaet_kwh
 from backend.api.deps import get_db
 from backend.models.anlage import Anlage
@@ -120,6 +121,9 @@ class CockpitUebersichtResponse(BaseModel):
     wp_jaz_warmwasser_grund: Optional[str] = None
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: Steht mindestens eine hier gesperrte Kennzahl im Komponenten-Hub?
+    #: Gleiche Bedeutung und gleiche Quelle wie im Monat (`GRUENDE_HUB_HILFT`).
+    wp_hub_hilft: bool = False
     wp_modus_strom_heizen_kwh: Optional[float] = None
     wp_modus_strom_kuehlen_kwh: Optional[float] = None
     wp_modus_strom_warmwasser_kwh: Optional[float] = None
@@ -884,6 +888,12 @@ async def get_cockpit_uebersicht(
         wp_jaz_warmwasser_grund=_wp_az_funktion.warmwasser.grund,
         wp_jaz_kuehlen=round(_wp_az_k.wert, 2) if _wp_az_k.wert is not None else None,
         wp_jaz_kuehlen_grund=_wp_az_k.grund,
+        wp_hub_hilft=hub_hilft(
+            _wp_az.grund,
+            _wp_az_funktion.heizen.grund,
+            _wp_az_funktion.warmwasser.grund,
+            _wp_az_k.grund,
+        ),
         wp_modus_strom_heizen_kwh=round(_wp_modus["heizen"], 1) if _wp_hat_modus else None,
         wp_modus_strom_kuehlen_kwh=round(_wp_modus["kuehlen"], 1) if _wp_hat_modus else None,
         wp_modus_strom_warmwasser_kwh=round(_wp_modus["warmwasser"], 1) if _wp_hat_modus else None,

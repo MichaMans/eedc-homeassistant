@@ -32,7 +32,7 @@ from backend.api.routes.strompreise import (
 from backend.api.routes.connector import _calc_month_delta
 from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
-    ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
+    ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, hub_hilft,
     abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
 )
 from backend.core.berechnungen import (
@@ -326,6 +326,13 @@ class AktuellerMonatResponse(BaseModel):
     #: Gleicher Name wie im Komponenten-Hub (`KomponentenMonat`), damit dieselbe
     #: Größe in beiden Sichten gleich heißt (S1).
     wp_waerme_abgeleitet: bool = False
+    #: Steht mindestens eine hier gesperrte Kennzahl im **Komponenten-Hub**?
+    #:
+    #: Der Hub rechnet je Gerät; was aus dem Zusammenspiel MEHRERER Geräte
+    #: entsteht, gibt es dort nicht. Nur dann lohnt der Weg — die Liste der
+    #: Gründe steht im Layer (``GRUENDE_HUB_HILFT``), damit der Client keine
+    #: Grund-Texte vergleichen muss.
+    wp_hub_hilft: bool = False
     #: **Wie viel** davon gerechnet ist — die Menge neben dem Flag darüber.
     #:
     #: ⚠ Das Flag beantwortet „ist *irgendein* Teil gerechnet?" und ist damit
@@ -2755,6 +2762,14 @@ async def get_aktueller_monat(
         wp_jaz_zaehler_kwh=wp_arbeitszahl.zaehler_kwh,
         wp_jaz_nenner_kwh=wp_arbeitszahl.nenner_kwh,
         wp_waerme_abgeleitet=wp_waerme_abgeleitet_kwh > 0,
+        # Alle Gründe des Blocks in EINE Frage — der Link ist ein Element des
+        # Blocks, keine Zeile je Kennzahl.
+        wp_hub_hilft=hub_hilft(
+            wp_arbeitszahl.grund,
+            wp_az_funktion.heizen.grund,
+            wp_az_funktion.warmwasser.grund,
+            wp_az_kuehlen.grund,
+        ),
         # Die Menge nur, wo es überhaupt Wärme gibt — sonst stünde eine 0
         # neben einem „—" und sähe aus wie „nichts gerechnet" statt „nichts
         # gemessen". Gleiche Rundung wie `wp_waerme_kwh` daneben.

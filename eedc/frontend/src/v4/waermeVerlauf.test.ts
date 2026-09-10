@@ -110,3 +110,31 @@ describe('baueWaermeVerlauf — Wärmelinie (E7)', () => {
     expect(d.hatGemesseneWaerme).toBe(true)
   })
 })
+
+describe('baueWaermeVerlauf — Außentemperatur', () => {
+  it('legt die Temperatur auf die ZWEITE Achse, per Legende abwählbar', () => {
+    const d = baueWaermeVerlauf([monat('Jan', { temperatur_c: 2.4 })])
+    const temp = d.linien.find((l) => l.key === 'temperatur')!
+    expect(temp.achse).toBe('rechts')
+    expect(temp.farbe).toBe(CHART_COLORS.temperatur)
+    expect(d.rows[0].temperatur).toBe(2.4)
+  })
+
+  it('lässt die Linie ganz weg, wenn keine Periode einen Wert hat', () => {
+    const d = baueWaermeVerlauf([monat('Jan')])
+    expect(d.hatTemperatur).toBe(false)
+    expect(d.linien.map((l) => l.key)).not.toContain('temperatur')
+  })
+
+  it('setzt für einen Monat ohne Messreihe null — nicht 0 °C', () => {
+    // Ein kalter Monat ohne Spur ist kein Monat am Gefrierpunkt; eine 0 zöge
+    // die Linie sichtbar nach unten und sähe aus wie eine Messung.
+    const d = baueWaermeVerlauf([
+      monat('Jan', { temperatur_c: 2.4 }),
+      monat('Feb'),
+      monat('Mär', { temperatur_c: 7.1 }),
+    ])
+    expect(d.rows.map((r) => r.temperatur)).toEqual([2.4, null, 7.1])
+  })
+})
+

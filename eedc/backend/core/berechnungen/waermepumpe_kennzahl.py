@@ -348,6 +348,46 @@ GRUND_FUNKTION_NICHT_DECKUNGSGLEICH = (
 )
 
 
+#: Die Gründe, bei denen der **Komponenten-Hub** die Zahl trotzdem zeigt.
+#:
+#: ⭐ **Gemessen, nicht geraten** (10.09.2026): Die beiden Hub-Aufrufer
+#: (`investitionen/dashboards.py`) reichen an ``arbeitszahl_je_funktion`` nur die
+#: **Anwender-Angabe** und das **Abgeleitet**-Flag durch. Alles, was aus dem
+#: Zusammenspiel MEHRERER Geräte entsteht, kennt der Hub deshalb gar nicht — er
+#: rechnet je Gerät, und dort gibt es die Mischung nicht.
+#:
+#: ⛔ **Ein Link auf eine Sicht, die dasselbe sagt, ist schlechter als keiner** —
+#: er schickt den Anwender auf einen vergeblichen Weg. Deshalb steht hier eine
+#: **Positivliste** und keine „alles außer"-Regel: Ein neuer Grund erscheint
+#: dann ohne Link, statt einen falschen zu erben.
+#:
+#: ⚠ Nicht enthalten und aus gutem Grund: ``GRUND_FREMDSTROM`` und
+#: ``GRUND_FREMDWAERME`` (die Angabe hängt am Gerät, der Hub sperrt genauso),
+#: die Abgeleitet-Sperre (dieselbe Regel je Gerät) und alle Datenlage-Gründe
+#: („kein Wärmemengenzähler", „kein Heizbetrieb") — dort fehlt dem Hub dasselbe.
+GRUENDE_HUB_HILFT: frozenset[str] = frozenset({
+    GRUND_BAUARTEN_GEMISCHT,
+    GRUND_GERAETE_OHNE_WAERME,
+    GRUND_ZEITRAUM,
+    GRUND_FUNKTION_NICHT_DECKUNGSGLEICH,
+})
+
+
+def hub_hilft(*gruende: Optional[str]) -> bool:
+    """Würde der Komponenten-Hub mindestens einen dieser Gründe beantworten?
+
+    Der Aufrufer wirft alle Gründe seines Wärme/Klima-Blocks hinein (Gesamtzahl,
+    je Funktion, Kühlen); ``True`` heißt: **mindestens eine** der gesperrten
+    Zahlen steht dort je Gerät. Der Link ist ein Element des Blocks, keine Zeile
+    je Kennzahl — deshalb eine Frage und nicht vier.
+
+    ⚠ **Die Entscheidung gehört hierher, nicht in den Client.** Dort müsste er
+    Grund-**Texte** vergleichen; dieselbe Aussage stünde dann an zwei Orten und
+    liefe beim nächsten Wortlaut auseinander (ADR-001/S1 — die W-3-Klasse).
+    """
+    return any(g in GRUENDE_HUB_HILFT for g in gruende if g)
+
+
 def abgrenzung_je_funktion(
     *,
     abgrenzung_stoerung: Optional[str] = None,

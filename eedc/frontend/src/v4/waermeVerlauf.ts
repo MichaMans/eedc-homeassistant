@@ -27,6 +27,10 @@ export interface WaermeVerlaufPunkt {
   wp_modus_gemessen?: boolean | null
   wp_modus_abdeckung_h?: number | null
   wp_modus_strom_bezug_kwh?: number | null
+  /** Monatsmittel der Außentemperatur (°C) — zweite Achse, per Legende
+   *  ausblendbar. Fehlt sie, fehlt auch die Linie: Ein kalter Monat ohne
+   *  Messreihe ist kein 0-°C-Monat. */
+  temperatur_c?: number | null
 }
 
 export interface WaermeVerlaufDaten {
@@ -41,6 +45,8 @@ export interface WaermeVerlaufDaten {
   hatStapel: boolean
   /** Gibt es mindestens eine Periode mit GEMESSENER Wärme? */
   hatGemesseneWaerme: boolean
+  /** Gibt es überhaupt Außentemperatur-Werte? */
+  hatTemperatur: boolean
 }
 
 const z = (v: number | null | undefined): number => (v == null ? 0 : v)
@@ -94,6 +100,7 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
     return rest > 0 ? Math.round(rest * 10) / 10 : null
   }
   const hatGemesseneWaerme = punkte.some((p) => gemesseneWaerme(p) != null)
+  const hatTemperatur = punkte.some((p) => p.temperatur_c != null)
 
   const rows: WaermeVerlaufRow[] = punkte.map((p) => {
     const row: WaermeVerlaufRow = { name: p.name }
@@ -105,15 +112,28 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
       row[s.key] = split ? Math.round(z(p[s.feld] as number | null | undefined) * 10) / 10 : null
     }
     if (hatGemesseneWaerme) row.waerme = gemesseneWaerme(p)
+    // ⚠ `null` statt 0, wo kein Wert vorliegt — sonst zöge die Linie den
+    // Monat auf den Gefrierpunkt.
+    if (hatTemperatur) row.temperatur = p.temperatur_c ?? null
     return row
   })
 
   const stapel: VerlaufStapel[] = hatStapel
     ? aktiveSegmente.map((s) => ({ key: s.key, label: s.label, farbe: s.farbe }))
     : []
-  const linien: VerlaufLinie[] = hatGemesseneWaerme
-    ? [{ key: 'waerme', label: 'Wärme (gemessen)', farbe: CHART_COLORS.waermeGemessen, dezimalen: 1 }]
-    : []
+  const linien: VerlaufLinie[] = [
+    ...(hatGemesseneWaerme
+      ? [{ key: 'waerme', label: 'Wärme (gemessen)', farbe: CHART_COLORS.waermeGemessen, dezimalen: 1 }]
+      : []),
+    // Zweite Achse: °C gehört nicht auf die kWh-Skala. Per Legenden-Klick
+    // ausblendbar wie jede andere Reihe.
+    ...(hatTemperatur
+      ? [{
+          key: 'temperatur', label: 'Außentemperatur',
+          farbe: CHART_COLORS.temperatur, achse: 'rechts' as const, dezimalen: 1,
+        }]
+      : []),
+  ]
 
   return {
     rows, stapel, linien,
@@ -125,5 +145,6 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
     stromKwh: punkte.reduce((a, p) => a + z(p.wp_strom_kwh), 0),
     hatStapel,
     hatGemesseneWaerme,
+    hatTemperatur,
   }
 }

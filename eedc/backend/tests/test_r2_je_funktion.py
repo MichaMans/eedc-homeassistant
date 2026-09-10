@@ -317,3 +317,57 @@ async def test_monat_mit_waerme_ohne_funktionsstrom_sperrt_das_jahr(db):
     j = await _jahr(db, a.id)
     assert j.wp_jaz_heizen is None, "3,75 waere die Zahl gewesen"
     assert j.wp_jaz_heizen_grund == GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+
+
+# ═══ Bauschnitt 3 — der Weg zum Hub, aber nur wo er hilft ═══════════════════
+
+def test_hub_hilft_nur_bei_gruenden_die_der_hub_beantwortet():
+    """⛔ Ein Link auf eine Sicht, die dasselbe sagt, ist schlechter als keiner.
+
+    Gemessen an den Hub-Aufrufern (`dashboards.py`): Sie bekommen nur die
+    Anwender-Angabe und das Abgeleitet-Flag. Alles, was aus dem Zusammenspiel
+    **mehrerer** Geräte entsteht, kennt der Hub gar nicht — dort steht die Zahl.
+    """
+    from backend.core.berechnungen.waermepumpe_kennzahl import (
+        GRUND_GERAETE_OHNE_WAERME, GRUND_KEINE_KAELTEMENGE, GRUND_ZEITRAUM, hub_hilft,
+    )
+    # Der Hub rechnet je Gerät ⇒ er zeigt die Zahl.
+    assert hub_hilft(GRUND_BAUARTEN_GEMISCHT)
+    assert hub_hilft(GRUND_GERAETE_OHNE_WAERME)
+    assert hub_hilft(GRUND_ZEITRAUM)
+    assert hub_hilft(GRUND_FUNKTION_NICHT_DECKUNGSGLEICH)
+    # Der Hub sperrt genauso ⇒ kein Weg dorthin.
+    assert not hub_hilft(GRUND_FREMDSTROM)
+    assert not hub_hilft(GRUND_KEINE_KAELTEMENGE)
+    assert not hub_hilft(None)
+    # EIN hilfreicher Grund genügt — der Link ist ein Element des Blocks.
+    assert hub_hilft(GRUND_FREMDSTROM, None, GRUND_BAUARTEN_GEMISCHT)
+
+
+@pytest.mark.asyncio
+async def test_a5_bekommt_den_weg_zum_hub(db):
+    """Die anlagenweite Gesamtzahl bleibt gesperrt — und sagt jetzt, wo sie steht."""
+    a = await _anlage(db, "A5 Hub-Link")
+    await _geraet(db, a, "Wärmepumpe", dict(_WP), {
+        "strom_heizen_kwh": 800.0, "heizenergie_kwh": 2400.0,
+    })
+    await _geraet(db, a, "Klimaanlage", dict(_KLIMA), {"stromverbrauch_kwh": 200.0})
+    await db.commit()
+    m = await _monat(db, a.id)
+    assert m.wp_jaz is None and m.wp_jaz_grund == GRUND_BAUARTEN_GEMISCHT
+    assert m.wp_hub_hilft is True
+    j = await _jahr(db, a.id)
+    assert j.wp_hub_hilft is True
+
+
+@pytest.mark.asyncio
+async def test_heizstab_bekommt_KEINEN_weg_zum_hub(db):
+    """Der Hub sperrt bei gemeldeter Störung genauso — ein Link wäre vergeblich."""
+    a = await _anlage(db, "Heizstab ohne Link")
+    await _geraet(db, a, "Wärmepumpe", {**_WP, "abgrenzung": "fremdstrom"}, {
+        "strom_heizen_kwh": 800.0, "heizenergie_kwh": 2400.0,
+    })
+    await db.commit()
+    m = await _monat(db, a.id)
+    assert m.wp_jaz_heizen_grund == GRUND_FREMDSTROM
+    assert m.wp_hub_hilft is False

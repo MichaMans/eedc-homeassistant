@@ -64,6 +64,7 @@ from backend.services.provenance import (
     write_json_subkey_with_provenance,
     write_with_provenance,
 )
+from backend.services.mitteltemperatur import lade_monatsmittel_temperatur
 from backend.services.pv_monatswerte import lade_pv_je_monat, pv_summe_je_monat
 from backend.services.zaehlerstaende import lade_zaehlerstaende
 
@@ -222,6 +223,16 @@ class AggregierteMonatsdatenResponse(BaseModel):
     netzbezug_kwh: float
     globalstrahlung_kwh_m2: Optional[float]
     sonnenstunden: Optional[float]
+    #: Monatsmittel der Außentemperatur (°C) — die zweite Linie des
+    #: Wärme/Klima-Verlaufs (Konzept §8).
+    #:
+    #: ⭐ **Nicht aus `Monatsdaten.durchschnittstemperatur`**, und das ist kein
+    #: Umweg: Dieses Feld ist seit dem IA-V4-Flip leer, weil sein Auto-Fill in
+    #: der gelöschten V3-Seite lag (**N-426**). Der Wert kommt aus den eigenen
+    #: Messreihen — Stundenwerte, sonst Tages-Min/Max —, ein gepflegter Wert
+    #: füllt nur Lücken. Vorrangkette und Begründung:
+    #: `services/mitteltemperatur.py`.
+    durchschnittstemperatur_c: Optional[float] = None
     # Dynamischer Monats-Ø-Netzbezugspreis (Flex-Tarif, Tibber/aWATTar/EPEX).
     # None = kein Flex-Wert gepflegt → Frontend fällt auf den statischen Tarif
     # zurück (gleiche Quelle wie Cockpit via resolve_netzbezug_preis_cent, #326).
@@ -536,6 +547,26 @@ async def list_monatsdaten_aggregiert(
         except Exception:  # pragma: no cover - eine Zusatzspalte kippt die Liste nicht
             logger.exception("Zählerstände für die Monats-Tabelle nicht ladbar")
 
+    # Konzept §8 — Monatsmittel der Außentemperatur, **einmal** für alle Monate.
+    # Zwei Abfragen über die Historie statt einer je Monat; eine Hilfslinie darf
+    # die Liste weder verlangsamen noch kippen (deshalb derselbe Schutz wie bei
+    # den Zählerständen darüber).
+    temperatur_je_monat: dict[tuple[int, int], float] = {}
+    if fakten:
+        try:
+            temperatur_je_monat = await lade_monatsmittel_temperatur(
+                db, anlage_id,
+                gepflegt_je_monat={
+                    (f.jahr, f.monat): getattr(
+                        f.meta.monatsdaten, "durchschnittstemperatur", None
+                    )
+                    for f in fakten
+                    if f.meta.monatsdaten is not None
+                },
+            )
+        except Exception:  # pragma: no cover - eine Zusatzspalte kippt die Liste nicht
+            logger.exception("Monatsmittel-Temperatur nicht ladbar")
+
     result = []
     for f in fakten:
         md = f.meta.monatsdaten
@@ -713,6 +744,7 @@ async def list_monatsdaten_aggregiert(
             ),
             globalstrahlung_kwh_m2=md.globalstrahlung_kwh_m2 if md is not None else None,
             sonnenstunden=md.sonnenstunden if md is not None else None,
+            durchschnittstemperatur_c=temperatur_je_monat.get((f.jahr, f.monat)),
             netzbezug_durchschnittspreis_cent=(
                 md.netzbezug_durchschnittspreis_cent if md is not None else None
             ),
