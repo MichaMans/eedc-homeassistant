@@ -2872,6 +2872,16 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     # mit je eigener Faltung (der Bericht warf den Grund weg).
     "backend/services/waermepumpe_jahreskennzahlen.py::waermepumpe_jahreskennzahlen",
     "backend/services/community_service.py::_monatswert",         # Flag im Payload (N-367)
+    # SOLL §3.2b (10.09.2026): die Schwester von `abgrenzungs_grund` — sie sagt
+    # nicht WARUM gesperrt wird, sondern WO. Sie liest `bauarten_gemischt` aus
+    # demselben Grund und trifft dieselbe Art Entscheidung (Abgrenzung einer
+    # Kennzahl), nur je Funktion statt für den ganzen Block.
+    #
+    # ⭐ **Sie schwächt R1, statt es zu verletzen:** Bis hierher sperrte die
+    # gemischte Bauart BEIDE Funktionszahlen; jetzt entscheidet die
+    # Geräte-Deckung je Funktion, und die Bauart tritt nur noch als Grund-TEXT
+    # auf. Die Trennlinie ist die Abgrenzung, nicht die Bauart.
+    "backend/core/berechnungen/waermepumpe_kennzahl.py::abgrenzung_je_funktion",
 
     # ── 2. Vorschlag: Vorbelegung · Beschriftung · weiche Herabstufung ────────
     "backend/core/field_definitions.py::get_feld_bedarf",         # Pflicht → optional, nie weg (N-86)

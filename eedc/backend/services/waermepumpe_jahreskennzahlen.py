@@ -37,6 +37,8 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     ArbeitszahlJeFunktion,
     abgrenzungs_grund,
     arbeitszahl,
+    ARBEITSZAHL_FUNKTIONEN,
+    abgrenzung_je_funktion,
     arbeitszahl_je_funktion,
     arbeitszahl_kuehlen,
     ersparnis_vorbehalt,
@@ -105,6 +107,38 @@ def waermepumpe_jahreskennzahlen(
         bauarten_gemischt=any(f.wp.bauarten_gemischt for f in fakten),
         geraete_ohne_waerme=any(f.wp.waerme_deckt_nicht_alle_geraete for f in fakten),
     )
+    # SOLL §3.2b je Funktion — ueber das JAHR gefaltet.
+    #
+    # ⚠ **Nicht `all(...)` ueber alle Monate.** Ein Sommermonat hat keinen
+    # Heizbetrieb; `funktion_sauber_abgegrenzt` ist dort False, weil es die
+    # Funktion nicht gibt — nicht, weil sie vermischt waere. Wer das nicht
+    # trennt, sperrt die Jahres-Heizzahl an jedem Juli. Gefragt werden deshalb
+    # nur die Monate, die die Funktion ueberhaupt tragen.
+    def _deckung_im_jahr(funktion: str) -> Optional[bool]:
+        """Jeder Monat, der zur Jahressumme beitraegt, muss sich decken.
+
+        ⛔ **Nicht die Geraetezahlen des Jahres vergleichen.** Sie sehen den
+        entscheidenden Fall nicht: Ein Monat mit Waerme, aber ohne den Strom
+        derselben Funktion, schiebt seine Waerme in die Jahressumme und seinen
+        Strom nicht. Die Zahl der beteiligten Geraete ist in beiden Monaten
+        gleich — die Summe ist es nicht. **Gemessen: 3,75 statt 3,0.**
+
+        ⚠ Monate ohne Aussage (``None``) zaehlen nicht mit: ein Sommermonat
+        ohne Heizbetrieb ist kein Abgrenzungsfehler.
+        """
+        urteile = [
+            u for u in (f.wp.deckung_je_funktion(funktion) for f in fakten)
+            if u is not None
+        ]
+        return all(urteile) if urteile else None
+
+    _deckung_je_funktion = {f: _deckung_im_jahr(f) for f in ARBEITSZAHL_FUNKTIONEN}
+    _je_funktion_grund = abgrenzung_je_funktion(
+        abgrenzung_stoerung=stoerung,
+        bauarten_gemischt=any(f.wp.bauarten_gemischt for f in fakten),
+        geraete_ohne_waerme=any(f.wp.waerme_deckt_nicht_alle_geraete for f in fakten),
+        deckung_je_funktion=_deckung_je_funktion,
+    )
     az = arbeitszahl(
         waerme, strom,
         waerme_abgeleitet_kwh=waerme_abgeleitet,
@@ -122,10 +156,14 @@ def waermepumpe_jahreskennzahlen(
         hat_split=hat_split,
         waerme_abgeleitet_kwh=waerme_abgeleitet,
         abgrenzung_verletzt=abgrenzung,
+        abgrenzung_je_funktion_grund=_je_funktion_grund,
     )
     kaelte = sum(f.wp.nutzenergie_kuehlen_kwh for f in fakten)
     modus_kuehlen = sum(f.wp.modus_strom_kuehlen_kwh for f in fakten)
-    kuehlen = arbeitszahl_kuehlen(kaelte, modus_kuehlen, abgrenzung_verletzt=abgrenzung)
+    kuehlen = arbeitszahl_kuehlen(
+        kaelte, modus_kuehlen,
+        abgrenzung_verletzt=_je_funktion_grund["kuehlen"],
+    )
     betriebsarten = WpBetriebsarten(
         heizen_kwh=sum(f.wp.modus_strom_heizen_kwh for f in fakten),
         kuehlen_kwh=modus_kuehlen,

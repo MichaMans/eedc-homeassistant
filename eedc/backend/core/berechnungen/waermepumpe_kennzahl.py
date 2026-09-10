@@ -322,6 +322,109 @@ def abgrenzungs_grund(
     return None
 
 
+#: Die drei Funktionen, für die es eine Arbeitszahl gibt. Lüften und
+#: Entfeuchten stehen bewusst NICHT hier — sie erzeugen keine Nutzenergie, die
+#: sich messen ließe (SOLL §2.3/E4).
+ARBEITSZAHL_FUNKTIONEN = ("heizen", "warmwasser", "kuehlen")
+
+#: Zähler und Nenner **einer Funktion** stammen von verschieden vielen Geräten.
+#:
+#: ⭐ **Die Lage, die es bis zum 10.09.2026 gar nicht gab** — und die deshalb
+#: eine **falsche Zahl** zeigte statt einer fehlenden. Belegt an der Bauform von
+#: 8ear: eine Wärmepumpe mit getrennter Strommessung neben einer
+#: **Brauchwasser-Wärmepumpe**. Beide sind Luft-Wasser-Geräte
+#: (``bauarten_gemischt`` False), beide melden Wärme
+#: (``waerme_deckt_nicht_alle_geraete`` False) — keine der bisherigen Sperren
+#: greift. Die Warmwasser-Wärme kommt aber von **beiden**, der getrennt
+#: gemessene Warmwasser-Strom nur von **einem**: 1900 ÷ 400 = **4,75**, und
+#: niemand sagte, dass die Zahl zwei Geräte im Zähler und eines im Nenner hat.
+#:
+#: ⚠ **Der Text nennt die Ursache, nicht den Ausweg** — anders als
+#: {@link GRUND_KEINE_KAELTEMENGE}, der einen Zähler vorschlägt. Hier gibt es
+#: keinen allgemeingültigen Handgriff: Je nach Anlage ist die getrennte
+#: Strommessung des zweiten Geräts der Weg, oder es gibt schlicht keinen.
+GRUND_FUNKTION_NICHT_DECKUNGSGLEICH = (
+    "Wärme und Strom dieser Funktion stammen von verschiedenen Geräten"
+)
+
+
+def abgrenzung_je_funktion(
+    *,
+    abgrenzung_stoerung: Optional[str] = None,
+    bauarten_gemischt: bool = False,
+    geraete_ohne_waerme: bool = False,
+    zeitraum_versetzt: bool = False,
+    deckung_je_funktion: Optional[dict[str, Optional[bool]]] = None,
+) -> dict[str, Optional[str]]:
+    """Je Funktion ihr Abgrenzungs-Grund — oder ``None`` (**SOLL §3.2b**).
+
+    Gegenstück zu {@link abgrenzungs_grund}, der die **anlagenweite** Zahl
+    beantwortet. Beide lesen dieselben Lagen; sie stehen deshalb nebeneinander
+    und nicht an fünf Aufrufstellen.
+
+    ⭐ **Die Trennlinie ist die Abgrenzung, nicht die Bauart** (Entscheid
+    Gernot, 10.09.2026). Zwei Sorten Lage, und sie verhalten sich verschieden:
+
+    * **Anwender-Angabe und Zeitraum-Versatz treffen alles.** Heizstab am
+      Zähler, bivalenter Zweiterzeuger, versetzte Messzeiträume. ⚠ **Der
+      ehrliche Grund ist nicht „das trifft physisch immer beide"** — ein
+      Legionellen-Heizstab trifft nur das Warmwasser, ein Gaskessel am Heizkreis
+      nur die Heizung. Der Grund ist, dass die Angabe **keine Funktion trägt**
+      (``ABGRENZUNG_WERTE`` kennt nur ``fremdstrom``/``fremdwaerme``). Wir wissen
+      nicht, welche Funktion betroffen ist, und dürfen keine freigeben. Wer der
+      Angabe einmal eine Funktion gibt, darf diese Zeile ändern.
+    * **Gemischte Bauarten und Geräte ohne Wärme treffen nur die Funktionen, die
+      wirklich vermischt sind.**
+
+    Args:
+        deckung_je_funktion: je Funktion, ob sich der Geräte-Kreis von Zähler
+            und Nenner **deckt** (``WpFakten.deckung_je_funktion``): ``True``
+            deckt sich · ``False`` deckt sich nicht · ``None`` die Frage stellt
+            sich nicht (Funktion nicht vorhanden, oder Wärme fehlt ganz — dafür
+            hat ``arbeitszahl`` die besseren Sätze).
+
+            Das **Argument als Ganzes** ``None`` heißt „unbekannt" und sperrt
+            wie bisher alles — der Aufruf ist damit **bitgleich zum Stand vor
+            der Präzisierung**. So rufen die Hub-Pfade auf: dort wird je Gerät
+            gerechnet, die Frage ist gegenstandslos.
+
+            ⛔ **Gezählt wird beidseitig, und das ist nicht verhandelbar.** Eine
+            einseitige Regel („jedes Gerät mit Strom liefert auch Wärme") fängt
+            nur den Nenner; der Zähler kippt in die **teurere** Richtung, weil
+            dort eine zu hohe Kennzahl erscheint statt gar keiner.
+
+            ⚠ **Die Faltung über mehrere Perioden gehört dem Aufrufer**, und
+            sie ist nicht die Summe der Zahlen: Ein Monat, der Wärme ohne den
+            Strom derselben Funktion trägt, verzerrt die **Jahres**summe, ohne
+            dass die Gerätezahl des Jahres es zeigt (gemessen: 3,75 statt 3,0).
+            Deshalb reicht das Jahr eine bereits gefällte Entscheidung herein.
+    """
+    global_grund = abgrenzungs_grund(
+        abgrenzung_stoerung=abgrenzung_stoerung,
+        bauarten_gemischt=bauarten_gemischt,
+        geraete_ohne_waerme=geraete_ohne_waerme,
+        zeitraum_versetzt=zeitraum_versetzt,
+    )
+    trifft_alles = bool(
+        (abgrenzung_stoerung and GRUND_JE_ABGRENZUNG.get(abgrenzung_stoerung))
+        or zeitraum_versetzt
+        or deckung_je_funktion is None
+    )
+
+    ergebnis: dict[str, Optional[str]] = {}
+    for f in ARBEITSZAHL_FUNKTIONEN:
+        if global_grund and trifft_alles:
+            ergebnis[f] = global_grund
+            continue
+        if (deckung_je_funktion or {}).get(f) is False:
+            # Der konkretere Grund gewinnt (S3) — er beschreibt genau DIESE
+            # Funktion, während `global_grund` den ganzen Block beschreibt.
+            ergebnis[f] = global_grund or GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+        else:
+            ergebnis[f] = None
+    return ergebnis
+
+
 def arbeitszahl(
     waerme_kwh: Optional[float],
     strom_kwh: Optional[float],
@@ -511,6 +614,7 @@ def arbeitszahl_je_funktion(
     waerme_fehlt_grund_heizen: Optional[str] = None,
     waerme_fehlt_grund_warmwasser: Optional[str] = None,
     null_ist_gemessen: bool = False,
+    abgrenzung_je_funktion_grund: Optional[dict[str, Optional[str]]] = None,
 ) -> ArbeitszahlJeFunktion:
     """Je Funktion eine eigene Arbeitszahl — oder je Funktion ihr Grund.
 
@@ -557,6 +661,23 @@ def arbeitszahl_je_funktion(
             Ein Heizstab auf dem Zähler trifft die Abgrenzung der ganzen Anlage;
             ein fehlender Tageswert trifft genau eine Größe. Die Asymmetrie ist
             Absicht, kein Versehen.
+
+            ⭐ **Seit 10.09.2026 präzisiert (SOLL §3.2b):** „für beide" gilt
+            weiterhin für die Anwender-Angabe und den Zeitraum-Versatz, aber
+            **nicht** mehr für gemischte Bauarten und Geräte ohne Wärme — dafür
+            gibt es ``abgrenzung_je_funktion_grund``.
+        abgrenzung_je_funktion_grund: je Funktion ihr Grund — aus
+            {@link abgrenzung_je_funktion}. ``None`` legt ``abgrenzung_verletzt``
+            wie bisher auf **beide** und ist damit **bitgleich zum Stand vor der
+            Präzisierung**; so rufen die Hub-Pfade weiterhin auf, wo je Gerät
+            gerechnet wird und die Frage gegenstandslos ist.
+
+            ⭐ **Was das sichtbar macht** (Fixture A5, dietmar1968): Eine
+            Wärmepumpe mit getrennter Strommessung neben einer Split-Klimaanlage
+            zeigte drei Striche, während der Komponenten-Hub für dasselbe Gerät
+            längst 3,0 und 2,5 auswies. Die Klimaanlage trägt ihren Strom in
+            ``stromverbrauch_kwh`` — das gehört zu keiner Funktion und steht in
+            keinem der beiden Quotienten.
     """
     if not hat_split:
         gesperrt = Arbeitszahl(None, GRUND_STROM_NICHT_JE_FUNKTION)
@@ -567,11 +688,12 @@ def arbeitszahl_je_funktion(
         e: Optional[float],
         waerme_fehlt_grund: Optional[str],
         kein_betrieb_grund: Optional[str],
+        abgrenzung_dieser_funktion: Optional[str],
     ) -> Arbeitszahl:
         return arbeitszahl(
             q, e,
             waerme_abgeleitet_kwh=waerme_abgeleitet_kwh,
-            abgrenzung_verletzt=abgrenzung_verletzt,
+            abgrenzung_verletzt=abgrenzung_dieser_funktion,
             waerme_fehlt_grund=waerme_fehlt_grund,
             # ⭐ **Welcher Wortlaut, weiß diese Funktion; OB überhaupt, weiß
             # nur der Aufrufer** (`null_ist_gemessen`). Die Trennung ist an einer
@@ -586,14 +708,21 @@ def arbeitszahl_je_funktion(
             kein_betrieb_grund=kein_betrieb_grund,
         )
 
+    def _abgrenzung(funktion: str) -> Optional[str]:
+        if abgrenzung_je_funktion_grund is None:
+            return abgrenzung_verletzt
+        return abgrenzung_je_funktion_grund.get(funktion)
+
     return ArbeitszahlJeFunktion(
         heizen=_je(
             heizung_kwh, strom_heizen_kwh, waerme_fehlt_grund_heizen,
             GRUND_KEIN_HEIZBETRIEB if null_ist_gemessen else None,
+            _abgrenzung("heizen"),
         ),
         warmwasser=_je(
             warmwasser_kwh, strom_warmwasser_kwh, waerme_fehlt_grund_warmwasser,
             GRUND_KEINE_WARMWASSERBEREITUNG if null_ist_gemessen else None,
+            _abgrenzung("warmwasser"),
         ),
     )
 

@@ -337,6 +337,7 @@ async def get_tag_detail(
     from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
     from backend.core.berechnungen.waermepumpe_kennzahl import (
         GRUND_KEIN_KUEHLBETRIEB, GRUND_KUEHLZAHL_NUR_MONAT, abgrenzungs_grund,
+        ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
         arbeitszahl, arbeitszahl_je_funktion, waerme_gesamt_kwh,
     )
     from backend.core.betriebsmodus import HEIZEN, KUEHLEN, WARMWASSER
@@ -547,6 +548,50 @@ async def get_tag_detail(
         bauarten_gemischt=len(_bauarten_tag) > 1,
         geraete_ohne_waerme=_geraete_ohne_waerme_monat,
     )
+    # SOLL §3.2b (10.09.2026): WELCHE Funktionen die Verletzung trifft.
+    #
+    # ⚠ **Dieselbe Naeherung wie `_geraete_ohne_waerme_monat` darueber, und aus
+    # demselben Grund**: Die Tagesebene fuehrt die Waerme nur als Anlagensumme,
+    # die Frage „steuern dieselben Geraete Zaehler und Nenner bei?" ist dort
+    # strukturell unbeantwortbar. Die Antwort kommt deshalb aus dem Monat dieses
+    # Tages — kein zweiter Rechenweg, sondern derselbe SoT (ADR-002/P10).
+    # Die Rest-Unschaerfe ist dieselbe und faellt in dieselbe, mildere Richtung.
+    _deckung_je_funktion_tag = (
+        {
+            f: next(
+                (
+                    u for u in (fk.wp.deckung_je_funktion(f) for fk in _wp_fakten_monat)
+                    if u is False
+                ),
+                next(
+                    (
+                        u for u in (fk.wp.deckung_je_funktion(f) for fk in _wp_fakten_monat)
+                        if u is not None
+                    ),
+                    None,
+                ),
+            )
+            for f in ARBEITSZAHL_FUNKTIONEN
+        }
+        if _wp_fakten_monat else None
+    )
+    _wp_abgrenzung_je_funktion_tag = abgrenzung_je_funktion(
+        abgrenzung_stoerung=next(
+            (
+                stoerung
+                for inv_id_str, kwh in wp_strom_je_inv.items()
+                if kwh
+                for stoerung in (
+                    abgrenzung_stoerung(investitionen_by_id.get(inv_id_str)),
+                )
+                if stoerung
+            ),
+            None,
+        ),
+        bauarten_gemischt=len(_bauarten_tag) > 1,
+        geraete_ohne_waerme=_geraete_ohne_waerme_monat,
+        deckung_je_funktion=_deckung_je_funktion_tag,
+    )
     wp_jaz_tag = arbeitszahl(
         wp_waerme_tag, wp_strom_tag,
         # W-14 + E4: Strom in Funktionen ohne bewertete Nutzenergie. `kuehlen_tag`
@@ -603,6 +648,7 @@ async def get_tag_detail(
         strom_warmwasser_kwh=detail.get("wp_strom_warmwasser_kwh"),
         hat_split=_wp_getrennte_strommessung_tag,
         abgrenzung_verletzt=wp_abgrenzung_tag,
+        abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion_tag,
         # W-18 je Funktion: dieselbe Sperre wie oben bei der Gesamt-Arbeitszahl,
         # aber **je Zähler**. Der Layer bekam den Parameter am 26.08.; dieser
         # Block entstand am 29.08. (N-348) und hat ihn nie durchgereicht — die

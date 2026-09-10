@@ -32,6 +32,7 @@ from backend.api.routes.strompreise import (
 from backend.api.routes.connector import _calc_month_delta
 from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
+    ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
     abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
 )
 from backend.core.berechnungen import (
@@ -1888,6 +1889,34 @@ async def get_aktueller_monat(
         ),
         zeitraum_versetzt=_wp_seiten_teilzeitraum == 1,
     )
+    # SOLL §3.2b (10.09.2026): WELCHE Funktionen die Verletzung trifft. Bis
+    # hierher galt sie unbesehen fuer beide Zeilen — bei einer Waermepumpe neben
+    # einer Split-Klimaanlage standen deshalb drei Striche, waehrend der
+    # Komponenten-Hub fuer dasselbe Geraet 3,0 und 2,5 auswies.
+    #
+    # ⚠ Die Gleichheit wird je Funktion aus den BEITRAEGEN gezaehlt, nicht aus
+    # der Bauart: `strom_warmwasser_kwh` wird ungefiltert gelesen, und
+    # `heizenergie_kwh` traegt kein `!luft_luft` — beides kann eine Klimaanlage
+    # tragen. Nur Gleichheit in BEIDE Richtungen schuetzt vor einer falschen
+    # Zahl (zu hoch wie zu niedrig).
+    _wp_deckung_je_funktion = (
+        {f: monats_fakt.wp.deckung_je_funktion(f) for f in ARBEITSZAHL_FUNKTIONEN}
+        if monats_fakt is not None else None
+    )
+    _wp_abgrenzung_je_funktion = abgrenzung_je_funktion(
+        abgrenzung_stoerung=(
+            monats_fakt.wp.abgrenzung_stoerung if monats_fakt is not None else None
+        ),
+        bauarten_gemischt=(
+            monats_fakt is not None and monats_fakt.wp.bauarten_gemischt
+        ),
+        geraete_ohne_waerme=(
+            monats_fakt is not None
+            and monats_fakt.wp.waerme_deckt_nicht_alle_geraete
+        ),
+        zeitraum_versetzt=_wp_seiten_teilzeitraum == 1,
+        deckung_je_funktion=_wp_deckung_je_funktion,
+    )
     # W-14 + E4: Der funktionsfremde Strom (Kühlen · Lüften · Entfeuchten) kommt
     # — wie der abgeleitete Anteil darüber — IMMER aus den Monats-Fakten. Er
     # beschreibt die Aufteilung der IMD-Zeilen dieses Monats, und die ändert sich
@@ -2258,7 +2287,11 @@ async def get_aktueller_monat(
     wp_az_kuehlen = arbeitszahl_kuehlen(
         mf_wp.nutzenergie_kuehlen_kwh if mf_wp is not None else None,
         mf_wp.modus_strom_kuehlen_kwh if mf_wp is not None else None,
-        abgrenzung_verletzt=wp_abgrenzung_verletzt,
+        # Kuehlen ist KEINE klimaanlagen-exklusive Funktion: A4 ist eine
+        # Luft-Wasser-WP mit Kaeltemengenzaehler, und die `luft_luft`-Bedingung
+        # der Betriebsart-Felder ist weich. Deshalb dieselbe je-Funktion-Frage
+        # wie oben — nicht „gilt hier ohnehin nicht".
+        abgrenzung_verletzt=_wp_abgrenzung_je_funktion["kuehlen"],
     )
     wp_az_funktion = arbeitszahl_je_funktion(
         heizung_kwh=wp_heizung,
@@ -2268,6 +2301,7 @@ async def get_aktueller_monat(
         hat_split=bool(mf_wp is not None and mf_wp.hat_split),
         waerme_abgeleitet_kwh=wp_waerme_abgeleitet_kwh,
         abgrenzung_verletzt=wp_abgrenzung_verletzt,
+        abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion,
     )
 
     # E-Mobilität: PV/Netz/Extern-Split + V2H

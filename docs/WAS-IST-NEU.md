@@ -11,6 +11,52 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Arbeitszahl je Funktion: sichtbar, sobald sie sauber ist**
+
+Wer eine Wärmepumpe **und** eine Klimaanlage betreibt, sah im Cockpit bei
+*Arbeitszahl · Heizen* und *· Warmwasser* nur Striche — mit dem Hinweis
+„Wärmepumpe und Klimaanlage in einer Zahl". Im Komponenten-Hub standen für
+dieselben Geräte längst richtige Werte.
+
+Der Grund war eine zu grobe Sperre. Richtig ist: Die **anlagenweite Gesamtzahl**
+vermischt tatsächlich zwei verschiedene Geräte — sie bleibt gesperrt. Aber eine
+Split-Klimaanlage macht kein Warmwasser, und ihr Stromverbrauch zählt zu keiner
+einzelnen Funktion. Heizen und Warmwasser waren also reine
+Wärmepumpen-Größen und hätten von Anfang an dastehen können.
+
+Ab jetzt entscheidet eedc **je Funktion**: Stammen Wärme und Strom dieser einen
+Funktion von denselben Geräten, erscheint ihre Arbeitszahl. Sonst steht dort
+weiterhin der Grund.
+
+**Betrifft dich das?** Jeden mit mehr als einem Wärme-/Klimagerät.
+**Was du tun musst:** nichts.
+
+⚠ **Wo eedc weiterhin schweigt:** wenn du eine *Abgrenzungs-Störung* gepflegt
+hast (Heizstab auf dem Wärmepumpen-Zähler, zweiter Erzeuger am Wärmekreis).
+Diese Angabe sagt nicht, welche Funktion betroffen ist — also gibt eedc keine
+frei. Das ist bewusst so.
+
+---
+
+**Eine Arbeitszahl, die zu hoch war, verschwindet**
+
+Beim Bau der Regel oben ist ein Fehler aufgefallen, den niemand gemeldet hatte.
+Wer neben der Heizungs-Wärmepumpe eine **Brauchwasser-Wärmepumpe** betreibt,
+bekam eine Warmwasser-Arbeitszahl, die die Wärme **beider** Geräte durch den
+Strom **eines** Geräts teilte. An einer nachgestellten Anlage kam so 4,75
+heraus, wo gar keine Zahl hätte stehen dürfen.
+
+Der Fall rutschte durch jede bisherige Prüfung: Beide Geräte sind Wärmepumpen,
+beide melden Wärme — es sah unauffällig aus. Jetzt steht dort *„Wärme und Strom
+dieser Funktion stammen von verschiedenen Geräten"*.
+
+**Betrifft dich das?** Nur mit zwei wärmemeldenden Geräten, von denen eines
+seinen Strom nicht getrennt nach Funktion misst.
+**Was du tun musst:** nichts — aber wenn du dir die Zahl notiert hattest: sie
+war zu hoch, nicht die neue Leerstelle ist der Fehler.
+
+---
+
 **Wärme/Klima im Jahr: endlich zu sehen, WANN etwas passiert ist**
 
 Der Wärme/Klima-Block unter *Cockpit → Jahr* zeigte bisher nur Summen — wie viel

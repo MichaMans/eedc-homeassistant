@@ -445,6 +445,98 @@ class WpFakten:
     #: ⛔ **`None` heißt „keine bekannte Abweichung", nicht „geprüft".**
     abgrenzung_stoerung: Optional[str] = None
 
+    # ── R2 JE FUNKTION (10.09.2026, SOLL §3.2b) ────────────────────────────
+    #: Geräte, die den **Strom** bzw. die **Wärme** je Funktion beisteuern.
+    #: Grundlage von {@link funktion_sauber_abgegrenzt}.
+    geraete_e_heizen: int = 0
+    geraete_q_heizen: int = 0
+    geraete_e_warmwasser: int = 0
+    geraete_q_warmwasser: int = 0
+    geraete_e_kuehlen: int = 0
+    geraete_q_kuehlen: int = 0
+
+    def funktion_sauber_abgegrenzt(self, funktion: str) -> bool:
+        """Tragen dieselben Geräte Zähler **und** Nenner dieser Funktion? (**R2**)
+
+        **SOLL §3.2b: die Trennlinie ist die Abgrenzung, nicht die Bauart.** Ein
+        Block darf als Ganzes gemischt sein und trotzdem einzelne Funktionen
+        sauber abgrenzen — dann erscheint deren Kennzahl.
+
+        ⭐ **Der belegte Fall (dietmar1968, Fixture A5):** Wärmepumpe mit
+        getrennter Strommessung neben einer Split-Klimaanlage. Die Klimaanlage
+        trägt ihre 200 kWh in ``stromverbrauch_kwh`` — das gehört zu **keiner**
+        Funktion und steht in keinem der beiden Quotienten. Heizen und
+        Warmwasser sind damit reine Wärmepumpen-Größen; ihre Arbeitszahlen
+        (3,0 und 2,5) waren bis hierher gesperrt, obwohl sie stimmen.
+
+        ⛔ **Beidseitig, und das ist nicht verhandelbar.** Eine einseitige Regel
+        („jedes Gerät mit Strom liefert auch Wärme") fängt nur den **Nenner**.
+        Der Zähler kippt genauso, und zwar in die teurere Richtung:
+
+        * ``heizenergie_kwh`` trägt nur ``!brauchwasser``
+          (``field_definitions.py:452-458``) — eine Split-Klimaanlage **darf**
+          Heizwärme melden. Tut sie es ohne Heizstrom, wäre die Heiz-Arbeitszahl
+          zu **hoch**: an der A8-Bauform 4,25 statt 3,75.
+        * ``strom_warmwasser_kwh`` wird **ungefiltert** gelesen
+          (``imd_monatsaggregat.py:276``, mit ausdrücklicher Begründung), und
+          bis zum 22.08.2026 wurde das Feld einer Klimaanlage mit getrennter
+          Strommessung angeboten. Altbestand ohne Wärme daneben ergäbe eine zu
+          **niedrige** Zahl.
+
+        ⚠ **Eine zu Unrecht gezeigte Kennzahl ist teurer als eine zu Unrecht
+        gesperrte** — deshalb Gleichheit und nicht „≥".
+
+        ⭐ **Das löst zugleich einen Fehler, der heute schon falsche Zahlen
+        zeigt:** Eine **Brauchwasser-Wärmepumpe** neben einer Wärmepumpe mit
+        getrennter Strommessung fällt in keine der bisherigen Sperren — sie
+        zählt als Luft-Wasser-Gerät und meldet Wärme, also greifen weder
+        {@link bauarten_gemischt} noch {@link waerme_deckt_nicht_alle_geraete}.
+        Ihre Warmwasser-Wärme landet im Zähler, ihr Strom (ungeteilt) in
+        keinem Nenner ⇒ die Warmwasser-Arbeitszahl war zu hoch, **ohne Grund
+        daneben**. 8ear hat genau diese Konstellation.
+
+        ⛔ **Null Geräte auf beiden Seiten ist NICHT „sauber".** Dann gibt es
+        die Funktion in diesem Monat gar nicht; die Kennzahl entsteht ohnehin
+        nicht, und „sauber" zu melden hieße, eine Abwesenheit für eine
+        Zusicherung auszugeben.
+        """
+        return self.deckung_je_funktion(funktion) is True
+
+    def deckung_je_funktion(self, funktion: str) -> Optional[bool]:
+        """Deckt sich der Geräte-Kreis von Zähler und Nenner dieser Funktion?
+
+        ``True`` = ja · ``False`` = nein · ``None`` = **die Frage stellt sich
+        nicht**, und das ist der wichtigste der drei Werte.
+
+        ⚠ **Zwei Lagen ergeben ``None``, und in beiden wäre eine Sperre die
+        schlechtere Auskunft:**
+
+        * ``(0, 0)`` — die Funktion gab es in diesem Monat nicht. Ein
+          Sommermonat ohne Heizbetrieb ist nicht „unsauber abgegrenzt".
+        * ``(n, 0)`` — Strom ja, Wärme nein. Dafür hat ``arbeitszahl`` den
+          genaueren Satz („kein Wärmemengenzähler zugeordnet"); ihn gegen einen
+          allgemeinen Abgrenzungs-Grund zu tauschen verstieße gegen S3.
+
+        ⛔ ``(0, q)`` ist dagegen **False**: Wärme ohne den Strom derselben
+        Funktion. Für den Monat selbst folgt daraus nichts (ohne Nenner gibt es
+        keinen Quotienten) — **für das Jahr sehr wohl**: Dort wandert die Wärme
+        dieses Monats in die Summe, sein fehlender Strom nicht. Gemessen an
+        einem Zweimonats-Fall: **3,75 statt 3,0.**
+        """
+        e, q = self._funktions_paar(funktion)
+        if q == 0:
+            return None
+        if e == 0:
+            return False
+        return e == q
+
+    def _funktions_paar(self, funktion: str) -> tuple[int, int]:
+        return {
+            "heizen": (self.geraete_e_heizen, self.geraete_q_heizen),
+            "warmwasser": (self.geraete_e_warmwasser, self.geraete_q_warmwasser),
+            "kuehlen": (self.geraete_e_kuehlen, self.geraete_q_kuehlen),
+        }[funktion]
+
     @property
     def waerme_deckt_nicht_alle_geraete(self) -> bool:
         """Trägt der Block Strom von Geräten, deren Wärme fehlt? (**R2**)
@@ -1336,6 +1428,31 @@ class _RohMonat:
         # Stehen BEIDE im Block, gibt es keine gemeinsame Kennzahl.
         self.wp_geraete_luft_luft = 0
         self.wp_geraete_luft_wasser = 0
+        # ── R2 JE FUNKTION (10.09.2026) ────────────────────────────────────
+        # Wie viele Geraete tragen den **Strom** einer Funktion bei, wie viele
+        # ihre **Waerme**? Sind es dieselben (Mengengleichheit), ist die
+        # Funktion sauber abgegrenzt und ihre Kennzahl darf erscheinen — auch
+        # wenn der Block als GANZES gemischt ist.
+        #
+        # ⭐ **Beidseitig, und das ist der Kern.** Eine einseitige Regel
+        # („jedes Geraet mit Strom liefert auch Waerme") faengt nur den Nenner.
+        # Der Zaehler kippt genauso: `heizenergie_kwh` traegt NUR
+        # `!brauchwasser` (field_definitions.py:452-458), eine Split-Klima darf
+        # also Heizwaerme melden. Meldet sie welche, ohne Heizstrom
+        # beizusteuern, waere die Heiz-Arbeitszahl zu HOCH — gemessen an der
+        # A8-Bauform 4,25 statt 3,75.
+        #
+        # ⛔ Und die Gegenrichtung ist kein Papierfall: `strom_warmwasser_kwh`
+        # wird **ungefiltert** gelesen (imd_monatsaggregat.py:276, mit
+        # ausdruecklicher Begruendung), und bis 22.08.2026 wurde das Feld einer
+        # Klimaanlage mit getrennter Strommessung angeboten. Altbestand steht
+        # dort also, ohne Waerme daneben.
+        self.wp_geraete_e_heizen = 0
+        self.wp_geraete_q_heizen = 0
+        self.wp_geraete_e_warmwasser = 0
+        self.wp_geraete_q_warmwasser = 0
+        self.wp_geraete_e_kuehlen = 0
+        self.wp_geraete_q_kuehlen = 0
         #: R2/W-7 + R2/F12: die Abgrenzungs-Störung des Blocks. **Sobald EIN
         #: Gerät gestört ist, ist der Block gestört** — dieselbe Faltung wie
         #: `wp_hat_split`. Ein Block, der Strom eines Geräts mit Heizstab am
@@ -1518,6 +1635,26 @@ class _RohMonat:
                     self.wp_geraete_luft_wasser += 1
             if b.wp_waerme > 0:
                 self.wp_geraete_mit_waerme += 1
+            # R2 je Funktion: je Seite EINES Quotienten zaehlen. Gezaehlt wird
+            # der **Beitrag**, nicht die Stammdaten-Zusicherung — nur so faengt
+            # die Regel den Altbestand, den die Bauart-Bedingung nicht kennt.
+            #
+            # ⚠ `wp_strom` (das ungeteilte `stromverbrauch_kwh`) zaehlt hier
+            # bewusst NICHT mit: Es gehoert zu KEINER Funktion. Genau deshalb
+            # stoert die Klimaanlage in A5 die Heiz-Arbeitszahl nicht — ihre
+            # 200 kWh stehen in keinem der beiden Quotienten.
+            if b.wp_strom_heizen > 0:
+                self.wp_geraete_e_heizen += 1
+            if b.wp_heizung > 0:
+                self.wp_geraete_q_heizen += 1
+            if b.wp_strom_warmwasser > 0:
+                self.wp_geraete_e_warmwasser += 1
+            if b.wp_warmwasser > 0:
+                self.wp_geraete_q_warmwasser += 1
+            if b.wp_modus_strom_kuehlen > 0:
+                self.wp_geraete_e_kuehlen += 1
+            if b.wp_nutzenergie_kuehlen > 0:
+                self.wp_geraete_q_kuehlen += 1
             # Erste gemeldete Störung gewinnt. Zwei verschiedene Störungen an
             # zwei Geräten wären beide richtig — die Kachel trägt aber nur einen
             # Grund, und beide führen zu derselben Folge (keine Kennzahl).
@@ -1791,6 +1928,12 @@ async def _baue_fakt(
             waerme_abgeleitet_kwh=roh.wp_waerme_abgeleitet,
             geraete_mit_strom=roh.wp_geraete_mit_strom,
             geraete_mit_waerme=roh.wp_geraete_mit_waerme,
+            geraete_e_heizen=roh.wp_geraete_e_heizen,
+            geraete_q_heizen=roh.wp_geraete_q_heizen,
+            geraete_e_warmwasser=roh.wp_geraete_e_warmwasser,
+            geraete_q_warmwasser=roh.wp_geraete_q_warmwasser,
+            geraete_e_kuehlen=roh.wp_geraete_e_kuehlen,
+            geraete_q_kuehlen=roh.wp_geraete_q_kuehlen,
             geraete_luft_luft=roh.wp_geraete_luft_luft,
             geraete_luft_wasser=roh.wp_geraete_luft_wasser,
             abgrenzung_stoerung=roh.wp_abgrenzung,
