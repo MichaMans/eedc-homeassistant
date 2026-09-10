@@ -273,3 +273,69 @@ async def test_n348_keine_der_drei_zeilen_ist_je_stumm(db):
                 f"[{name}] wp_jaz_{funktion}: weder Wert noch Grund — die Zeile "
                 f"verschwindet in der Tagessicht lautlos (N-348/S3)"
             )
+
+
+# ── Nachtrag 10.09.2026 — die gemessene Null (dietmar1968, T89667 #322) ────
+#
+# **Der Fund.** Derselbe Melder, dieselbe Fläche, ein Jahr später im Kalender:
+# Er hat BEIDE Wärmemengenzähler zugeordnet (`sensor.boiler_energy_heating`
+# steht auf 9125,59 kWh) und liest am 7. September trotzdem
+# *„Arbeitszahl · Heizen — (kein Wärmemengenzähler zugeordnet)"*. Im September
+# heizt seine Wärmepumpe nicht; der Zähler meldet korrekt Null.
+#
+# ⛔ **Warum W-18 den Fall NICHT geheilt hat.** W-18 (26.08.) gab `arbeitszahl`
+# den Eingang `waerme_fehlt_grund` für „Wert fehlt, und ich weiß warum". Ein
+# **gemessener** Wert bekommt aber nie einen solchen Grund: `snapshot/
+# aggregator.py` vergibt sie ausschließlich für Felder OHNE Summe. Dazu faltete
+# `float(waerme_kwh or 0.0)` `None` und `0.0` zusammen. Beide Lagen liefen
+# deshalb in denselben Satz — und für die eine ist er wahr, für die andere eine
+# Falschaussage, die den Melder einen Zuordnungsfehler suchen ließ, den es nicht
+# gab.
+#
+# ⭐ **Der Wortlaut ist von der Kühlseite geliehen** (`GRUND_KEIN_KUEHLBETRIEB`,
+# W-5), nicht neu erfunden: dieselbe Lage, dieselbe Sprache.
+
+
+@pytest.mark.asyncio
+async def test_gemessene_null_heisst_kein_betrieb_nicht_kein_zaehler(db):
+    """Zähler zugeordnet, Tageswert echt 0 ⇒ der Grund nennt den Betrieb."""
+    from backend.core.berechnungen.waermepumpe_kennzahl import (
+        GRUND_KEIN_HEIZBETRIEB,
+    )
+
+    resp = await _tag(db, zaehler={
+        # Heizzähler DA, an diesem Tag aber 0 kWh — Standby/Umwälzung auf dem
+        # Stromzähler. Warmwasser läuft normal weiter, sonst griffe die
+        # Gesamt-Sperre und der Fall wäre nicht isoliert.
+        "strom_heizen_kwh": 1.0, "heizenergie_kwh": 0.0,
+        "strom_warmwasser_kwh": 1.0, "warmwasser_kwh": 4.0,
+    }, params={"wp_art": "luft_wasser", "getrennte_strommessung": True})
+
+    assert resp.wp_jaz_heizen is None
+    assert resp.wp_jaz_heizen_grund == GRUND_KEIN_HEIZBETRIEB, (
+        "Ein zugeordneter Zähler, der 0 meldet, ist kein fehlender Zähler — "
+        "genau diese Verwechslung hat dietmar1968 einen Zuordnungsfehler "
+        "suchen lassen, den es nicht gab (T89667 #322)"
+    )
+    # Die Gegenprobe in derselben Antwort: Warmwasser lief, also eine Zahl.
+    assert resp.wp_jaz_warmwasser == 4.0
+
+
+@pytest.mark.asyncio
+async def test_fehlender_zaehler_behaelt_seinen_satz(db):
+    """Die Gegenrichtung — ohne Zähler bleibt es beim alten Wortlaut.
+
+    ⚠ **Die wichtigere Hälfte des Nachtrags.** Der neue Satz darf den alten
+    nicht verdrängen: Wer gar keinen Wärmemengenzähler hat, muss weiterhin
+    lesen, dass ihm einer fehlt — sonst wäre „kein Heizbetrieb" die nächste
+    Falschaussage, nur in der Gegenrichtung.
+    """
+    resp = await _tag(db, zaehler={
+        "strom_heizen_kwh": 20.0, "strom_warmwasser_kwh": 10.0,
+    }, params={"wp_art": "luft_wasser", "getrennte_strommessung": True})
+
+    assert resp.wp_jaz_heizen is None
+    assert "Wärmemengenzähler" in (resp.wp_jaz_heizen_grund or ""), (
+        'Ohne Zähler darf NICHT „kein Heizbetrieb“ stehen — der Anwender '
+        'verlöre den Hinweis auf die fehlende Zuordnung'
+    )

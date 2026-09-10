@@ -114,6 +114,28 @@ def waerme_gesamt_kwh(
     return float(heizung_kwh or 0.0) + float(warmwasser_kwh or 0.0)
 
 
+#: **Gemessene Null, nicht fehlender Zähler** — die Gegenstücke zu
+#: {@link GRUND_KEIN_KUEHLBETRIEB} auf der Wärmeseite (dietmar1968, T89667 #322).
+#:
+#: ⛔ **Der Fall, den sie abdecken, sah bis hierher aus wie ein fehlender Zähler.**
+#: ``arbeitszahl`` faltete ``None`` und ``0.0`` in ``float(waerme_kwh or 0.0)``
+#: zusammen und nannte beides „kein Wärmemengenzähler zugeordnet". Für einen
+#: Septembertag ohne Heizbetrieb ist das eine **Falschaussage**: Der Zähler ist
+#: zugeordnet und meldet korrekt Null. Der Melder hat daraufhin nach einem
+#: Zuordnungsfehler gesucht, den es nicht gab.
+#:
+#: ⭐ **Der Wortlaut ist von der Kühlseite übernommen, nicht neu erfunden.**
+#: Dort steht seit W-5 „kein Kühlbetrieb in diesem Zeitraum" für exakt dieselbe
+#: Lage. Zwei Sprachen für einen Sachverhalt auf einer Seite wären die Klasse,
+#: gegen die N-327 den EINEN Wortlaut durchgesetzt hat.
+#:
+#: ⚠ **Warum kein Quotient statt eines Grundes.** 0 kWh Wärme ÷ 1 kWh Strom
+#: ergibt 0 — wahr und trotzdem irreführend: Der Strom ist Standby und
+#: Umwälzung, kein misslungenes Heizen. Eine 0 an der Stelle einer Arbeitszahl
+#: liest sich als Bewertung des Geräts.
+GRUND_KEIN_HEIZBETRIEB = "kein Heizbetrieb in diesem Zeitraum"
+GRUND_KEINE_WARMWASSERBEREITUNG = "keine Warmwasserbereitung in diesem Zeitraum"
+
 #: Grund für die Abgrenzungs-Sperre, wenn der Block Strom von Geräten trägt,
 #: deren Wärme fehlt (SOLL §4.2 Fall 1). Kurz — er steht sichtbar auf der Kachel.
 GRUND_GERAETE_OHNE_WAERME = "nicht alle Geräte melden Wärme"
@@ -308,6 +330,7 @@ def arbeitszahl(
     strom_funktionsfremd_kwh: float = 0.0,
     abgrenzung_verletzt: Optional[str] = None,
     waerme_fehlt_grund: Optional[str] = None,
+    kein_betrieb_grund: Optional[str] = None,
 ) -> Arbeitszahl:
     """Q ÷ E — oder der Grund, warum es diese Zahl nicht gibt (**R2**).
 
@@ -406,6 +429,28 @@ def arbeitszahl(
         # wahren Grund kennt, reicht ihn herein; wer ihn nicht kennt, bekommt
         # unverändert den bisherigen Satz. **Der Default ist bitgleich zu
         # vorher** — kein Aufrufer ändert sein Verhalten, ohne es zu wollen.
+        # ⭐ **Die zweite Hälfte desselben Fehlers** (dietmar1968, T89667 #322,
+        # 10.09.2026): W-18 hat den Fall „Wert fehlt, Grund bekannt" geheilt —
+        # den Fall „Wert ist **gemessen** 0" nicht. `float(waerme_kwh or 0.0)`
+        # faltet `None` und `0.0` zusammen, und ein gemessener Wert bekommt
+        # ohnehin nie einen `waerme_fehlt_grund` (`snapshot/aggregator.py`
+        # vergibt Gründe nur für Felder OHNE Summe). Ein Septembertag ohne
+        # Heizbetrieb hieß deshalb „kein Wärmemengenzähler zugeordnet", obwohl
+        # der Zähler zugeordnet ist und korrekt Null meldet.
+        # ⚠ **`q == 0`, nicht `q <= 0`** — eine negative Wärme ist ein
+        # Zählerrücksprung und kein ruhiges Gerät; für ihn gibt es
+        # `GRUND_ZAEHLER_RUECKSPRUNG` über `waerme_fehlt_grund`.
+        # ⚠ **`waerme_kwh is not None` ist Gürtel UND Hosenträger, gemessen am
+        # 10.09.:** Ein Sprengsatz, der genau diese Teilbedingung entfernt,
+        # bleibt still — den Fall „kein Zähler" trägt bereits
+        # `not waerme_fehlt_grund` (ein unerfasstes Feld bekommt immer einen
+        # Grund). Sie steht hier für Aufrufer, die künftig
+        # `null_ist_gemessen=True` setzen, ohne dieselbe Grund-Erhebung zu
+        # haben. **Wer sie für tragend hält, irrt** — der diskriminierende
+        # Riegel ist der Grund, nicht der Wert.
+        if q == 0 and waerme_kwh is not None and not waerme_fehlt_grund:
+            if kein_betrieb_grund:
+                return Arbeitszahl(None, kein_betrieb_grund)
         return Arbeitszahl(
             None, waerme_fehlt_grund or "kein Wärmemengenzähler zugeordnet",
         )
@@ -463,6 +508,9 @@ def arbeitszahl_je_funktion(
     hat_split: bool,
     waerme_abgeleitet_kwh: float = 0.0,
     abgrenzung_verletzt: Optional[str] = None,
+    waerme_fehlt_grund_heizen: Optional[str] = None,
+    waerme_fehlt_grund_warmwasser: Optional[str] = None,
+    null_ist_gemessen: bool = False,
 ) -> ArbeitszahlJeFunktion:
     """Je Funktion eine eigene Arbeitszahl — oder je Funktion ihr Grund.
 
@@ -491,21 +539,62 @@ def arbeitszahl_je_funktion(
             dem sie gerechnet wurde, wie in der Summe (Konzept §3.5).
         abgrenzung_verletzt: gilt für **beide** — ein Heizstab auf dem Zähler
             oder ein versetzter Zeitraum trifft nicht nur eine der Funktionen.
+        waerme_fehlt_grund_heizen: **W-18 je Funktion.** Kurzer Grund, warum
+            ``heizung_kwh`` fehlt. ``None`` lässt den Default-Wortlaut von
+            ``arbeitszahl`` stehen — der Aufruf ist damit **bitgleich zu vorher**.
+        waerme_fehlt_grund_warmwasser: dasselbe für ``warmwasser_kwh``.
+
+            ⭐ **Warum ZWEI Eingänge und nicht einer wie bei ``arbeitszahl``.**
+            Die beiden Funktionen haben verschiedene Zähler und deshalb
+            verschiedene Gründe; ``_tageswert_grund_kombiniert`` sagt es
+            wörtlich: *„Wer den Wärmemengenzähler für die Heizung zugeordnet hat
+            und den fürs Warmwasser nicht, soll nicht lesen ‚kein Zähler
+            zugeordnet'."* Ein gemeinsamer Eingang träfe zwangsläufig eine der
+            beiden Zeilen falsch — genau der Fehler, den W-18 abschaffen wollte,
+            nur eine Ebene tiefer.
+
+            ⛔ **Anders als ``abgrenzung_verletzt``, das bewusst für beide gilt.**
+            Ein Heizstab auf dem Zähler trifft die Abgrenzung der ganzen Anlage;
+            ein fehlender Tageswert trifft genau eine Größe. Die Asymmetrie ist
+            Absicht, kein Versehen.
     """
     if not hat_split:
         gesperrt = Arbeitszahl(None, GRUND_STROM_NICHT_JE_FUNKTION)
         return ArbeitszahlJeFunktion(heizen=gesperrt, warmwasser=gesperrt)
 
-    def _je(q: Optional[float], e: Optional[float]) -> Arbeitszahl:
+    def _je(
+        q: Optional[float],
+        e: Optional[float],
+        waerme_fehlt_grund: Optional[str],
+        kein_betrieb_grund: Optional[str],
+    ) -> Arbeitszahl:
         return arbeitszahl(
             q, e,
             waerme_abgeleitet_kwh=waerme_abgeleitet_kwh,
             abgrenzung_verletzt=abgrenzung_verletzt,
+            waerme_fehlt_grund=waerme_fehlt_grund,
+            # ⭐ **Welcher Wortlaut, weiß diese Funktion; OB überhaupt, weiß
+            # nur der Aufrufer** (`null_ist_gemessen`). Die Trennung ist an einer
+            # roten Probe gelernt: `test_b4_cockpit_matrix` meldete „Monat gegen
+            # Jahr, zwei Aussagen", als der Grund hier unbedingt gesetzt war.
+            # ⛔ **Der Jahres-Pfad darf ihn NICHT bekommen** — er bildet
+            # `sum(f.wp.heizung_kwh …)` (`waermepumpe_jahreskennzahlen.py:118`),
+            # und `sum()` liefert 0, ob gemessen oder nie erfasst. Dort hieße
+            # „kein Heizbetrieb" bei einer Anlage OHNE Wärmemengenzähler eine
+            # **neue** Falschaussage — derselbe Fehler wie der geheilte, nur in
+            # der Gegenrichtung.
+            kein_betrieb_grund=kein_betrieb_grund,
         )
 
     return ArbeitszahlJeFunktion(
-        heizen=_je(heizung_kwh, strom_heizen_kwh),
-        warmwasser=_je(warmwasser_kwh, strom_warmwasser_kwh),
+        heizen=_je(
+            heizung_kwh, strom_heizen_kwh, waerme_fehlt_grund_heizen,
+            GRUND_KEIN_HEIZBETRIEB if null_ist_gemessen else None,
+        ),
+        warmwasser=_je(
+            warmwasser_kwh, strom_warmwasser_kwh, waerme_fehlt_grund_warmwasser,
+            GRUND_KEINE_WARMWASSERBEREITUNG if null_ist_gemessen else None,
+        ),
     )
 
 

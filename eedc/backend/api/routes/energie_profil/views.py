@@ -603,6 +603,26 @@ async def get_tag_detail(
         strom_warmwasser_kwh=detail.get("wp_strom_warmwasser_kwh"),
         hat_split=_wp_getrennte_strommessung_tag,
         abgrenzung_verletzt=wp_abgrenzung_tag,
+        # W-18 je Funktion: dieselbe Sperre wie oben bei der Gesamt-Arbeitszahl,
+        # aber **je Zähler**. Der Layer bekam den Parameter am 26.08.; dieser
+        # Block entstand am 29.08. (N-348) und hat ihn nie durchgereicht — die
+        # zwei Zeilen liefen deshalb weiter auf den Default „kein
+        # Wärmemengenzähler zugeordnet", und der ist am Tag regelmäßig falsch:
+        # Der Zähler kann zugeordnet und für DIESEN Tag trotzdem leer sein.
+        # ⚠ Je EINE Feldliste, nicht die kombinierte von oben — sonst erbt die
+        # eine Zeile den Grund der anderen.
+        waerme_fehlt_grund_heizen=_tageswert_grund_kurz_kombiniert(
+            _grund, ("wp_heizung_kwh",),
+        ),
+        waerme_fehlt_grund_warmwasser=_tageswert_grund_kurz_kombiniert(
+            _grund, ("wp_warmwasser_kwh",),
+        ),
+        # Der Tag ist die EINZIGE der fünf Sichten, die „gemessene 0" von
+        # „nichts gemessen" trennen kann: `detail` trägt den Wert nur, wenn das
+        # Feld aggregiert wurde, und `_grund` sagt sonst, warum nicht. Monat und
+        # Jahr summieren vorher (`sum()` ⇒ immer eine Zahl) und dürfen den
+        # Wortlaut deshalb nicht führen.
+        null_ist_gemessen=True,
     )
 
     # ── Aktive Geräte je Typ (Namen) für die „aggregiert aus …"-Hinweise ──

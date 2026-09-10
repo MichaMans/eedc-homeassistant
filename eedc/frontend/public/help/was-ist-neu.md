@@ -11,6 +11,29 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Ein Zähler, der null meldet, ist kein fehlender Zähler**
+
+Wer Heizwärme und Warmwasser getrennt misst, sah unter *Cockpit → Tag* an einem
+Tag ohne Heizbetrieb den Hinweis *„kein Wärmemengenzähler zugeordnet"* — obwohl
+der Zähler zugeordnet ist und völlig korrekt null meldet. Im September heizt eine
+Wärmepumpe nun einmal nicht. Der Melder hat daraufhin seine Zuordnung durchsucht
+und nichts gefunden, weil dort nichts zu finden war.
+
+Jetzt steht dort **„kein Heizbetrieb in diesem Zeitraum"** — genau der Satz, den
+die Kühlseite schon immer benutzt. Dass auf dem Stromzähler trotzdem etwas steht,
+ist Standby und Umwälzung, kein misslungenes Heizen.
+
+**Betrifft dich das?** Jeden, der Wärme getrennt nach Heizen und Warmwasser misst.
+**Was du tun musst:** nichts. ⚠ **Wer wirklich keinen Wärmemengenzähler hat,
+bekommt weiterhin den Hinweis auf die fehlende Zuordnung** — der geht nicht
+verloren. In *Monat* und *Jahr* bleibt die alte Formulierung; dort werden die
+Werte vorher zusammengezählt, und dann lassen sich die beiden Fälle nicht mehr
+unterscheiden.
+
+*Gemeldet von dietmar1968 im simon42-Forum.*
+
+---
+
 **Der Browser füllt Suchfelder nicht mehr von sich aus aus**
 
 Mit 4.0.44 hat die Suche in den Einstellungen ein eigenes ✕ zum Leeren bekommen. Für den

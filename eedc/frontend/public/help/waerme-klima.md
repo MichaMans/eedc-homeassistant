@@ -132,6 +132,9 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 |------------------|--------------------|-------------------|
 | **kein Stromverbrauch erfasst** | Für den Zeitraum liegt kein Strom vor. | Zähler zuordnen oder Monatswert pflegen |
 | **kein Wärmemengenzähler zugeordnet** | Es gibt keine gemessene Wärme. | Zähler zuordnen — oder die gepflegte Arbeitszahl nutzen (dann ist die Wärme *abgeleitet*) |
+| **kein Heizbetrieb in diesem Zeitraum** | Der Wärmemengenzähler ist zugeordnet und meldet für den Zeitraum **null** — das Gerät hat schlicht nicht geheizt. Typisch für einen Sommertag: Auf dem Stromzähler steht trotzdem etwas, das ist Standby und Umwälzung. | nichts, das ist die Wahrheit über den Tag. **Nicht mit *kein Wärmemengenzähler zugeordnet* verwechseln** — dort fehlt die Messung, hier ist sie da und sagt null |
+| **keine Warmwasserbereitung in diesem Zeitraum** | Dasselbe für den Warmwasserkreis. | dito |
+| **kein Kühlbetrieb in diesem Zeitraum** | Gegenstück auf der Kühlseite: Der Kühlstrom ist null, es gab keinen Kühlbetrieb. | nichts, das ist die Wahrheit über einen Wintermonat |
 | **Wärme ist gerechnet, nicht gemessen** | Die Wärme kam aus *Strom × Arbeitszahl*. Sie durch denselben Strom zu teilen gäbe genau die Arbeitszahl zurück, mit der gerechnet wurde. | nichts — die Zahl wäre zirkulär |
 | **nur Kühlbetrieb in diesem Zeitraum** | Der Zähler lief, aber nicht fürs Heizen. „Kein Stromverbrauch" wäre hier die falsche Auskunft. | nichts, das ist die Wahrheit über einen Sommermonat |
 | **Wärmepumpe und Klimaanlage in einer Zahl** | Der Block fasst eine klassische Wärmepumpe und eine Split-Klimaanlage zusammen. Beide heizen, aber sie sind nicht vergleichbar: andere Nutzenergie, anderer Maßstab. Eine gemeinsame Arbeitszahl wäre ein Quotient aus zwei Welten. | jedes Gerät einzeln im Komponenten-Hub ansehen — dort hat jedes seine eigene Zahl |
