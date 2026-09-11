@@ -22,7 +22,10 @@ import { Parkbar, NOOP_PARK, type ParkApi } from '../components/park'
 // SoT-Komponente des Komponenten-Hubs, nicht als Kopie hier.
 import { ModusSplitErklaerung } from '../components/waermepumpe'
 import { WaermeVerlaufChart } from './WaermeVerlaufChart'
-import { baueWaermeVerlauf, type WaermeVerlaufPunkt } from './waermeVerlauf'
+import {
+  baueWaermeVerlauf, verlaufRestZeilen, verlaufTitel, zeigtVerlauf,
+  type VerlaufRest, type WaermeVerlaufPunkt,
+} from './waermeVerlauf'
 import {
   KOMPONENTEN_IDENTITAET, INVESTITION_TYP_ORDER, SONSTIGES_ERZEUGER_FARBE, ROLLEN_BG,
   SPEICHER_KPI, WP_KPI, EAUTO_KPI, BKW_KPI,
@@ -224,11 +227,11 @@ export function baueKomponentenBloecke(
    *  Eingang, ohne den sich nichts ändert. Jahr liefert Monate, später Monat
    *  die Tage und Tag die Stunden. */
   wpVerlauf?: WaermeVerlaufPunkt[] | null,
-  /** Nur der Tag (Bauschnitt 5): Menge der Aufteilung, für die es keine
-   *  Stundenform gab. Sie wird nicht gleichmäßig verteilt (P4), sondern unter
-   *  dem Verlauf genannt — sonst summierte der Stapel still weniger als der
-   *  Balken darunter. */
-  wpVerlaufOhneStundenformKwh?: number | null,
+  /** Nur der Tag: was sich keiner Stunde zuordnen ließ — **je Größe** (Strom-
+   *  Stapel seit Bauschnitt 5, Wärme- und Kälte-Linie seit 6b/N-437). Es wird
+   *  nicht gleichmäßig verteilt (P4), sondern unter dem Verlauf genannt —
+   *  sonst summierte die Zeichnung still weniger als die Kachel darüber. */
+  wpVerlaufRest?: VerlaufRest | null,
 ): Block[] {
   const istTag = periode === 'tag'
   const bloecke: Block[] = []
@@ -509,30 +512,28 @@ export function baueKomponentenBloecke(
     // Zeile „Aufgeteilte Menge" (dietmar1968 sah 30 kWh Balken unter 284 kWh
     // Kachel). Der Verlauf erbt sie, statt eine zweite Antwort zu erfinden.
     const verlauf = wpVerlauf && wpVerlauf.length > 0 ? baueWaermeVerlauf(wpVerlauf) : null
-    if (verlauf && (verlauf.hatStapel || verlauf.hatGemesseneWaerme)) wpEls.push({
+    // N-437/E6 (a): Der Rest steht je Größe da — und das Element erscheint auch,
+    // wenn NUR ein Rest da ist, sonst bliebe genau dieser Fall unsichtbar (S3).
+    const restZeilen = verlaufRestZeilen(wpVerlaufRest)
+    if (verlauf && zeigtVerlauf(verlauf, wpVerlaufRest)) wpEls.push({
       id: 'el:wp-verlauf',
-      // W-8 — der Titel nennt die Größen, nicht nur „Verlauf": im Block liegen
-      // gleich darunter zwei Balken mit denselben Farben und anderer Einheit.
-      // W-8 — der Titel nennt, was wirklich drinsteht. Die Temperatur ist
-      // Kontext, keine Größe der Anlage; sie steht deshalb nicht im Titel.
-      titel: verlauf.hatGemesseneWaerme
-        ? (verlauf.hatStapel ? 'Verlauf · Strom nach Betriebsart und gemessene Wärme' : 'Verlauf · gemessene Wärme')
-        : 'Verlauf · Strom nach Betriebsart',
+      // W-8 — der Titel nennt, was wirklich drinsteht (Strom · Wärme · Kälte).
+      // Die Temperatur ist Kontext, keine Größe der Anlage.
+      titel: verlaufTitel(verlauf),
       node: (
         <div className="space-y-3">
-          <WaermeVerlaufChart rows={verlauf.rows} stapel={verlauf.stapel} linien={verlauf.linien}
-            rechteEinheit="°C" />
+          {(verlauf.hatStapel || verlauf.hatGemesseneWaerme || verlauf.hatGemesseneKaelte) && (
+            <WaermeVerlaufChart rows={verlauf.rows} stapel={verlauf.stapel} linien={verlauf.linien}
+              rechteEinheit="°C" />
+          )}
           {verlauf.hatStapel && Math.abs(verlauf.bezugKwh - verlauf.stromKwh) > 0.05 && (
             <DetailListe rows={[{
               label: 'Aufgeteilte Menge',
               wert: `${fmt(verlauf.bezugKwh)} von ${fmt(verlauf.stromKwh)} kWh`,
             }]} />
           )}
-          {wpVerlaufOhneStundenformKwh != null && wpVerlaufOhneStundenformKwh > 0.05 && (
-            <DetailListe rows={[{
-              label: 'Ohne Stundenzuordnung',
-              wert: `${fmt(wpVerlaufOhneStundenformKwh, 1)} kWh`,
-            }]} />
+          {restZeilen.length > 0 && (
+            <DetailListe rows={restZeilen.map((r) => ({ label: r.label, wert: `${fmt(r.kwh, 1)} kWh` }))} />
           )}
         </div>
       ),

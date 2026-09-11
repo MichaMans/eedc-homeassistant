@@ -238,6 +238,16 @@ export const CHART_COLORS = {
   // „war orange"). In diesem Chart kommt keine der drei Rollen vor, die es
   // sonst trägt (`wpCop`, `direktverbrauch`, `speicherLadung`).
   waermeGemessen: '#f97316',        // Orange-500
+  // Die **gemessene Kälte** als eigene Linie (Konzept Wärme/Klima §8, Bauschnitt
+  // 6b). Dieselbe Begründung wie bei `waermeGemessen`: Die Linie liegt über dem
+  // Kühlen-Segment (`modusKuehlen`, sky-500) und darf nicht dessen Ton tragen —
+  // sie hieße sonst „das ist Kühlstrom". Gewählt gegen alle Nachbarn im Chart
+  // gerechnet (Plan 6b §B5): Kontrast 3,74 auf Weiß und 3,92 auf gray-800 (beide
+  // ≥ 3:1, `CHART_COLORS` hat keine Dunkel-Variante); teal-700/cyan-700 fallen
+  // dunkel unter 3:1, cyan-600 liegt zu nah am Kühlen-Segment.
+  // ⚠ Ko-Existenz, hingenommen: `text-teal-600` ist die Textfarbe „Batterie
+  // heute" in `LiveHeuteKacheln.tsx` — andere Sicht, kein Chart.
+  kaelteGemessen: '#0d9488',        // Teal-600
   modusKuehlen: '#0ea5e9',          // = ROLLEN_BG.kuehlung (sky-500)
   modusLueften: '#818cf8',          // = ROLLEN_BG.lueftung (indigo-400)
   modusEntfeuchten: '#4f46e5',      // = ROLLEN_BG.entfeuchtung (indigo-600)

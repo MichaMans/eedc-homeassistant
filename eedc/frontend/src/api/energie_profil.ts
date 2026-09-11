@@ -557,6 +557,9 @@ export interface WaermeVerlaufTag {
   datum: string
   wp_strom_kwh: number | null
   wp_waerme_kwh: number | null
+  /** Bauschnitt 6b: gemessene **Kälte** des Tages — eine eigene Rolle, nie in
+   *  `wp_waerme_kwh` (Konzept §8). `null` = keine Aussage. */
+  wp_kaelte_kwh?: number | null
   temperatur_c: number | null
   wp_modus_strom_heizen_kwh: number | null
   wp_modus_strom_warmwasser_kwh: number | null
@@ -578,6 +581,8 @@ export interface WaermeVerlaufStunde {
   stunde: number
   wp_strom_kwh: number | null
   wp_waerme_kwh: number | null
+  /** Bauschnitt 6b: gemessene Kälte des Slots (je Gerät verteilt, N-437). */
+  wp_kaelte_kwh?: number | null
   wp_modus_strom_heizen_kwh: number | null
   wp_modus_strom_warmwasser_kwh: number | null
   wp_modus_strom_kuehlen_kwh: number | null
@@ -591,8 +596,12 @@ export interface WaermeVerlaufStunde {
 
 export interface WaermeVerlaufStunden {
   stunden: WaermeVerlaufStunde[]
-  /** Menge der Aufteilung ohne Stundenform — nicht verteilt, sondern genannt. */
+  /** Menge der Aufteilung (**Strom**-Stapel) ohne Stundenform — nicht
+   *  verteilt, sondern genannt. */
   ohne_stundenform_kwh: number | null
+  /** Dasselbe für die Wärme- und die Kälte-Linie (N-437, Bauschnitt 6b). */
+  waerme_ohne_stundenform_kwh?: number | null
+  kaelte_ohne_stundenform_kwh?: number | null
 }
 
 export const energieProfilApi = {

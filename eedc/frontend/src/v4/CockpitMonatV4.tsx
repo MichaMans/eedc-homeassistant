@@ -27,7 +27,7 @@ import { baueMonatKpis, MonatBilanz, type GleicheMonatStats } from './MonatBilan
 import { monatBilanzParkIds } from './bilanzParkIds'
 import { MONAT_PARK_KEY } from './monatParkScope'
 import { baueKomponentenBloecke } from './KomponentenSektionen'
-import type { WaermeVerlaufPunkt } from './waermeVerlauf'
+import { punkteAusVerlaufsTagen, type WaermeVerlaufPunkt } from './waermeVerlauf'
 import { baueMonatAuswertungBloecke } from './MonatAuswertungBloecke'
 import { MonatsRail, type RailEintrag } from './MonatsRail'
 import { MonatStepper } from './MonatStepper'
@@ -267,26 +267,10 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
       keepPreviousData: true,
     },
   )
+  // Die Punkte baut eine reine Funktion (`waermeVerlauf.ts`) — dort ist eine
+  // vergessene Durchreichung prüfbar, hier im `useMemo` war sie unsichtbar.
   const wpVerlauf = useMemo<WaermeVerlaufPunkt[]>(
-    () => (verlaufQ.data ?? []).map((t) => ({
-      // Die x-Achse trägt die Tagesnummer — der Monat steht in der Sicht.
-      name: String(Number(t.datum.slice(8, 10))),
-      temperatur_c: t.temperatur_c,
-      wp_strom_kwh: t.wp_strom_kwh,
-      wp_waerme_kwh: t.wp_waerme_kwh,
-      // ⚠ Auf Tagesebene gibt es keine abgeleitete Wärme — sie entsteht an den
-      // Monatszeilen. Was hier steht, ist gemessen (SOLL §3.3/S4).
-      wp_waerme_abgeleitet_kwh: null,
-      wp_modus_strom_heizen_kwh: t.wp_modus_strom_heizen_kwh,
-      wp_modus_strom_warmwasser_kwh: t.wp_modus_strom_warmwasser_kwh,
-      wp_modus_strom_kuehlen_kwh: t.wp_modus_strom_kuehlen_kwh,
-      wp_modus_strom_lueften_kwh: t.wp_modus_strom_lueften_kwh,
-      wp_modus_strom_entfeuchten_kwh: t.wp_modus_strom_entfeuchten_kwh,
-      wp_modus_nicht_aufgeteilt_kwh: t.wp_modus_nicht_aufgeteilt_kwh,
-      wp_modus_gemessen: t.wp_modus_gemessen,
-      wp_modus_abdeckung_h: t.wp_modus_abdeckung_h,
-      wp_modus_strom_bezug_kwh: t.wp_modus_strom_bezug_kwh,
-    })),
+    () => punkteAusVerlaufsTagen(verlaufQ.data ?? []),
     [verlaufQ.data],
   )
   const loading = monateQ.loading || (!!gewaehlt && tageQ.loading)

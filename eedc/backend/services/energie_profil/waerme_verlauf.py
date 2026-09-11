@@ -46,17 +46,29 @@ from backend.services.energie_profil.modus_split_monat import lade_modus_split_j
 from backend.services.mitteltemperatur import lade_tagesmittel_temperatur
 from backend.services.snapshot.aggregator import (
     TAGESDETAIL_AUSGABE,
+    WAERME_AUSGABE_KEYS,
     get_betriebsart_strom_tageswerte,
 )
 from backend.services.snapshot.bereichs_leser import lade_tageswerte_je_feld
 
 #: Die Wärme-Felder, die der Verlauf als Linie zeichnet — ein **Ausschnitt** aus
-#: der einen Feldtabelle, keine zweite Liste. Bauschnitt 6 (Kälte je Tag)
-#: erweitert ``TAGESDETAIL_AUSGABE`` und diese Menge, nicht eine dritte Stelle.
+#: der einen Feldtabelle, keine zweite Liste.
+#:
+#: ⛔ Hier stand bis 11.09.2026 „Bauschnitt 6 erweitert … diese Menge". Das war
+#: falsch: Kälte ist eine **eigene Rolle** (Konzept §8) und bekommt ihren
+#: eigenen Ausschnitt darunter — in dieser Menge flösse sie in die Wärme-Linie.
 _WAERME_FELDER = {
     schluessel: key
     for schluessel, key in TAGESDETAIL_AUSGABE.items()
-    if key in ("wp_heizung_kwh", "wp_warmwasser_kwh")
+    if key in WAERME_AUSGABE_KEYS
+}
+#: Die Kälte (Bauschnitt 6b) — Gerätefeld oder Σ Innengeräte, dieselbe Regel
+#: wie im Tagespfad (der Bereichs-Leser löst den Suffix seit 6a auf).
+_KAELTE_KEY = "wp_kaelte_kwh"
+_KAELTE_FELDER = {
+    schluessel: key
+    for schluessel, key in TAGESDETAIL_AUSGABE.items()
+    if key == _KAELTE_KEY
 }
 
 
@@ -69,6 +81,8 @@ class WaermeVerlaufTag:
     #: Σ der **gemessenen** Wärme des Tages (Heizung + Warmwasser), oder
     #: ``None``: keine Aussage, keine 0.
     waerme_kwh: Optional[float]
+    #: Die **gemessene Kälte** des Tages, oder ``None``. Nie Teil der Wärme.
+    kaelte_kwh: Optional[float]
     #: Tagesmittel der Außentemperatur (°C), oder ``None``.
     temperatur_c: Optional[float]
     #: Der gesamte Wärmepumpen-Strom des Tages aus dem **Zählerpfad** — der
@@ -96,8 +110,11 @@ async def lade_waerme_verlauf(
     )
     # N-435: die Wärme je Tag im Fenster derselben Tageszeile — sonst nennte die
     # Monatssäule eine andere Wärme als *Cockpit → Tag* für denselben Tag.
-    waerme_je_tag = await lade_tageswerte_je_feld(
-        db, anlage, investitionen_by_id, von, bis, _WAERME_FELDER,
+    # Bauschnitt 6b: Wärme UND Kälte in EINEM Satz Bereichsabfragen — dasselbe
+    # Fenster je Tag. Getrennt wird danach nach Key, nie über die Summe.
+    nutzenergie_je_tag = await lade_tageswerte_je_feld(
+        db, anlage, investitionen_by_id, von, bis,
+        {**_WAERME_FELDER, **_KAELTE_FELDER},
         rueckwaerts_tage=rueckwaerts_tage,
     )
     temperatur_je_tag = await lade_tagesmittel_temperatur(db, anlage.id, von, bis)
@@ -107,7 +124,7 @@ async def lade_waerme_verlauf(
     # **nur für Tage, die überhaupt eine Zeile haben**, statt für jeden
     # Kalendertag des Monats.
     tage = sorted(
-        set(splits_je_tag) | set(zaehler_je_tag) | set(waerme_je_tag)
+        set(splits_je_tag) | set(zaehler_je_tag) | set(nutzenergie_je_tag)
     )
 
     zeilen: list[WaermeVerlaufTag] = []
@@ -128,10 +145,13 @@ async def lade_waerme_verlauf(
             investitionen_by_id,
             tag,
         )
-        werte = waerme_je_tag.get(tag, {})
-        waerme = sum(werte.values()) if werte else None
+        werte = nutzenergie_je_tag.get(tag, {})
+        # ⛔ Nie `sum(werte.values())` — seit 6b steht dort auch die Kälte.
+        waerme_teile = [v for k, v in werte.items() if k in WAERME_AUSGABE_KEYS]
+        waerme = sum(waerme_teile) if waerme_teile else None
+        kaelte = werte.get(_KAELTE_KEY)
         strom = sum(zaehler.values()) if zaehler else None
-        if stapel.ist_leer and waerme is None:
+        if stapel.ist_leer and waerme is None and kaelte is None:
             # Ein Tag ohne Aufteilung und ohne gemessene Wärme hat für den
             # Verlauf nichts zu sagen (ADR-002/P4) — die Temperatur allein
             # macht keine Zeile.
@@ -140,6 +160,7 @@ async def lade_waerme_verlauf(
             datum=tag,
             stapel=stapel,
             waerme_kwh=round(waerme, 2) if waerme else None,
+            kaelte_kwh=round(kaelte, 2) if kaelte else None,
             temperatur_c=temperatur_je_tag.get(tag),
             strom_kwh=round(strom, 2) if strom else None,
         ))

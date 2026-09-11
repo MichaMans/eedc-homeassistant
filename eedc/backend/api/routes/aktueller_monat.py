@@ -390,6 +390,11 @@ class AktuellerMonatResponse(BaseModel):
     #: Quotient über einen Zeitraum.
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: Bauschnitt 6b: die **gemessene Kälte** des Monats — dieselbe Menge, die
+    #: die Arbeitszahl Kühlen daneben als Zähler benutzt. ``None`` statt 0,0,
+    #: wo kein Kältemengenzähler etwas gemeldet hat: die Monats-Fakten füllen
+    #: dort 0,0 (`or 0.0`), und eine 0 ohne Zähler ist keine Messung (P4).
+    wp_kaelte_kwh: Optional[float] = None
     wp_modus_strom_lueften_kwh: Optional[float] = None
     wp_modus_strom_entfeuchten_kwh: Optional[float] = None
     wp_modus_nicht_aufgeteilt_kwh: Optional[float] = None
@@ -2816,6 +2821,10 @@ async def get_aktueller_monat(
         wp_jaz_warmwasser_grund=wp_az_funktion.warmwasser.grund,
         wp_jaz_kuehlen=wp_az_kuehlen.wert,
         wp_jaz_kuehlen_grund=wp_az_kuehlen.grund,
+        wp_kaelte_kwh=(
+            round(mf_wp.nutzenergie_kuehlen_kwh, 2)
+            if mf_wp is not None and mf_wp.nutzenergie_kuehlen_kwh > 0 else None
+        ),
         wp_modus_strom_lueften_kwh=wp_modus_lueften,
         wp_modus_strom_entfeuchten_kwh=wp_modus_entfeuchten,
         wp_modus_nicht_aufgeteilt_kwh=wp_modus_rest,

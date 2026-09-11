@@ -11,6 +11,19 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Die Kälte bekommt im Wärme/Klima-Verlauf eine eigene Linie**
+
+Wer einen Kältemengenzähler hat, sieht die abgegebene Kälte jetzt im Verlauf —
+je Stunde in *Cockpit → Tag*, je Tag im Monat, je Monat im Jahr. Sie hat ihre
+eigene Farbe und steht neben der Wärme, nie in ihr. Mit Zählern je Innengerät
+zählt eedc deren Summe; ein Zähler am ganzen Gerät geht vor.
+
+Lässt sich im Tag ein Teil einer Menge keiner Stunde zuordnen, steht er unter
+dem Verlauf — getrennt nach Strom, Wärme und Kälte.
+
+**Betrifft dich das?** Nur mit einem Kältemengenzähler.
+**Was du tun musst:** nichts.
+
 **Arbeitszahl Kühlen jetzt auch am einzelnen Tag**
 
 Wer einen Kältemengenzähler hat, sah die Arbeitszahl Kühlen bisher nur im Monat,

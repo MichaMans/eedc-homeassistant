@@ -309,6 +309,7 @@ async def get_waerme_verlauf(
             datum=z.datum,
             wp_strom_kwh=z.strom_kwh,
             wp_waerme_kwh=z.waerme_kwh,
+            wp_kaelte_kwh=z.kaelte_kwh,
             temperatur_c=(
                 round(z.temperatur_c, 1) if z.temperatur_c is not None else None
             ),
@@ -378,7 +379,7 @@ async def get_waerme_verlauf_stunden(
         STUNDEN,
         StundenFormen,
         beitraege_des_tages,
-        verteile_menge,
+        verteile_felder_auf_stunden,
         verteile_tages_stapel_auf_stunden,
     )
     from backend.services.energie_profil import (
@@ -459,17 +460,22 @@ async def get_waerme_verlauf_stunden(
             z = _zaehler(b.inv_id, feld)
             if z:
                 zaehler[z[0]] = z
-    waerme_zaehler: dict[str, list[str]] = {}
-    for inv_id, inv in investitionen_by_id.items():
-        if getattr(inv, "typ", None) != "waermepumpe":
-            continue
-        for (t, feld), ausgabe in TAGESDETAIL_AUSGABE.items():
-            if t != "waermepumpe" or ausgabe not in WAERME_AUSGABE_KEYS:
-                continue
-            z = _zaehler(inv_id, feld)
-            if z:
-                zaehler[z[0]] = z
-                waerme_zaehler.setdefault(ausgabe, []).append(z[0])
+    # ── Linien (Wärme, Kälte): nur die Felder, die den TAGESWERT trugen ──
+    # N-437: Bis 11.09.2026 las diese Schleife die Form JEDES zugeordneten
+    # Wärmezählers — auch eines Geräts, dessen Tageswert wegen Rücksprung oder
+    # Tagesreset verworfen war —, und nur das exakte Gerätefeld (Kälte je
+    # Innengerät bekam keine Form). `felder_je_inv` ist genau die Schlüsselmenge,
+    # mit der der Tag aufgelöst hat.
+    linien_felder = {
+        ausgabe: detail.felder_je_inv.get(ausgabe, {})
+        for ausgabe in (*sorted(WAERME_AUSGABE_KEYS), "wp_kaelte_kwh")
+    }
+    for je_inv in linien_felder.values():
+        for inv_id, felder in je_inv.items():
+            for feld in felder:
+                z = _zaehler(inv_id, feld)
+                if z:
+                    zaehler[z[0]] = z
     formen_je_key = await lade_stundenformen(db, anlage, datum, list(zaehler.values()))
 
     def _summe_je_slot(keys: list[str]) -> list:
@@ -499,20 +505,42 @@ async def get_waerme_verlauf_stunden(
     )
     verteilung = verteile_tages_stapel_auf_stunden(beitraege, formen)
 
-    # ── Wärme: je Ausgabe-Schlüssel die Tagesmenge nach ihrer Form ──────────
-    # S4: nur gemessene Wärme. Fehlt einem Schlüssel die Form, bekommt er KEINE
-    # Linie — eine Reihe Nullen sähe aus wie „nichts geheizt".
-    waerme_je_slot: list = [None] * STUNDEN
-    for ausgabe, keys in waerme_zaehler.items():
-        tageswert = detail.werte.get(ausgabe)
-        if tageswert is None:
-            continue
-        verteilt, nicht_verteilt = verteile_menge(float(tageswert), _summe_je_slot(keys))
-        if nicht_verteilt > 0:
-            continue
-        waerme_je_slot = [
-            (waerme_je_slot[h] or 0.0) + verteilt[h] for h in range(STUNDEN)
-        ]
+    # ── Linien: je Gerät, je Feld verteilt, je Stunde aufgelöst (N-437) ────
+    # Die Bauform des Stapels (`verteile_felder_auf_stunden`). Was keine Form
+    # hat, wird NICHT still fallen gelassen, sondern je Größe genannt
+    # (`*_ohne_stundenform_kwh`, Entscheid E6 (a), BS5 W1).
+    # ⛔ Hier stand bis 11.09.2026: „Fehlt einem Schlüssel die Form, bekommt er
+    # KEINE Linie" — die ganze Wärme eines Keys verschwand, und die Linie war
+    # kleiner als die Kachel, ohne Hinweis (gemessen: Tag 7,0, Linie 2,0).
+    # S4 bleibt gewahrt: Ohne jede verteilte Menge entsteht keine Linie aus
+    # Nullen — dann steht nur der genannte Rest da.
+    basis_je_ausgabe = {
+        ausgabe: feld for (t, feld), ausgabe in TAGESDETAIL_AUSGABE.items()
+        if t == "waermepumpe"
+    }
+
+    def _linie(ausgaben) -> tuple[list, float]:
+        summe = [0.0] * STUNDEN
+        ohne_linie = 0.0
+        for ausgabe in ausgaben:
+            je_inv = linien_felder.get(ausgabe) or {}
+            werte, rest = verteile_felder_auf_stunden(
+                je_inv,
+                {
+                    inv_id: {
+                        f: formen_je_key.get(f"inv:{inv_id}:{f}", [None] * STUNDEN)
+                        for f in felder
+                    }
+                    for inv_id, felder in je_inv.items()
+                },
+                basis_je_ausgabe[ausgabe],
+            )
+            summe = [summe[h] + werte[h] for h in range(STUNDEN)]
+            ohne_linie += rest
+        return (summe if sum(summe) > 1e-9 else [None] * STUNDEN), ohne_linie
+
+    waerme_je_slot, waerme_ohne = _linie(sorted(WAERME_AUSGABE_KEYS))
+    kaelte_je_slot, kaelte_ohne = _linie(("wp_kaelte_kwh",))
 
     # Die Zählerspalte des Slots — ihre Summe ist die Kachel „Strom verbraucht".
     wp_kw = {
@@ -537,6 +565,9 @@ async def get_waerme_verlauf_stunden(
             wp_waerme_kwh=(
                 round(waerme_je_slot[h], 3) if waerme_je_slot[h] is not None else None
             ),
+            wp_kaelte_kwh=(
+                round(kaelte_je_slot[h], 3) if kaelte_je_slot[h] is not None else None
+            ),
             wp_modus_strom_heizen_kwh=_r(s.heizen_kwh, hat),
             wp_modus_strom_warmwasser_kwh=_r(s.warmwasser_kwh, hat),
             wp_modus_strom_kuehlen_kwh=_r(s.kuehlen_kwh, hat),
@@ -551,6 +582,8 @@ async def get_waerme_verlauf_stunden(
     return WaermeVerlaufStundenResponse(
         stunden=zeilen,
         ohne_stundenform_kwh=round(ohne, 2) if ohne > 0.005 else None,
+        waerme_ohne_stundenform_kwh=round(waerme_ohne, 2) if waerme_ohne > 0.005 else None,
+        kaelte_ohne_stundenform_kwh=round(kaelte_ohne, 2) if kaelte_ohne > 0.005 else None,
     )
 
 

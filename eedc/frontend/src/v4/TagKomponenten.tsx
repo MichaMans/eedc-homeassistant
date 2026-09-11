@@ -242,6 +242,7 @@ export function baueTagWaermeVerlauf(
     wp_strom_kwh: z.wp_strom_kwh,
     wp_waerme_kwh: z.wp_waerme_kwh,
     wp_waerme_abgeleitet_kwh: null,
+    wp_kaelte_kwh: z.wp_kaelte_kwh ?? null,
     wp_modus_strom_heizen_kwh: z.wp_modus_strom_heizen_kwh,
     wp_modus_strom_warmwasser_kwh: z.wp_modus_strom_warmwasser_kwh,
     wp_modus_strom_kuehlen_kwh: z.wp_modus_strom_kuehlen_kwh,
@@ -266,7 +267,14 @@ export function baueTagKomponentenUndFinanz(
   const wpVerlauf = wpVerlaufStunden ? baueTagWaermeVerlauf(wpVerlaufStunden.stunden, stunden) : null
   return [
     ...baueKomponentenBloecke(
-      d, park, 'tag', socTagWerte(stunden), wpVerlauf, wpVerlaufStunden?.ohne_stundenform_kwh ?? null,
+      d, park, 'tag', socTagWerte(stunden), wpVerlauf,
+      wpVerlaufStunden
+        ? {
+            strom: wpVerlaufStunden.ohne_stundenform_kwh,
+            waerme: wpVerlaufStunden.waerme_ohne_stundenform_kwh,
+            kaelte: wpVerlaufStunden.kaelte_ohne_stundenform_kwh,
+          }
+        : null,
     ),
     ...(finanz ? [finanz] : []),
   ]

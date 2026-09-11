@@ -64,7 +64,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 from backend.core.berechnungen.modus_split import (
     ModusSplit,
@@ -72,7 +72,10 @@ from backend.core.berechnungen.modus_split import (
     abdeckung_ueber_geraete,
     teilmengen_passen,
 )
-from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+from backend.core.berechnungen.betriebsart_gemessen import (
+    geraetefeld_oder_innengeraete,
+    modus_strom_zeile,
+)
 from backend.core.betriebsmodus import HEIZEN, KUEHLEN, WARMWASSER
 
 #: Toleranz der Teilmengen-Invariante (kWh) — ``Σ Teilmengen ≤ Gesamt + x``.
@@ -349,6 +352,51 @@ def verteile_menge(
     if summe <= 0:
         return [0.0] * STUNDEN, float(menge)
     return [menge * g / summe for g in gewichte], 0.0
+
+
+def verteile_felder_auf_stunden(
+    felder_je_inv: Mapping[str, Mapping[str, float]],
+    formen_je_inv: Mapping[str, Mapping[str, Sequence[Optional[float]]]],
+    basis_feld: str,
+) -> tuple[list[float], float]:
+    """Eine Linie (Wärme, Kälte) je Gerät und je Feld auf 24 Stunden — N-437.
+
+    **Dieselbe Bauform wie der Stapel** (`verteile_tages_stapel_auf_stunden`,
+    Zweig 1): je Gerät je Feld die Tagesmenge nach **seiner** Form, danach je
+    Stunde mit der einen Regel aufgelöst (``geraetefeld_oder_innengeraete`` —
+    Gerätefeld schlägt Σ Innengeräte, nie addiert). Weil ein Feld ohne
+    Tageswert in ``felder_je_inv`` gar nicht vorkommt, nimmt jede Stunde
+    dieselbe Quelle wie der Tag.
+
+    ⛔ **Nie die Summe über Geräte auf die Summe ihrer Formen.** Eine Menge ist
+    über Geräte addierbar (SOLL §5), eine Form nicht: Bis 11.09.2026 stand die
+    Wärme eines Geräts dadurch in den Stunden eines anderen (gemessen im
+    Snapshot-Pfad und im HA-Hauptpfad bei Rücksprung/Tagesreset).
+
+    Returns:
+        ``(24 Werte, ohne_stundenform_kwh)`` — der Rest **je Gerät gegen den
+        aufgelösten Tageswert** gemessen, wie beim Stapel: So zählen
+        verdrängte Innengerät-Felder nie mit (P4: genannt, nicht erfunden).
+    """
+    je_stunde = [0.0] * STUNDEN
+    ohne = 0.0
+    for inv_id, felder in felder_je_inv.items():
+        formen = formen_je_inv.get(inv_id, {})
+        verteilt = {
+            feld: verteile_menge(float(wert or 0.0), formen.get(feld, [None] * STUNDEN))[0]
+            for feld, wert in felder.items()
+        }
+        geraet = [
+            geraetefeld_oder_innengeraete({f: w[h] for f, w in verteilt.items()}, basis_feld)
+            or 0.0
+            for h in range(STUNDEN)
+        ]
+        tageswert = geraetefeld_oder_innengeraete(dict(felder), basis_feld) or 0.0
+        ohne += max(0.0, tageswert - sum(geraet))
+        for h in range(STUNDEN):
+            je_stunde[h] += geraet[h]
+    # Rundungsreste der Division sind keine fehlende Form.
+    return je_stunde, (ohne if ohne > 1e-6 else 0.0)
 
 
 def _modus_form(stunden: Sequence[ModusStunde], gehoert_dazu) -> list[float]:

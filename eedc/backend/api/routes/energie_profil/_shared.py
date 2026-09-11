@@ -343,6 +343,9 @@ class WaermeVerlaufTagResponse(BaseModel):
     #: Aussage; der Verlauf lässt die Linie dort aussetzen, statt sie auf 0 zu
     #: ziehen.
     wp_waerme_kwh: Optional[float] = None
+    #: Σ der **gemessenen Kälte** des Tages (Bauschnitt 6b) — eine eigene Rolle,
+    #: nie in ``wp_waerme_kwh`` (Konzept §8). ``None`` = keine Aussage.
+    wp_kaelte_kwh: Optional[float] = None
     #: Tagesmittel der Außentemperatur (°C) — zweite Achse.
     temperatur_c: Optional[float] = None
     # ── Der Betriebsart-Stapel; ``None``, wo der Tag keine Aufteilung trägt ──
@@ -380,9 +383,12 @@ class WaermeVerlaufStundeResponse(BaseModel):
     #: Der Wärmepumpen-Strom des Slots — die Zählerspalte, deren Summe die
     #: Kachel „Strom verbraucht" ist.
     wp_strom_kwh: Optional[float] = None
-    #: Gemessene Wärme des Slots (Heizung + Warmwasser), verteilt nach der
-    #: Stundenform der Zähler; ``None`` = keine Aussage.
+    #: Gemessene Wärme des Slots (Heizung + Warmwasser), **je Gerät** nach der
+    #: Stundenform seiner Zähler verteilt (N-437); ``None`` = keine Aussage.
     wp_waerme_kwh: Optional[float] = None
+    #: Gemessene **Kälte** des Slots (Bauschnitt 6b), dieselbe Verteilung — eine
+    #: eigene Rolle, nie in ``wp_waerme_kwh``.
+    wp_kaelte_kwh: Optional[float] = None
     wp_modus_strom_heizen_kwh: Optional[float] = None
     wp_modus_strom_warmwasser_kwh: Optional[float] = None
     wp_modus_strom_kuehlen_kwh: Optional[float] = None
@@ -398,9 +404,14 @@ class WaermeVerlaufStundenResponse(BaseModel):
     """Die 24 Stunden eines Tages — und was sich keiner Stunde zuordnen ließ."""
 
     stunden: list[WaermeVerlaufStundeResponse]
-    #: Menge der Aufteilung, für die es keine Stundenform gab (P4: nicht
-    #: gleichmäßig verteilt, sondern genannt). ``None`` = alles zugeordnet.
+    #: Menge der Aufteilung (**Strom**-Stapel), für die es keine Stundenform
+    #: gab (P4: nicht gleichmäßig verteilt, sondern genannt). ``None`` = alles
+    #: zugeordnet.
     ohne_stundenform_kwh: Optional[float] = None
+    #: Dasselbe für die **Wärme**- und die **Kälte**-Linie (N-437, E6 (a)) — je
+    #: Gerät gegen den Tageswert gemessen, wie beim Stapel.
+    waerme_ohne_stundenform_kwh: Optional[float] = None
+    kaelte_ohne_stundenform_kwh: Optional[float] = None
 
 
 class TagWerteResponse(BaseModel):

@@ -182,6 +182,10 @@ export interface AktuellerMonatResponse {
    *  Quotient über einen Zeitraum. */
   wp_jaz_kuehlen?: number | null
   wp_jaz_kuehlen_grund?: string | null
+  /** Bauschnitt 6b: gemessene **Kälte** des Monats — der Zähler der
+   *  Arbeitszahl Kühlen daneben. `null`, wo kein Kältemengenzähler etwas
+   *  gemeldet hat (keine 0 ohne Messung). */
+  wp_kaelte_kwh?: number | null
   wp_modus_strom_lueften_kwh?: number | null
   wp_modus_strom_entfeuchten_kwh?: number | null
   wp_modus_nicht_aufgeteilt_kwh?: number | null

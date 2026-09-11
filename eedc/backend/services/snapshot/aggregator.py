@@ -959,6 +959,14 @@ class TagesDetail:
     #: der Summe allein ist das nicht ablesbar (gemessen: 6,0 statt 3,0, wenn ein
     #: Gerät aus dem Tages-Stapel fällt, seine Kälte aber mitgezählt wird).
     werte_je_inv: dict[str, dict[str, float]] = dc_field(default_factory=dict)
+    #: ``{ausgabe_key: {inv_id: {feld: kwh}}}`` — die Feldwerte, die je Gerät
+    #: in ``geraetefeld_oder_innengeraete`` gingen (Gerätefeld und/oder
+    #: Innengerät-Kopien, nur Felder mit Tageswert). Bauschnitt 6b (N-437): Der
+    #: Stunden-Verlauf liest die Formen **genau dieser** Felder und löst je
+    #: Stunde mit derselben Regel auf — sonst nähme die Stunde eine andere
+    #: Quelle als der Tag (gemessen: Gerätefeld mit Rücksprung, Wert aus den
+    #: Innengeräten, Form aus dem Gerätefeld ⇒ Stunde 14 leer).
+    felder_je_inv: dict[str, dict[str, dict[str, float]]] = dc_field(default_factory=dict)
 
 
 #: **(typ, mapping-feld) → semantischer Ausgabe-Key** — die Feldmenge, die
@@ -1085,6 +1093,7 @@ async def get_tagesdetail_kwh(
             grund_kandidat[out_key] = grund
 
     je_inv: dict[str, dict[str, float]] = {}
+    felder_je: dict[str, dict[str, dict[str, float]]] = {}
     for inv_id_str, inv, inv_data in _investitionen_mit_mapping(
         sensor_mapping, investitionen_by_id
     ):
@@ -1133,6 +1142,7 @@ async def get_tagesdetail_kwh(
             summen[out_key] = summen.get(out_key, 0.0) + d
             geraete = je_inv.setdefault(out_key, {})
             geraete[inv_id_str] = geraete.get(inv_id_str, 0.0) + d
+            felder_je.setdefault(out_key, {}).setdefault(inv_id_str, {}).update(werte_geraet)
 
     return TagesDetail(
         werte=summen,
@@ -1140,6 +1150,7 @@ async def get_tagesdetail_kwh(
         # vorhandenen Zahl wäre ein Widerspruch auf der Fläche.
         grund_je_feld={k: g for k, g in grund_kandidat.items() if k not in summen},
         werte_je_inv=je_inv,
+        felder_je_inv=felder_je,
     )
 
 

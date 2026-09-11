@@ -40,7 +40,7 @@ import { monatBilanzParkIds } from './bilanzParkIds'
 import { baueKomponentenBloecke } from './KomponentenSektionen'
 import { finanzTeaserBlock } from './MonatRahmen'
 import { JahrVerlaufChart, baueJahrChartDaten } from './JahrVerlaufChart'
-import type { WaermeVerlaufPunkt } from './waermeVerlauf'
+import { punkteAusMonatsantworten, type WaermeVerlaufPunkt } from './waermeVerlauf'
 import { JahrCo2Chart, baueJahrCo2ChartDaten, co2JahresSumme, CO2_TABELLEN_SPALTEN } from './JahrCo2Chart'
 import { JahrSpeicherTabelle, baueSpeicherZeilen, jahrSpeicherParkIds } from './JahrSpeicherTabelle'
 import { verlaufTabellenSpalten } from './verlaufVergleich'
@@ -208,24 +208,9 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
         alleMonate.filter((m) => m.jahr === jahr)
           .map((m) => [m.monat, m.durchschnittstemperatur_c ?? null]),
       )
-      return [...jahrAntworten]
-      .sort((a, b) => a.monat - b.monat)
-      .map((m) => ({
-        name: MONAT_KURZ[m.monat],
-        temperatur_c: tempJeMonat.get(m.monat) ?? null,
-        wp_strom_kwh: m.wp_strom_kwh,
-        wp_waerme_kwh: m.wp_waerme_kwh,
-        wp_waerme_abgeleitet_kwh: m.wp_waerme_abgeleitet_kwh,
-        wp_modus_strom_heizen_kwh: m.wp_modus_strom_heizen_kwh,
-        wp_modus_strom_warmwasser_kwh: m.wp_modus_strom_warmwasser_kwh,
-        wp_modus_strom_kuehlen_kwh: m.wp_modus_strom_kuehlen_kwh,
-        wp_modus_strom_lueften_kwh: m.wp_modus_strom_lueften_kwh,
-        wp_modus_strom_entfeuchten_kwh: m.wp_modus_strom_entfeuchten_kwh,
-        wp_modus_nicht_aufgeteilt_kwh: m.wp_modus_nicht_aufgeteilt_kwh,
-        wp_modus_gemessen: m.wp_modus_gemessen,
-        wp_modus_abdeckung_h: m.wp_modus_abdeckung_h,
-        wp_modus_strom_bezug_kwh: m.wp_modus_strom_bezug_kwh,
-      }))
+      // Eine reine Funktion (`waermeVerlauf.ts`) — dort ist eine vergessene
+      // Durchreichung prüfbar (Bauschnitt 6b brachte `wp_kaelte_kwh`).
+      return punkteAusMonatsantworten(jahrAntworten, tempJeMonat, (monat) => MONAT_KURZ[monat])
     },
     [jahrAntworten, alleMonate, jahr],
   )

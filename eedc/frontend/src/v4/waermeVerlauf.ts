@@ -9,6 +9,8 @@
  * Tag liefert Stunden. Es gibt nur eine Regel-Sammlung, nicht drei.
  */
 import { CHART_COLORS } from '../lib'
+import type { AktuellerMonatResponse } from '../api/aktuellerMonat'
+import type { WaermeVerlaufTag } from '../api/energie_profil'
 import type { VerlaufStapel, VerlaufLinie, WaermeVerlaufRow } from './WaermeVerlaufChart'
 
 /** Eine Periode (Monat/Tag/Stunde) mit den Größen, die der Verlauf braucht. */
@@ -18,6 +20,8 @@ export interface WaermeVerlaufPunkt {
   wp_strom_kwh?: number | null
   wp_waerme_kwh?: number | null
   wp_waerme_abgeleitet_kwh?: number | null
+  /** Bauschnitt 6b: gemessene **Kälte** — eigene Linie, nie in der Wärme. */
+  wp_kaelte_kwh?: number | null
   wp_modus_strom_heizen_kwh?: number | null
   wp_modus_strom_warmwasser_kwh?: number | null
   wp_modus_strom_kuehlen_kwh?: number | null
@@ -45,11 +49,22 @@ export interface WaermeVerlaufDaten {
   hatStapel: boolean
   /** Gibt es mindestens eine Periode mit GEMESSENER Wärme? */
   hatGemesseneWaerme: boolean
+  /** Gibt es mindestens eine Periode mit gemessener Kälte? (Bauschnitt 6b) */
+  hatGemesseneKaelte: boolean
   /** Gibt es überhaupt Außentemperatur-Werte? */
   hatTemperatur: boolean
 }
 
+/** Was sich im Tag keiner Stunde zuordnen ließ — je Größe (N-437, E6 (a)).
+ *  Nicht gleichmäßig verteilt, sondern genannt (P4). */
+export interface VerlaufRest {
+  strom?: number | null
+  waerme?: number | null
+  kaelte?: number | null
+}
+
 const z = (v: number | null | undefined): number => (v == null ? 0 : v)
+const eineStelle = (v: number): number => Math.round(v * 10) / 10
 
 /**
  * ⚠ **Dieselbe Torbedingung wie beim Aufteilungs-Balken** (`hat_modus_split`,
@@ -75,7 +90,7 @@ const SEGMENTE: { key: string; feld: keyof WaermeVerlaufPunkt; label: string; fa
  * Baut Zeilen und Serien. Serien erscheinen nur, wenn sie etwas zu sagen haben:
  * Warmwasser/Lüften/Entfeuchten nur bei eigenem Zähler (E4, Konzept §2.3
  * *„Wer sie nicht erfasst, sieht sie nicht"*), die Wärmelinie nur mit
- * gemessener Wärme (E7).
+ * gemessener Wärme (E7), die Kältelinie nur mit gemessener Kälte.
  */
 export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDaten {
   const mitSplit = punkte.filter(hatSplit)
@@ -97,9 +112,15 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
   const gemesseneWaerme = (p: WaermeVerlaufPunkt): number | null => {
     if (p.wp_waerme_kwh == null) return null
     const rest = p.wp_waerme_kwh - z(p.wp_waerme_abgeleitet_kwh)
-    return rest > 0 ? Math.round(rest * 10) / 10 : null
+    return rest > 0 ? eineStelle(rest) : null
   }
+  // Bauschnitt 6b: Kälte ist immer gemessen (es gibt keinen Weg, sie
+  // abzuleiten) — dieselbe Lückenregel wie bei der Wärme: ≤ 0 ist keine
+  // Aussage, sondern eine Lücke in der Linie.
+  const gemesseneKaelte = (p: WaermeVerlaufPunkt): number | null =>
+    z(p.wp_kaelte_kwh) > 0 ? eineStelle(z(p.wp_kaelte_kwh)) : null
   const hatGemesseneWaerme = punkte.some((p) => gemesseneWaerme(p) != null)
+  const hatGemesseneKaelte = punkte.some((p) => gemesseneKaelte(p) != null)
   const hatTemperatur = punkte.some((p) => p.temperatur_c != null)
 
   const rows: WaermeVerlaufRow[] = punkte.map((p) => {
@@ -109,9 +130,10 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
       // Eine Periode ohne Aufteilung trägt `null`, nicht `0` — sonst stünde
       // dort ein Balken der Höhe 0, der aussieht wie „nichts gelaufen",
       // während die Kachel Strom zeigt.
-      row[s.key] = split ? Math.round(z(p[s.feld] as number | null | undefined) * 10) / 10 : null
+      row[s.key] = split ? eineStelle(z(p[s.feld] as number | null | undefined)) : null
     }
     if (hatGemesseneWaerme) row.waerme = gemesseneWaerme(p)
+    if (hatGemesseneKaelte) row.kaelte = gemesseneKaelte(p)
     // ⚠ `null` statt 0, wo kein Wert vorliegt — sonst zöge die Linie den
     // Monat auf den Gefrierpunkt.
     if (hatTemperatur) row.temperatur = p.temperatur_c ?? null
@@ -124,6 +146,11 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
   const linien: VerlaufLinie[] = [
     ...(hatGemesseneWaerme
       ? [{ key: 'waerme', label: 'Wärme (gemessen)', farbe: CHART_COLORS.waermeGemessen, dezimalen: 1 }]
+      : []),
+    // Bauschnitt 6b: eigene Linie, eigene Farbe (Konzept §8) — NIE mit der
+    // Wärme zusammengelegt, und nicht im Ton des Kühlen-Segments darunter.
+    ...(hatGemesseneKaelte
+      ? [{ key: 'kaelte', label: 'Kälte (gemessen)', farbe: CHART_COLORS.kaelteGemessen, dezimalen: 1 }]
       : []),
     // Zweite Achse: °C gehört nicht auf die kWh-Skala. Per Legenden-Klick
     // ausblendbar wie jede andere Reihe.
@@ -145,6 +172,103 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
     stromKwh: punkte.reduce((a, p) => a + z(p.wp_strom_kwh), 0),
     hatStapel,
     hatGemesseneWaerme,
+    hatGemesseneKaelte,
     hatTemperatur,
   }
+}
+
+/** Unterhalb dieser Menge ist ein Rest eine Rundungsfrage, keine Aussage. */
+const REST_SCHWELLE_KWH = 0.05
+
+/**
+ * Die Rest-Zeilen unter dem Verlauf — **je Größe beschriftet** (N-437, E6 (a)).
+ * Drei gleich beschriftete kWh-Zeilen untereinander wären drei Aussagen, die
+ * niemand auseinanderhalten kann (W-8: die Beschriftung nennt die Größe).
+ */
+export function verlaufRestZeilen(rest?: VerlaufRest | null): { label: string; kwh: number }[] {
+  if (!rest) return []
+  return ([
+    ['Strom ohne Stundenzuordnung', rest.strom],
+    ['Wärme ohne Stundenzuordnung', rest.waerme],
+    ['Kälte ohne Stundenzuordnung', rest.kaelte],
+  ] as const)
+    .filter(([, kwh]) => kwh != null && kwh > REST_SCHWELLE_KWH)
+    .map(([label, kwh]) => ({ label, kwh: kwh as number }))
+}
+
+/** Erscheint das Verlauf-Element? Auch dann, wenn NUR ein Rest da ist — sonst
+ *  bliebe genau der Fall unsichtbar, in dem nichts einer Stunde zuzuordnen war
+ *  (S3: was die Sicht nicht zeigen kann, sagt sie). */
+export function zeigtVerlauf(v: WaermeVerlaufDaten | null, rest?: VerlaufRest | null): boolean {
+  if (!v) return false
+  return v.hatStapel || v.hatGemesseneWaerme || v.hatGemesseneKaelte || verlaufRestZeilen(rest).length > 0
+}
+
+/** W-8 — der Titel nennt, was wirklich drinsteht. Die Temperatur ist Kontext,
+ *  keine Größe der Anlage; sie steht nicht im Titel. */
+export function verlaufTitel(v: WaermeVerlaufDaten): string {
+  const gemessen = v.hatGemesseneWaerme && v.hatGemesseneKaelte
+    ? 'gemessene Wärme und Kälte'
+    : v.hatGemesseneWaerme ? 'gemessene Wärme'
+      : v.hatGemesseneKaelte ? 'gemessene Kälte' : null
+  if (v.hatStapel && gemessen) {
+    return `Verlauf · Strom nach Betriebsart${gemessen.includes(' und ') ? ', ' : ' und '}${gemessen}`
+  }
+  if (v.hatStapel) return 'Verlauf · Strom nach Betriebsart'
+  return gemessen ? `Verlauf · ${gemessen}` : 'Verlauf'
+}
+
+/**
+ * Jahr: die Monatsantworten → Punkte (x = Monate). Als reine Funktion, damit
+ * eine vergessene Durchreichung rot wird — im `useMemo` der Seite war sie
+ * unsichtbar (die N-348-Klasse).
+ */
+export function punkteAusMonatsantworten(
+  antworten: AktuellerMonatResponse[],
+  tempJeMonat: Map<number, number | null>,
+  monatsName: (monat: number) => string,
+): WaermeVerlaufPunkt[] {
+  return [...antworten]
+    .sort((a, b) => a.monat - b.monat)
+    .map((m) => ({
+      name: monatsName(m.monat),
+      temperatur_c: tempJeMonat.get(m.monat) ?? null,
+      wp_strom_kwh: m.wp_strom_kwh,
+      wp_waerme_kwh: m.wp_waerme_kwh,
+      wp_waerme_abgeleitet_kwh: m.wp_waerme_abgeleitet_kwh,
+      wp_kaelte_kwh: m.wp_kaelte_kwh,
+      wp_modus_strom_heizen_kwh: m.wp_modus_strom_heizen_kwh,
+      wp_modus_strom_warmwasser_kwh: m.wp_modus_strom_warmwasser_kwh,
+      wp_modus_strom_kuehlen_kwh: m.wp_modus_strom_kuehlen_kwh,
+      wp_modus_strom_lueften_kwh: m.wp_modus_strom_lueften_kwh,
+      wp_modus_strom_entfeuchten_kwh: m.wp_modus_strom_entfeuchten_kwh,
+      wp_modus_nicht_aufgeteilt_kwh: m.wp_modus_nicht_aufgeteilt_kwh,
+      wp_modus_gemessen: m.wp_modus_gemessen,
+      wp_modus_abdeckung_h: m.wp_modus_abdeckung_h,
+      wp_modus_strom_bezug_kwh: m.wp_modus_strom_bezug_kwh,
+    }))
+}
+
+/** Monat: die Tageszeilen aus `/waerme-verlauf` → Punkte (x = Tagesnummer). */
+export function punkteAusVerlaufsTagen(tage: WaermeVerlaufTag[]): WaermeVerlaufPunkt[] {
+  return tage.map((t) => ({
+    // Die x-Achse trägt die Tagesnummer — der Monat steht in der Sicht.
+    name: String(Number(t.datum.slice(8, 10))),
+    temperatur_c: t.temperatur_c,
+    wp_strom_kwh: t.wp_strom_kwh,
+    wp_waerme_kwh: t.wp_waerme_kwh,
+    // ⚠ Auf Tagesebene gibt es keine abgeleitete Wärme — sie entsteht an den
+    // Monatszeilen. Was hier steht, ist gemessen (SOLL §3.3/S4).
+    wp_waerme_abgeleitet_kwh: null,
+    wp_kaelte_kwh: t.wp_kaelte_kwh ?? null,
+    wp_modus_strom_heizen_kwh: t.wp_modus_strom_heizen_kwh,
+    wp_modus_strom_warmwasser_kwh: t.wp_modus_strom_warmwasser_kwh,
+    wp_modus_strom_kuehlen_kwh: t.wp_modus_strom_kuehlen_kwh,
+    wp_modus_strom_lueften_kwh: t.wp_modus_strom_lueften_kwh,
+    wp_modus_strom_entfeuchten_kwh: t.wp_modus_strom_entfeuchten_kwh,
+    wp_modus_nicht_aufgeteilt_kwh: t.wp_modus_nicht_aufgeteilt_kwh,
+    wp_modus_gemessen: t.wp_modus_gemessen,
+    wp_modus_abdeckung_h: t.wp_modus_abdeckung_h,
+    wp_modus_strom_bezug_kwh: t.wp_modus_strom_bezug_kwh,
+  }))
 }
