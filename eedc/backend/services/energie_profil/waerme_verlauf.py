@@ -94,8 +94,11 @@ async def lade_waerme_verlauf(
     zaehler_je_tag, rueckwaerts_tage = await _zaehlerstrom_je_tag(
         db, anlage.id, von, bis,
     )
+    # N-435: die Wärme je Tag im Fenster derselben Tageszeile — sonst nennte die
+    # Monatssäule eine andere Wärme als *Cockpit → Tag* für denselben Tag.
     waerme_je_tag = await lade_tageswerte_je_feld(
         db, anlage, investitionen_by_id, von, bis, _WAERME_FELDER,
+        rueckwaerts_tage=rueckwaerts_tage,
     )
     temperatur_je_tag = await lade_tagesmittel_temperatur(db, anlage.id, von, bis)
 

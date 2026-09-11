@@ -966,6 +966,8 @@ async def get_tagesdetail_kwh(
     anlage,
     investitionen_by_id: dict,
     datum: date,
+    *,
+    wp_rueckwaerts: bool = False,
 ) -> "TagesDetail":
     """Tages-kWh für Felder, die `get_komponenten_tageskwh` bewusst NICHT separat
     ausweist, die aber Cockpit/Tag für die Detailzeilen braucht (D1 „maximal
@@ -996,13 +998,30 @@ async def get_tagesdetail_kwh(
     start_off, end_off = rng.boundary_offsets  # (0, 24)
     ts_start = rng.boundary_at(start_off)
     ts_ende = rng.boundary_at(end_off)
+    # ⛔ **N-435 (11.09.2026): Die Wärmepumpen-Felder lesen im Fenster der
+    # Tageszeile.** Ihre Wärme steht in der Tages-Arbeitszahl über dem Strom
+    # aus `komponenten_kwh` — im HA-Add-on Σ der LTS-Slots [Vortag 23:00,
+    # 23:00). Über [00:00, 24:00) gelesen, war die Arbeitszahl um die
+    # Differenz zweier Randstunden verfälscht (gemessen: 2,23 und 4,04 an
+    # einer Wärmepumpe, die jede Stunde 3,0 macht). Die getrennte Strommessung
+    # zieht mit, damit die Arbeitszahlen je Funktion im selben Fenster bleiben.
+    #
+    # ⚠ **Nur die Wärmepumpe.** Speicher- und E-Mob-Felder behalten [0, 24):
+    # dieselbe Klasse ist dort denkbar (Verdacht V-4), aber nicht gemessen —
+    # und ein Fenster ändert man nicht auf Verdacht.
+    rng_wp = BoundaryRange.for_day_backward(datum) if wp_rueckwaerts else rng
+    wp_start_off, wp_end_off = rng_wp.boundary_offsets
+    ts_start_wp = rng_wp.boundary_at(wp_start_off)
+    ts_ende_wp = rng_wp.boundary_at(wp_end_off)
 
     async def _diff(
-        sensor_key: str, sensor_id: Optional[str],
+        sensor_key: str, sensor_id: Optional[str], *, wp: bool = False,
     ) -> tuple[Optional[float], Optional[str]]:
         return await _tagesdetail_boundary_diff_mit_grund(
             db, anlage, quellen_energy, sensor_key, sensor_id,
-            ts_start, ts_ende, datum,
+            ts_start_wp if wp else ts_start,
+            ts_ende_wp if wp else ts_ende,
+            datum,
         )
 
     AUSGABE = TAGESDETAIL_AUSGABE
@@ -1049,6 +1068,7 @@ async def get_tagesdetail_kwh(
                 continue
             d, grund = await _diff(
                 sensor_key, cfg.get("sensor_id") if isinstance(cfg, dict) else None,
+                wp=(typ == "waermepumpe"),
             )
             if d is None:
                 _merke_grund(out_key, grund or GRUND_KEINE_ZAEHLERSTAENDE)

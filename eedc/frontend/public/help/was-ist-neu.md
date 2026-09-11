@@ -26,6 +26,13 @@ bis Mitternacht. Jetzt liest eedc beide im selben Zeitfenster.
 Home-Assistant-Add-on nutzt.
 **Was du tun musst:** nichts. Die Tagesbalken stimmen beim nächsten Öffnen.
 
+Dieselbe Stunde Versatz steckte auch in der **Tages-Arbeitszahl**: Wärme und
+Strom kamen aus zwei verschiedenen Zeiträumen, und je nach Tag stand die Zahl
+zu hoch oder zu niedrig. Jetzt rechnet der ganze Wärmepumpen-Block eines Tages
+in einem Zeitraum — Strom, Wärme und Arbeitszahl. Wer einen
+Wärmemengenzähler hat, sieht die Tageswerte dadurch leicht verändert;
+Monats- und Jahreswerte bleiben, wie sie sind.
+
 **Arbeitszahl je Funktion: sichtbar, sobald sie sauber ist**
 
 Wer eine Wärmepumpe **und** eine Klimaanlage betreibt, sah im Cockpit bei

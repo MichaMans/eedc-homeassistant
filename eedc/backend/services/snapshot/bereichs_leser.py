@@ -115,6 +115,8 @@ async def lade_tageswerte_je_feld(
     von: date,
     bis: date,
     felder: dict[tuple[str, str], str],
+    *,
+    rueckwaerts_tage: frozenset[date] | set[date] = frozenset(),
 ) -> dict[date, dict[str, float]]:
     """Tages-kWh je Ausgabe-Key über ``[von, bis]`` — eine Reihe je Feld.
 
@@ -123,6 +125,13 @@ async def lade_tageswerte_je_feld(
             ``(typ, mapping-feld) → ausgabe_key``. Der Aufrufer wählt die
             Teilmenge, die er braucht; die **Namen** kommen aus der einen
             Tabelle.
+        rueckwaerts_tage: Tage, deren Wert im Fenster [Vortag 23:00, 23:00)
+            gelesen wird statt [00:00, 24:00) — **N-435**. Das sind die Tage,
+            deren Tageszeile ihren Wärmepumpen-Strom aus den HA-LTS-Slots trägt
+            (``tageszeile_ist_rueckwaerts``). Ohne das nennte die Monatssäule
+            eine andere Wärme als *Cockpit → Tag* für denselben Tag, sobald die
+            Tagessicht im Fenster ihrer Tageszeile rechnet. Der Aufrufer reicht
+            nur Felder herein, deren Gegenstück in diesem Fenster steht.
 
     Returns:
         ``{datum: {ausgabe_key: kwh}}``. Ein Tag ohne verwertbaren Wert fehlt
@@ -134,7 +143,19 @@ async def lade_tageswerte_je_feld(
     investitionen_map = sensor_mapping.get("investitionen", {}) or {}
     quellen_energy = extract_quellen_energy(anlage)
     mqtt_keys = await mqtt_zaehler_keys(db, anlage.id)
-    grenzen = _tagesgrenzen(von, bis)
+    # Je Tag sein Fenster: [00:00, 24:00) oder — N-435 — [Vortag 23:00, 23:00).
+    # Die Randzeitpunkte aller Tage bilden EINE sortierte Menge; benachbarte
+    # Tage mit gleichem Fenster teilen weiterhin ihren gemeinsamen Rand.
+    fenster_je_tag: dict[date, tuple[datetime, datetime]] = {}
+    for tages_beginn in _tagesgrenzen(von, bis)[:-1]:
+        tag = tages_beginn.date()
+        start = (
+            tages_beginn - timedelta(hours=1)
+            if tag in rueckwaerts_tage
+            else tages_beginn
+        )
+        fenster_je_tag[tag] = (start, start + timedelta(days=1))
+    grenzen = sorted({ts for paar in fenster_je_tag.values() for ts in paar})
 
     ergebnis: dict[date, dict[str, float]] = {}
 
@@ -164,12 +185,12 @@ async def lade_tageswerte_je_feld(
             staende = await _raender_mit_heilung(
                 db, anlage, sensor_key, sensor_id, quellen_energy, grenzen, reihe,
             )
+            stand_am = dict(zip(grenzen, staende))
 
-            for i, tages_start in enumerate(grenzen[:-1]):
-                s0, s1 = staende[i], staende[i + 1]
+            for tag, (tages_start, tages_ende) in fenster_je_tag.items():
+                s0, s1 = stand_am[tages_start], stand_am[tages_ende]
                 if s0 is None or s1 is None:
                     continue
-                tages_ende = grenzen[i + 1]
                 zwischen = [
                     w for ts, w in reihe if tages_start < ts < tages_ende
                 ]
@@ -178,10 +199,9 @@ async def lade_tageswerte_je_feld(
                     logger.debug(
                         "Zähler-Rücksprung im Tagesfenster für anlage=%s key=%s "
                         "(%s) — keine Tagesaussage",
-                        anlage.id, sensor_key, tages_start.date(),
+                        anlage.id, sensor_key, tag,
                     )
                     continue
-                tag = tages_start.date()
                 je_tag = ergebnis.setdefault(tag, {})
                 je_tag[ausgabe_key] = je_tag.get(ausgabe_key, 0.0) + wert
 

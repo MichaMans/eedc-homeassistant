@@ -371,7 +371,30 @@ async def get_tag_detail(
     from backend.services.finanz_zeilen import FinanzZeileEingabe, baue_finanz_zeile
     from backend.api.routes.live_wetter import _get_lernfaktor
 
-    _tagesdetail = await get_tagesdetail_kwh(db, anlage, investitionen_by_id, datum)
+    from backend.services.snapshot.boundary_range import tageszeile_ist_rueckwaerts
+
+    # ⛔ **N-434/N-435: Die Tageszeile wird ZUERST gelesen**, weil ihre Herkunft
+    # das Fenster aller Wärmepumpen-Zähler dieses Tages bestimmt. Im HA-Add-on
+    # steht `komponenten_kwh` als Σ der 24 LTS-Slots [Vortag 23:00, 23:00);
+    # Teilmengen (Betriebsart-Zähler) und Gegenstücke (Wärme der Arbeitszahl)
+    # desselben Geräts müssen im selben Fenster stehen — sonst wird die
+    # Differenz zweier Randstunden zu „nicht aufgeteilt" bzw. zu einer falschen
+    # Arbeitszahl.
+    tz_zeile = (await db.execute(
+        select(
+            TagesZusammenfassung.komponenten_kwh,
+            TagesZusammenfassung.source_provenance,
+        ).where(
+            TagesZusammenfassung.anlage_id == anlage_id,
+            TagesZusammenfassung.datum == datum,
+        )
+    )).one_or_none()
+    tz_komp = tz_zeile[0] if tz_zeile else None
+    tz_rueckwaerts = tageszeile_ist_rueckwaerts(tz_zeile[1] if tz_zeile else None)
+
+    _tagesdetail = await get_tagesdetail_kwh(
+        db, anlage, investitionen_by_id, datum, wp_rueckwaerts=tz_rueckwaerts,
+    )
     detail = _tagesdetail.werte
     # W-18: Warum ein Tageswert fehlt. Der Grund wird **hergeleitet**, nicht
     # geraten — bis zum 26.08.2026 hing der Client an jedes „—" denselben Satz
@@ -436,28 +459,10 @@ async def get_tag_detail(
     # **unverändert** weiter, samt Innengerät-Suffix, und `modus_strom_zeile`
     # löst *Gerätefeld gewinnt, sonst Σ Innengeräte* selbst auf. Genau diese
     # Regel ein zweites Mal zu schreiben war F-56.
-    from backend.services.snapshot.boundary_range import tageszeile_ist_rueckwaerts
-
     # Der Bezug je Gerät kommt aus dem **Zählerpfad** (`komponenten_kwh`), nicht
     # aus der Stundensumme des Leistungspfads — die weicht ab, und genau daran
-    # hängt W-17b (30 kWh Balken unter einer 284-kWh-Kachel).
-    #
-    # ⛔ **N-434: Die Tageszeile wird VOR den Betriebsart-Zählern gelesen**, weil
-    # ihre Herkunft das Fenster bestimmt. Im HA-Add-on steht `komponenten_kwh`
-    # als Σ der 24 LTS-Slots [Vortag 23:00, 23:00); die Teilmengen desselben
-    # Geräts müssen im selben Fenster stehen, sonst wird die Differenz zweier
-    # Randstunden zu „nicht aufgeteilt" (oder die Aufteilung verschwindet).
-    tz_zeile = (await db.execute(
-        select(
-            TagesZusammenfassung.komponenten_kwh,
-            TagesZusammenfassung.source_provenance,
-        ).where(
-            TagesZusammenfassung.anlage_id == anlage_id,
-            TagesZusammenfassung.datum == datum,
-        )
-    )).one_or_none()
-    tz_komp = tz_zeile[0] if tz_zeile else None
-    tz_rueckwaerts = tageszeile_ist_rueckwaerts(tz_zeile[1] if tz_zeile else None)
+    # hängt W-17b (30 kWh Balken unter einer 284-kWh-Kachel). Die Tageszeile
+    # und ihr Fenster sind oben schon gelesen (N-434/N-435).
     gemessen_je_inv = await get_betriebsart_strom_tageswerte(
         db, anlage, investitionen_by_id, datum, rueckwaerts=tz_rueckwaerts,
     )
