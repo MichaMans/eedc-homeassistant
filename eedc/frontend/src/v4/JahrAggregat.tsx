@@ -396,6 +396,11 @@ export function baueJahrAlsMonat(
     wp_jaz_warmwasser_grund: k?.wp_jaz_warmwasser_grund ?? null,
     wp_jaz_kuehlen: k?.wp_jaz_kuehlen ?? null,
     wp_jaz_kuehlen_grund: k?.wp_jaz_kuehlen_grund ?? null,
+    // Bauschnitt 8: Die Kältemenge kommt aus dem Layer (`WpJahreskennzahlen`).
+    // Die Σ der Monatsantworten ist nur der Rückfall OHNE Route — wie bei
+    // Heizwärme und Strom daneben, damit die Gruppe Kühlen dann nicht Strom
+    // ohne Kälte zeigt. Liefert die Route `null`, bleibt es `null`.
+    wp_kaelte_kwh: k ? (k.wp_kaelte_kwh ?? null) : summe(f('wp_kaelte_kwh')),
     wp_strom_warmwasser_kwh: summe(f('wp_strom_warmwasser_kwh')),
     // Jahres-Counter im period-neutralen Σ-Slot; Max/Tag = höchster Einzeltag des Jahres.
     wp_starts_summe_monat: summe(f('wp_starts_summe_monat')),

@@ -131,6 +131,9 @@ export function baueTagAlsMonat(
     wp_jaz_warmwasser_grund: tagDetail?.wp_jaz_warmwasser_grund ?? null,
     wp_jaz_kuehlen: tagDetail?.wp_jaz_kuehlen ?? null,
     wp_jaz_kuehlen_grund: tagDetail?.wp_jaz_kuehlen_grund ?? null,
+    // Bauschnitt 8: die Zeile „Kälte" der Gruppe Kühlen — der Zähler der
+    // Kühlzahl darüber, aus derselben Antwort.
+    wp_kaelte_kwh: tagDetail?.wp_kaelte_kwh ?? null,
     // W-18: Der Grund kommt fertig formuliert aus dem Backend — er weiss als
     // einziger, ob der Zaehler fehlt, ob er zugeordnet aber fuer diesen Tag
     // leer ist, oder ob er zurueckgesprungen ist.

@@ -121,6 +121,12 @@ class CockpitUebersichtResponse(BaseModel):
     wp_jaz_warmwasser_grund: Optional[str] = None
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: Bauschnitt 8 (11.09.2026): die Kältemenge des Jahres für die Zeile „Kälte"
+    #: der Gruppe Kühlen — aus dem Layer (`WpJahreskennzahlen.kaelte_kwh`), nicht
+    #: als Σ im Client. **> 0, sonst `None`**, dieselbe Regel wie im Monat: die
+    #: Jahres-Σ ist 0 auch ohne Kältemengenzähler, und „0 kWh Kälte" behauptete
+    #: dann eine Messung.
+    wp_kaelte_kwh: Optional[float] = None
     #: Steht mindestens eine hier gesperrte Kennzahl im Komponenten-Hub?
     #: Gleiche Bedeutung und gleiche Quelle wie im Monat (`GRUENDE_HUB_HILFT`).
     wp_hub_hilft: bool = False
@@ -888,6 +894,7 @@ async def get_cockpit_uebersicht(
         wp_jaz_warmwasser_grund=_wp_az_funktion.warmwasser.grund,
         wp_jaz_kuehlen=round(_wp_az_k.wert, 2) if _wp_az_k.wert is not None else None,
         wp_jaz_kuehlen_grund=_wp_az_k.grund,
+        wp_kaelte_kwh=round(_wpk.kaelte_kwh, 2) if _wpk.kaelte_kwh > 0 else None,
         wp_hub_hilft=hub_hilft(
             _wp_az.grund,
             _wp_az_funktion.heizen.grund,

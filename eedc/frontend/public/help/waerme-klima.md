@@ -43,9 +43,14 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 | Ort | Was dort steht |
 |-----|----------------|
 | **Cockpit → Live** | Momentanleistung gesamt und je Funktion, Betriebsmodus, Warmwasser-Temperatur |
-| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Ersparnis, Kompressor-Starts, Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, mit Kältemengenzähler die **gemessene Kälte als eigene Linie**, Außentemperatur auf der zweiten Achse. Jedes Gerät bleibt dabei in seinen eigenen Stunden. Die Stunden ergeben zusammen genau die Aufteilung darunter; was sich keiner Stunde zuordnen lässt, steht darunter als *„Strom / Wärme / Kälte ohne Stundenzuordnung"*; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen) |
+| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Ersparnis, Kompressor-Starts, die **Liste je Funktion** und die Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, mit Kältemengenzähler die **gemessene Kälte als eigene Linie**, Außentemperatur auf der zweiten Achse. Jedes Gerät bleibt dabei in seinen eigenen Stunden. Die Stunden ergeben zusammen genau die Aufteilung darunter; was sich keiner Stunde zuordnen lässt, steht darunter als *„Strom / Wärme / Kälte ohne Stundenzuordnung"*; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen) |
 | **Cockpit → Monat** | derselbe Block auf Monatsbasis, dazu die Arbeitszahlen je Funktion und ein **Verlauf je Tag** (dieselbe Darstellung wie am Tag, mit Kälte-Linie) |
 | **Cockpit → Jahr** | Jahressummen, dieselben Kennzahlen wie im Monat — Arbeitszahl mit Grund und Heizstab-Satz, je Funktion, Kühlen, Aufteilung nach Betriebsart mit Restmenge — über das Jahr **neu gerechnet** (nicht gemittelt), ein **Verlauf je Monat** (Strom, gemessene Wärme und Kälte), Block *CO₂-Bilanz* |
+| **PDF-Jahresbericht** | dieselben Kennzahlen wie *Cockpit → Jahr* aus derselben Rechnung — Arbeitszahl mit Grund, je Funktion, Kühlen, Herkunft einer geschätzten Wärme, Vorbehalt an der CO₂-Zeile (seit 05.09.2026; vorher stand dort eine Arbeitszahl ohne Grund und nichts je Funktion) |
+| **Auswertungen → CO₂ · Cockpit → Jahr (CO₂-Bilanz) · PDF-Monatsbericht** | die CO₂-Einsparung der Wärmepumpe trägt denselben Vorbehalt wie die Ersparnis, wenn die Wärme geschätzt ist oder ein zweiter Erzeuger am Wärmezähler hängt; der Monatsbericht nennt die Herkunft einer geschätzten Wärme mit denselben Worten wie der Hub (seit 05.09.2026) |
+| **Komponenten → Wärmepumpe** | je Gerät einzeln: Status, Verlauf, Monats-/Saisonvergleich, Kostenvergleich gegen Gas/Öl |
+| **Auswertungen → CO₂** | Einsparung inkl. Wärmepumpen-Anteil |
+| **Einstellungen → Datenquellen** | die Zuordnung der Zähler ([§5](#5-sensoren-zuordnen-schritt-für-schritt)) |
 
 > **Im Verlauf steht nur gemessene Wärme.** Ist die Wärme aus Strom × Arbeitszahl geschätzt, hätte
 > ihre Linie genau die Form der Stromfläche darunter — sie sähe aus wie eine zweite Messung und
@@ -53,11 +58,17 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 > **Die Kälte** ist immer gemessen (es gibt keinen Weg, sie zu schätzen) und steht als **eigene Linie
 > in eigener Farbe** — nie in der Wärme. Du siehst sie, sobald ein Kältemengenzähler zugeordnet ist, am
 > Gerät oder je Innengerät.
-| **PDF-Jahresbericht** | dieselben Kennzahlen wie *Cockpit → Jahr* aus derselben Rechnung — Arbeitszahl mit Grund, je Funktion, Kühlen, Herkunft einer geschätzten Wärme, Vorbehalt an der CO₂-Zeile (seit 05.09.2026; vorher stand dort eine Arbeitszahl ohne Grund und nichts je Funktion) |
-| **Auswertungen → CO₂ · Cockpit → Jahr (CO₂-Bilanz) · PDF-Monatsbericht** | die CO₂-Einsparung der Wärmepumpe trägt denselben Vorbehalt wie die Ersparnis, wenn die Wärme geschätzt ist oder ein zweiter Erzeuger am Wärmezähler hängt; der Monatsbericht nennt die Herkunft einer geschätzten Wärme mit denselben Worten wie der Hub (seit 05.09.2026) |
-| **Komponenten → Wärmepumpe** | je Gerät einzeln: Status, Verlauf, Monats-/Saisonvergleich, Kostenvergleich gegen Gas/Öl |
-| **Auswertungen → CO₂** | Einsparung inkl. Wärmepumpen-Anteil |
-| **Einstellungen → Datenquellen** | die Zuordnung der Zähler ([§5](#5-sensoren-zuordnen-schritt-für-schritt)) |
+
+> **Die Liste „Je Funktion"** im Block *Wärme/Klima* (Cockpit → Tag, Monat, Jahr) stellt je Funktion
+> beisammen, woraus ihre Arbeitszahl entsteht: *Heizen* — Strom Heizen, Heizwärme, Arbeitszahl;
+> *Warmwasser* — Strom Warmwasser, Warmwasser-Wärme, Arbeitszahl; *Kühlen* — Strom Kühlen, **Kälte**,
+> Arbeitszahl. Eine Überschrift steht nur bei einer Funktion mit einer Menge; eine Funktion, die dein
+> Gerät nicht hat (Warmwasser an einer Split-Klima, Kühlen im Winter), bleibt eine einzelne Zeile mit
+> ihrem Grund. **Zwei Mengen „Heizen" sind nicht dasselbe:** Die Liste zeigt die **Funktion** (dein
+> getrennt gemessener Heizstrom), der Balken darunter die **Betriebsart** — die Betriebsart „Heizen"
+> enthält den Warmwasser-Strom, solange Warmwasser keine eigene Betriebsart ist. Wo beides zu sehen ist,
+> heißt der Balken deshalb *„Strom-Aufteilung nach Betriebsart"*. Wer die Liste parkt, parkt Wärme und
+> Kälte je Funktion mit.
 
 > **Der Block *Wärme/Klima* im Cockpit fasst alle Geräte zusammen**, der Komponenten-Hub zeigt sie **einzeln**. Das ist kein Widerspruch, sondern der wichtigste Unterschied auf dieser Fläche — siehe [§7](#7-häufige-missverständnisse).
 

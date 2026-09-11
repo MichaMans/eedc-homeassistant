@@ -6,7 +6,8 @@
  * Block mit Status-KPI-Strip (D2-Kanon) + Summary-Zeile + Komponenten-Identitäts-
  * Farbe. Schlank wie in der IA-v4-Vorschau (`KOMP_STATUS`/`COCKPIT_DETAIL`), die
  * Kennzahlen aber verhaltensgleich zum Donor `MonatsabschlussView`. Wärmepumpe
- * trägt zusätzlich `VerteilungsBalken` Heizung/Warmwasser (B7-Revision: Donut → Balken).
+ * trägt zusätzlich die Liste **je Funktion** (Bauschnitt 8) und den
+ * Betriebsart-Balken.
  *
  * Quelle: `AktuellerMonatResponse` (alle Komponenten-Felder bereits vorhanden).
  * Aktiv-Gating: ein Block erscheint nur, wenn die Komponente im Monat Daten hat.
@@ -26,6 +27,9 @@ import {
   baueWaermeVerlauf, verlaufRestZeilen, verlaufTitel, zeigtVerlauf,
   type VerlaufRest, type WaermeVerlaufPunkt,
 } from './waermeVerlauf'
+import {
+  wpFunktionsGruppen, zeigtStromJeFunktion, type FunktionsGruppen, type FunktionsZeile,
+} from './wpFunktionsGruppen'
 import {
   KOMPONENTEN_IDENTITAET, INVESTITION_TYP_ORDER, SONSTIGES_ERZEUGER_FARBE, ROLLEN_BG,
   SPEICHER_KPI, WP_KPI, EAUTO_KPI, BKW_KPI,
@@ -150,6 +154,29 @@ function DetailListe({ rows }: { rows: DetailZeile[] }) {
         </div>
       ))}
     </dl>
+  )
+}
+
+/** Bauschnitt 8 — die Detail-Liste je Funktion. Überschrift in der Bauform von
+ *  `GeraeteSektionen`, darunter dieselbe `DetailListe` (Regel 0a: keine zweite
+ *  Listen-Komponente). Funktionen ohne Menge folgen als Einzelzeilen. */
+function FunktionsGruppenListe({ fg }: { fg: FunktionsGruppen }) {
+  const zeile = (z: FunktionsZeile): DetailZeile => ({
+    label: z.label,
+    wert: z.art === 'arbeitszahl'
+      ? (z.wert != null ? fmtCalc(z.wert, 2, '—') : `— (${z.grund})`)
+      : `${fmt(z.kwh)} kWh`,
+  })
+  return (
+    <div className="space-y-4">
+      {fg.gruppen.map((g) => (
+        <div key={g.funktion} className="space-y-2">
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{g.titel}</div>
+          <DetailListe rows={g.zeilen.map(zeile)} />
+        </div>
+      ))}
+      {fg.ohneMenge.length > 0 && <DetailListe rows={fg.ohneMenge.map(zeile)} />}
+    </div>
   )
 }
 
@@ -475,31 +502,15 @@ export function baueKomponentenBloecke(
       formel: istTag ? 'Betriebsstunden an diesem Tag' : 'Σ aller Tages-Betriebsstunden im Monat',
       subtitle: istTag ? undefined : `Max/Tag: ${fmt(d.wp_betriebsstunden_max_tag, 1)} h`,
     })
-    // Strom-Split Heizung/Warmwasser (#191, nur bei getrennter Strommessung).
-    const wpDetail: DetailZeile[] = []
-    if (hat(d.wp_strom_heizen_kwh)) wpDetail.push({ label: 'Stromverbrauch · davon Heizung', wert: `${fmt(d.wp_strom_heizen_kwh)} kWh` })
-    if (hat(d.wp_strom_warmwasser_kwh)) wpDetail.push({ label: 'Stromverbrauch · davon Warmwasser', wert: `${fmt(d.wp_strom_warmwasser_kwh)} kWh` })
-    // W-4 (SOLL §4.1): die Arbeitszahl je Funktion steht bei den getrennten
-    // Strommengen, aus denen sie entsteht — nicht als eigene KPI-Kachel oben.
-    // Dort steht die Gesamt-JAZ; drei Arbeitszahlen nebeneinander wären eine
-    // Zahlenwand, und die Detailzeile ist der Ort, an dem man ohnehin nachsieht,
-    // *warum* die Gesamtzahl so aussieht, wie sie aussieht.
-    //
-    // ⚠ **Auch das gesperrte „—" erscheint, mit seinem Grund** (S3). Eine
-    // fehlende Zeile wäre von „nicht getrennt gemessen" nicht zu unterscheiden.
-    const jazZeile = (wert: number | null | undefined, grund: string | null | undefined, label: string) => {
-      if (wert == null && !grund) return
-      wpDetail.push({
-        label,
-        wert: wert != null ? fmtCalc(wert, 2, '—') : `— (${grund})`,
-      })
-    }
-    jazZeile(d.wp_jaz_heizen, d.wp_jaz_heizen_grund, 'Arbeitszahl · Heizen')
-    jazZeile(d.wp_jaz_warmwasser, d.wp_jaz_warmwasser_grund, 'Arbeitszahl · Warmwasser')
-    jazZeile(d.wp_jaz_kuehlen, d.wp_jaz_kuehlen_grund, 'Arbeitszahl · Kühlen')
+    // W-4 (SOLL §4.1) → Bauschnitt 8: die Arbeitszahl je Funktion steht bei den
+    // Mengen, aus denen sie entsteht — nicht als eigene KPI-Kachel oben. Dort
+    // steht die Gesamt-JAZ; drei Arbeitszahlen nebeneinander wären eine
+    // Zahlenwand. Seit Bauschnitt 8 je Funktion gruppiert: Strom · Nutzenergie ·
+    // Arbeitszahl (`wpFunktionsGruppen.ts`, dort die Regeln).
+    const wpFunktionen = wpFunktionsGruppen(d)
     const wpKpis = mitParkId('wp', kpis)
-    // Wärme-Aufteilung Heizung/Warmwasser (VerteilungsBalken, B7) + Strom-Split (Detail)
-    // + Geräte-Hinweis — je ein parkbares Element.
+    // Verlauf + Liste je Funktion + Betriebsart-Balken + Geräte-Hinweis — je ein
+    // parkbares Element.
     const wpEls: SektionElement[] = []
     // ── Verlauf (Konzept Wärme/Klima §8) ──────────────────────────────────
     // Reihenfolge im Block: **Kacheln → Verlauf → Aufteilung**. Der Verlauf ist
@@ -538,14 +549,16 @@ export function baueKomponentenBloecke(
         </div>
       ),
     })
-    if (hat(d.wp_heizung_kwh) || hat(d.wp_warmwasser_kwh)) wpEls.push({
-      id: 'el:wp-aufteilung', titel: 'Wärme-Aufteilung',
-      node: <VerteilungsBalken segmente={[
-        { label: 'Heizung', wert: d.wp_heizung_kwh, farbe: ROLLEN_BG.heizung },
-        { label: 'Warmwasser', wert: d.wp_warmwasser_kwh, farbe: ROLLEN_BG.warmwasser },
-      ]} />,
+    // ⛔ **Bauschnitt 8 / E1 (b): Der Balken „Wärme-Aufteilung" ist entfallen.**
+    // Seine zwei Zahlen stehen jetzt in den Gruppen Heizen und Warmwasser —
+    // Konzept §4 ②: Funktions-Gruppen *statt* der Aufteilungs-Blöcke. Der
+    // Betriebsart-Balken darunter bleibt (Konzeptänderung, s. dort).
+    //
+    // Die ID bleibt `el:wp-detail`, damit ein geparktes Element geparkt bleibt;
+    // es versteckt ab jetzt auch Wärme und Kälte je Funktion (Handbuch).
+    if (wpFunktionen.gruppen.length > 0 || wpFunktionen.ohneMenge.length > 0) wpEls.push({
+      id: 'el:wp-detail', titel: 'Je Funktion', node: <FunktionsGruppenListe fg={wpFunktionen} />,
     })
-    if (wpDetail.length > 0) wpEls.push({ id: 'el:wp-detail', titel: 'Strom-Aufteilung', node: <DetailListe rows={wpDetail} /> })
     // #263 K-2 (S4): Aufteilung Heizen/Kühlen — nur mit erfasstem Modus.
     // Der Balken zeigt dieselben drei Größen wie der Komponenten-Hub; ohne
     // Modus-Signal fehlt der Block ganz, statt drei Nullen zu zeigen.
@@ -577,7 +590,11 @@ export function baueKomponentenBloecke(
       // Segmente verschweigt — dieselbe Halbwahrheit, gegen die W-8 gebaut
       // wurde. Ohne diese Zähler bleibt der eingeführte Wortlaut unverändert.
       id: 'el:wp-modus-split',
-      titel: (wpLueften || wpEntfeuchten || wpWarmwasser)
+      // Bauschnitt 8 / E3 (b): Zeigt die Liste darüber einen getrennt
+      // gemessenen Strom Heizen, stehen zwei verschiedene Mengen „Heizen" im
+      // Block — die Betriebsart „Heizen" enthält den Warmwasser-Strom (IST §888).
+      // Dann sagt der Titel, wonach dieser Balken aufteilt (S2).
+      titel: (wpLueften || wpEntfeuchten || wpWarmwasser || zeigtStromJeFunktion(wpFunktionen))
         ? 'Strom-Aufteilung nach Betriebsart'
         : 'Strom-Aufteilung Heizen/Kühlen',
       node: (

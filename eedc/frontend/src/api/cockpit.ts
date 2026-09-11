@@ -58,6 +58,8 @@ export interface CockpitUebersicht {
   wp_jaz_warmwasser_grund?: string | null
   wp_jaz_kuehlen?: number | null
   wp_jaz_kuehlen_grund?: string | null
+  /** Bauschnitt 8: Kältemenge des Jahres aus dem Layer (> 0, sonst `null`). */
+  wp_kaelte_kwh?: number | null
   wp_modus_strom_heizen_kwh?: number | null
   wp_modus_strom_kuehlen_kwh?: number | null
   wp_modus_strom_warmwasser_kwh?: number | null

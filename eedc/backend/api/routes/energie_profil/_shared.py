@@ -649,6 +649,11 @@ class TagDetailResponse(BaseModel):
     #: Tag selbst, weil er beide Seiten je Gerät kennt.
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: Die Kältemenge des Tages — der Zähler der Kühlzahl darüber, als Zeile
+    #: „Kälte" der Gruppe Kühlen (Bauschnitt 8, 11.09.2026). Bis dahin stand sie
+    #: nur lokal in der Route. **> 0, sonst `None`** — dieselbe Regel wie Monat und
+    #: Jahr; eine gemessene 0 erklärt die Kühlzahl-Zeile mit ihrem Grund.
+    wp_kaelte_kwh: Optional[float] = None
     # Speicher-Netzladung (Arbitrage) — Tages-Boundary-Diff.
     speicher_ladung_netz_kwh: Optional[float] = None
     # Speicher effektiver Netz-Ladepreis (stundengewichtet, Tagesspanne).

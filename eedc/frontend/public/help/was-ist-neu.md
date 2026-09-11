@@ -11,6 +11,22 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Wärme/Klima: die Detail-Liste je Funktion**
+
+Unter deiner Wärmepumpe steht jetzt je Funktion beisammen, woraus ihre
+Arbeitszahl entsteht — *Heizen*: Strom, Heizwärme, Arbeitszahl; dasselbe für
+*Warmwasser* und *Kühlen*. Mit einem Kältemengenzähler steht dort erstmals die
+**Kälte** als Zahl, auch im Jahr.
+
+Der Balken „Wärme-Aufteilung" ist dafür entfallen — seine Zahlen stehen jetzt in
+den Gruppen. Der Balken nach **Betriebsart** bleibt; misst du Heiz- und
+Warmwasser-Strom getrennt, heißt er „Strom-Aufteilung nach Betriebsart", weil
+seine Menge „Heizen" dann eine andere ist als die der Funktion.
+
+**Betrifft dich das?** Ja, wenn du eine Wärmepumpe oder Klimaanlage erfasst.
+**Was du tun musst:** nichts. Hattest du *Strom-Aufteilung* geparkt, bleibt die
+neue Liste geparkt.
+
 **Die Kälte bekommt im Wärme/Klima-Verlauf eine eigene Linie**
 
 Wer einen Kältemengenzähler hat, sieht die abgegebene Kälte jetzt im Verlauf —

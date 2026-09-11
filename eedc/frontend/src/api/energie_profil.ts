@@ -248,6 +248,9 @@ export interface TagDetail {
   //  die Kälte (bis dahin im Tag immer `null`). Wert ODER Grund, wie oben.
   wp_jaz_kuehlen: number | null
   wp_jaz_kuehlen_grund: string | null
+  /** Bauschnitt 8 — die Kältemenge des Tages, der Zähler der Kühlzahl
+   *  (> 0, sonst `null`). Optional, weil ältere Antworten sie nicht tragen. */
+  wp_kaelte_kwh?: number | null
   /** **W-18** — warum die Tages-Wärme fehlt, als fertiger Satz aus dem Backend.
    *  Nur gesetzt, wenn `wp_waerme_kwh` `null` ist. **Nicht im Client
    *  formulieren**: Der frühere fest verdrahtete Satz beschrieb einen von drei

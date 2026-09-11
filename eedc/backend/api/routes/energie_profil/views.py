@@ -1083,6 +1083,11 @@ async def get_tag_detail(
         # Quotienten den Tag nie erreichte (N-348).
         wp_jaz_kuehlen=wp_az_kuehlen_tag.wert,
         wp_jaz_kuehlen_grund=wp_az_kuehlen_tag.grund,
+        # Bauschnitt 8: derselbe Wert, den die Kühlzahl eben als Zähler bekam.
+        wp_kaelte_kwh=(
+            round(detail["wp_kaelte_kwh"], 2)
+            if (detail.get("wp_kaelte_kwh") or 0) > 0 else None
+        ),
         speicher_ladung_netz_kwh=detail.get("speicher_ladung_netz_kwh"),
         speicher_effektiver_ladepreis_cent=(
             round(eff.effektiver_ladepreis_cent, 2)

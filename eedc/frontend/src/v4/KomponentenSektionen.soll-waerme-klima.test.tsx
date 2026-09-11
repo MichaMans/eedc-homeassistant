@@ -132,12 +132,19 @@ describe('Achse III-3 — ein Balken sagt, was er zeigt', () => {
       wp_heizung_kwh: 0, wp_warmwasser_kwh: 309,
     })
 
-    expect(screen.getByText('Heizung')).toBeTruthy()
+    // ⚑ **Bauschnitt 8 / E1 (b), 11.09.2026:** Der Balken „Wärme-Aufteilung"
+    // ist entfallen, seine Zahlen stehen in der Liste je Funktion. Die Substanz
+    // dieser Probe bleibt — die Wärme-kWh sagen, dass sie Wärme sind —, nur der
+    // Ort ist ein anderer: Die Zeile heißt „Warmwasser-Wärme" (Formular-Name).
+    // Heizung 0 kWh bekommt keine Überschrift „Heizen" — eine Funktion ohne
+    // Menge wird nicht behauptet (G7).
     expect(screen.getByText('Warmwasser')).toBeTruthy()
+    expect(screen.getByText('Warmwasser-Wärme')).toBeTruthy()
+    expect(screen.getByText('309 kWh')).toBeTruthy()
     // S2: „Wechselt der Inhalt je nach Datenlage, wechselt auch die
-    // Beschriftung." Der Element-Titel existierte schon — er ging bis
-    // 26.08.2026 nur an den Park-Chip und war in der Anzeige unsichtbar.
-    expect(screen.getByText('Wärme-Aufteilung')).toBeTruthy()
+    // Beschriftung." Der Element-Titel steht in der Anzeige.
+    expect(screen.getByText('Je Funktion')).toBeTruthy()
+    expect(screen.queryByText('Wärme-Aufteilung')).toBeNull()
   })
 
   it('ERFÜLLT (S2/W-8): die Strom-Aufteilung nennt ihre Größe erst recht', () => {
@@ -151,7 +158,10 @@ describe('Achse III-3 — ein Balken sagt, was er zeigt', () => {
     })
 
     expect(screen.getByText('Heizen')).toBeTruthy()
-    expect(screen.getByText('Kühlen')).toBeTruthy()
+    // Seit Bauschnitt 8 zweimal: als Segment des Balkens UND als Überschrift der
+    // Gruppe Kühlen (3 kWh Kühlstrom — Betriebsart = Funktion, dieselbe Menge).
+    expect(screen.getAllByText('Kühlen')).toHaveLength(2)
+    expect(screen.getByText('Strom Kühlen')).toBeTruthy()
     expect(screen.getByText('Nicht aufgeteilt')).toBeTruthy()
     // Der Titel nennt die Größe: „Aufteilung Heizen/Kühlen" allein sagte
     // nicht, dass hier STROM steht — direkt darüber kann die Wärme-Aufteilung
@@ -185,7 +195,9 @@ describe('Achse III-3 — ein Balken sagt, was er zeigt', () => {
     // dass Warmwasser verschwindet — das ist richtig, es gibt im August keine
     // gepflegte Wärme-Aufteilung —, sondern dass der Platz jetzt sagt, welche
     // Größe er gerade zeigt. Das Verschwinden ist damit erklärt statt rätselhaft.
-    expect(cJuli.textContent).toContain('Wärme-Aufteilung')
+    // Bauschnitt 8 / E1 (b): die Juli-Wärme steht in der Liste je Funktion.
+    expect(cJuli.textContent).toContain('Warmwasser-Wärme')
+    expect(cJuli.textContent).not.toContain('Wärme-Aufteilung')
     expect(cAug.textContent).toContain('Strom-Aufteilung Heizen/Kühlen')
     expect(cJuli.textContent).not.toContain('Strom-Aufteilung')
   })
