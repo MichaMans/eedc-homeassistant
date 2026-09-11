@@ -701,15 +701,26 @@ async def _get_tagespeaks_aus_ha_lts(
 def strompreis_sensor_id(sensor_mapping: Optional[dict]) -> Optional[str]:
     """Die Entity des zugeordneten Strompreis-Sensors — oder ``None``.
 
-    **Die eine Leseart** (11.09.2026). Sie stand als drei Zeilen in
+    **Die eine Leseart** (11.09.2026). Sie stand als drei Zeilen mitten in
     ``_get_strompreis_stunden`` und war damit für jeden anderen Frager
-    unerreichbar. Zweiter Frager ist seit #412 der Monatsabschluss: Er
-    entscheidet, ob das Feld „Ø Strompreis" überhaupt erscheint, und die
-    Zuordnung eines Preissensors ist dafür ein gültiges Signal.
+    unerreichbar.
+
+    ⛔ **Der zweite Frager, für den sie herausgezogen wurde, ist am selben Tag
+    wieder entfallen** — und der Grund gehört hierher, damit ihn niemand erneut
+    baut: Der Monatsabschluss sollte das Feld „Ø Strompreis" freischalten,
+    sobald ein Preissensor zugeordnet ist. Das war falsch. Der Zuordnungs-Slot
+    für diesen Sensor ist selbst nur bei ``vertragsart == "dynamisch"`` sichtbar
+    (``datenquellen.py``, begründet mit Forum #89667/54); der Zustand „Sensor
+    ohne dynamische Vertragsart" entsteht fast nur nach einem **Tarifwechsel**,
+    und eine stichtagslose Bedingung hätte das Feld danach in jedem Monat
+    gezeigt. Dort entscheidet jetzt die **Messung dieses Monats**.
+
+    ⚠ **Die Funktion bleibt öffentlich**, weil sie die Leseart benennt: Wer
+    wissen will, woran ein zugeordneter Preissensor erkennbar ist, findet hier
+    eine Antwort statt drei Zeilen in einem Ladepfad.
 
     ⚠ Geprüft wird die **Zuordnung**, nicht die Erreichbarkeit von Home
-    Assistant — wer den Sensor zugeordnet hat, soll das Feld auch dann sehen,
-    wenn HA gerade nicht antwortet.
+    Assistant.
     """
     basis = (sensor_mapping or {}).get("basis", {}) or {}
     sp = basis.get("strompreis")

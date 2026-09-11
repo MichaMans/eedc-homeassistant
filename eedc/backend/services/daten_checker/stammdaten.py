@@ -740,43 +740,23 @@ class StammdatenChecks:
                 link="/einstellungen/strompreise",
             ))
 
-        # ── #412: Preissensor zugeordnet, Vertragsart nicht gesetzt ─────────
+        # ⛔ **Hier stand am 11.09.2026 zwischenzeitlich ein Hinweis
+        # „Strompreis-Sensor zugeordnet, Tarif nicht als dynamisch geführt".
+        # Er ist zurückgenommen, und der Grund gehört hierher, damit ihn
+        # niemand erneut baut:**
         #
-        # ⭐ **Der Fall, der OB73-gif getroffen hat.** `vertragsart` ist ein
-        # optionales Dropdown ohne Vorbelegung; wer seinen Tibber-Sensor
-        # zuordnet, sie aber nie umstellt, sieht das Feld „Ø Strompreis" im
-        # Monatsabschluss **nicht** (bis 11.09.2026 hing es allein daran) und
-        # rechnet dauerhaft mit dem Stammpreis. Das Feld erscheint seither
-        # auch bei zugeordnetem Sensor — dieser Hinweis sagt dem Anwender,
-        # warum sein Tarif trotzdem nicht als dynamisch geführt wird.
+        # Der Zuordnungs-Slot für diesen Sensor ist selbst nur bei
+        # `vertragsart == "dynamisch"` sichtbar (`datenquellen.py`, begründet
+        # mit Forum #89667/54). Der gemeldete Zustand entsteht deshalb fast nur
+        # nach einem **Tarifwechsel** dynamisch → fest, bei dem das Mapping
+        # stehen bleibt — also nach einer **bewussten** Handlung des Anwenders.
+        # Ihm dann zu melden, seine Vertragsart stehe nicht auf dynamisch, ist
+        # eine Meldung über einen Zustand **ohne Folge**: eedc rechnet seit
+        # #412 ohnehin mit den gemessenen Stundenpreisen, wo es welche gibt.
         #
-        # ⚠ **INFO, nicht WARNING, und ausdrücklich mit „du musst nichts tun".**
-        # eedc rechnet seit #412 auch ohne die Angabe mit den gemessenen
-        # Stundenpreisen; die Vertragsart ändert daran nichts mehr. Sie ist nur
-        # noch Beschreibung. Ein Mangel-Ton wäre hier falsch — dieselbe Lehre
-        # wie beim Wärmestrom-Hinweis darunter (dietmar1968, #89667/87).
-        from backend.services.energie_profil._helpers import strompreis_sensor_id
-        # Der zuletzt beginnende allgemeine Tarif ist der, den der Anwender
-        # heute pflegt — `tarife` ist nach `gueltig_ab` aufsteigend sortiert.
-        aktueller_tarif = tarife[-1] if tarife else None
-        if (
-            strompreis_sensor_id(getattr(anlage, "sensor_mapping", None))
-            and aktueller_tarif is not None
-            and aktueller_tarif.vertragsart != "dynamisch"
-        ):
-            ergebnisse.append(CheckErgebnis(
-                kategorie=kat, schwere=CheckSeverity.INFO,
-                meldung="Strompreis-Sensor zugeordnet, Tarif nicht als dynamisch geführt",
-                details=(
-                    "Du hast einen Strompreis-Sensor zugeordnet, in den "
-                    "Stammdaten steht aber keine Vertragsart „dynamisch“. "
-                    "eedc rechnet trotzdem mit dem Ø deiner mitgeschriebenen "
-                    "Stundenpreise — an den Zahlen ändert die Angabe nichts. "
-                    "Wer die Tarifart sauber dokumentiert haben möchte, setzt "
-                    "sie im Strompreis-Tarif; nötig ist das nicht."
-                ),
-                link="/einstellungen/strompreise",
-            ))
+        # ⚑ Dieselbe Linie wie beim Wärmestrom-Hinweis weiter unten
+        # (dietmar1968, #89667/87): Ein Hinweis, den keine Eingabe abstellt und
+        # der nichts bewirkt, ist Rauschen.
 
         # Spezialtarife prüfen (WP / E-Auto)
         verwendungen = {s.verwendung for s in anlage.strompreise}

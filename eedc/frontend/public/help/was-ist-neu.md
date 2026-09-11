@@ -173,22 +173,20 @@ laufenden Monat sind das zwangsläufig wenige, und das sollst du sehen können.
 
 ---
 
-**Das Feld „Ø Strompreis" war für viele unerreichbar**
+**Das Feld für deinen abgerechneten Ø-Preis erscheint jetzt dort, wo es gebraucht wird**
 
-Im Monatsabschluss gibt es ein Feld für deinen abgerechneten Durchschnittspreis.
-Es erschien nur, wenn in den Stammdaten die Vertragsart auf „dynamisch" stand —
-ein **optionales** Auswahlfeld, das man leicht übersieht.
+Im Monatsabschluss gibt es ein Feld für deinen abgerechneten
+Durchschnittspreis. Es erschien bisher nur, wenn in den Stammdaten deines
+Stromtarifs die Vertragsart auf „dynamisch" stand.
 
-Wer also seinen Tibber-Sensor zugeordnet, die Vertragsart aber nie umgestellt
-hatte, bekam das Feld **nie zu sehen** und konnte seinen echten Abrechnungswert
-auch nachträglich nicht eintragen.
+Jetzt erscheint es zusätzlich in **jedem Monat, für den eedc Stundenpreise
+mitgeschrieben hat** — also genau dort, wo eedc seit dieser Version mit einem
+gemessenen Ø rechnet. Denn wo gemessen wird, sollst du deinen tatsächlich
+abgerechneten Wert danebenstellen können; er hat immer Vorrang.
 
-Jetzt genügt der **zugeordnete Sensor**. Dazu erklärt der Daten-Checker den
-Zusammenhang, falls deine Vertragsart nicht gesetzt ist — ausdrücklich ohne
-Handlungsdruck: An deinen Zahlen ändert diese Angabe nichts mehr.
-
-**Betrifft dich das?** Jeden mit Preissensor und leerer Vertragsart.
-**Was du tun musst:** nichts.
+**Betrifft dich das?** Jeden mit dynamischem Strompreis-Sensor.
+**Was du tun musst:** nichts — aber du *kannst* jetzt für jeden gemessenen
+Monat deinen Abrechnungswert nachtragen.
 
 ---
 
