@@ -1304,7 +1304,16 @@ Arbeitszahl Kühlen     = nutzenergie_kuehlen_kwh ÷ betriebsart_strom_kuehlen_k
 | | Voraussetzung | Grund, wenn sie fehlt |
 |---|---|---|
 | **je Funktion** (W-4) | `getrennte_strommessung` **und** die zugehörige Wärmemenge | `GRUND_STROM_NICHT_JE_FUNKTION` |
-| **Kühlen** (W-5) | Kühlstrom **und** Kältemengenzähler | `GRUND_KEINE_KAELTEMENGE` · `"kein Kühlbetrieb in diesem Zeitraum"` |
+| **Kühlen** (W-5) | Kühlstrom **und** Kältemengenzähler | `GRUND_KEINE_KAELTEMENGE` · `"kein Kühlbetrieb in diesem Zeitraum"` · nur Tag: `GRUND_KEINE_KAELTE_ABGEGEBEN` (Zähler meldet 0 bei Kühlstrom > 0) |
+
+> **Kühlen am Tag — seit Bauschnitt 6 (11.09.2026).** Die Kältemenge eines Tages kommt aus
+> `get_tagesdetail_kwh` (`wp_kaelte_kwh`) — **Gerätefeld, sonst Σ Innengeräte, nie addiert**
+> (`geraetefeld_oder_innengeraete`, dieselbe Regel wie der Monat), im **Fenster der Tageszeile**
+> wie der Kühlstrom (N-435). Der Kühlstrom ist der des Tages-Stapels. ⚠ **Die Geräte-Deckung
+> prüft der Tag selbst:** Kälte trägt jedes Gerät mit Zähler bei, Kühlstrom nur, wer den Stapel
+> besteht; deshalb vergleicht er beide Geräte-Mengen (`deckung_aus_geraetezahlen` plus
+> Mengengleichheit) statt die Deckung aus dem Monat zu übernehmen — sonst stünde die Kälte
+> eines herausgefallenen Geräts im Zähler und sein Strom nirgends.
 
 ⚠ **Die R2-Sperren gelten für alle vier** — Anwender-Angabe `abgrenzung`, abgeleitete Wärme,
 **gemischte Bauarten**, Geräte ohne Wärme, Zeitraum-Versatz.

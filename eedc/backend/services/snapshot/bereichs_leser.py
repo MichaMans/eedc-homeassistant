@@ -58,10 +58,15 @@ from typing import Optional
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.berechnungen.betriebsart_gemessen import (
+    geraetefeld_oder_innengeraete,
+)
 from backend.models.sensor_snapshot import SensorSnapshot
 from backend.services.snapshot.keys import (
     extract_quellen_energy,
     feld_hat_zaehler,
+    innengeraet_felder,
+    zaehler_feld_kandidaten,
 )
 from backend.services.snapshot.reader import (
     get_snapshot,
@@ -169,38 +174,53 @@ async def lade_tageswerte_je_feld(
             continue
         inv_data = investitionen_map.get(str(inv_id_str))
         geraet_felder = (inv_data or {}).get("felder", {}) or {}
+        kandidaten = zaehler_feld_kandidaten(inv_id_str, geraet_felder, mqtt_keys)
 
         for (t, feld), ausgabe_key in felder.items():
             if t != typ:
                 continue
-            cfg = geraet_felder.get(feld)
-            sensor_key = f"inv:{inv_id_str}:{feld}"
-            if not feld_hat_zaehler(cfg, sensor_key, quellen_energy, mqtt_keys):
-                continue
-            sensor_id = cfg.get("sensor_id") if isinstance(cfg, dict) else None
-
-            reihe = await _reihe_ueber_bereich(
-                db, anlage.id, sensor_key, grenzen[0], grenzen[-1],
-            )
-            staende = await _raender_mit_heilung(
-                db, anlage, sensor_key, sensor_id, quellen_energy, grenzen, reihe,
-            )
-            stand_am = dict(zip(grenzen, staende))
-
-            for tag, (tages_start, tages_ende) in fenster_je_tag.items():
-                s0, s1 = stand_am[tages_start], stand_am[tages_ende]
-                if s0 is None or s1 is None:
+            # Bauschnitt 6: Gerätefeld UND Innengerät-Kopien — dieselbe Menge wie
+            # `get_tagesdetail_kwh`, dieselbe Auflösung danach. Die Tabelle ist
+            # geteilt; ein Aufrufer, der die Kälte hereinreicht, bekäme sonst
+            # still die Antwort ohne Innengeräte.
+            je_tag_je_key: dict[str, dict[date, float]] = {}
+            for k in (feld, *innengeraet_felder(feld, kandidaten)):
+                cfg = geraet_felder.get(k)
+                sensor_key = f"inv:{inv_id_str}:{k}"
+                if not feld_hat_zaehler(cfg, sensor_key, quellen_energy, mqtt_keys):
                     continue
-                zwischen = [
-                    w for ts, w in reihe if tages_start < ts < tages_ende
-                ]
-                wert = tageswert_aus_reihe(s0, s1, zwischen)
+                sensor_id = cfg.get("sensor_id") if isinstance(cfg, dict) else None
+
+                reihe = await _reihe_ueber_bereich(
+                    db, anlage.id, sensor_key, grenzen[0], grenzen[-1],
+                )
+                staende = await _raender_mit_heilung(
+                    db, anlage, sensor_key, sensor_id, quellen_energy, grenzen, reihe,
+                )
+                stand_am = dict(zip(grenzen, staende))
+
+                for tag, (tages_start, tages_ende) in fenster_je_tag.items():
+                    s0, s1 = stand_am[tages_start], stand_am[tages_ende]
+                    if s0 is None or s1 is None:
+                        continue
+                    zwischen = [
+                        w for ts, w in reihe if tages_start < ts < tages_ende
+                    ]
+                    wert = tageswert_aus_reihe(s0, s1, zwischen)
+                    if wert is None:
+                        logger.debug(
+                            "Zähler-Rücksprung im Tagesfenster für anlage=%s key=%s "
+                            "(%s) — keine Tagesaussage",
+                            anlage.id, sensor_key, tag,
+                        )
+                        continue
+                    je_tag_je_key.setdefault(k, {})[tag] = wert
+
+            for tag in fenster_je_tag:
+                wert = geraetefeld_oder_innengeraete(
+                    {k: w[tag] for k, w in je_tag_je_key.items() if tag in w}, feld,
+                )
                 if wert is None:
-                    logger.debug(
-                        "Zähler-Rücksprung im Tagesfenster für anlage=%s key=%s "
-                        "(%s) — keine Tagesaussage",
-                        anlage.id, sensor_key, tag,
-                    )
                     continue
                 je_tag = ergebnis.setdefault(tag, {})
                 je_tag[ausgabe_key] = je_tag.get(ausgabe_key, 0.0) + wert

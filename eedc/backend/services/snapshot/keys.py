@@ -310,6 +310,38 @@ def extract_quellen_energy(anlage) -> dict[str, tuple[Optional[str], Optional[st
     return out
 
 
+def zaehler_feld_kandidaten(
+    inv_id_str: str, felder: Optional[dict], mqtt_keys: Optional[set[str]],
+) -> set[str]:
+    """Alle Feld-Keys, die für dieses Gerät einen Zähler tragen **können** — aus beiden Ablagen.
+
+    N-328b: Ein per MQTT gespeister Zähler steht nicht in ``felder`` — sein
+    ``sensor_key`` steht in ``mqtt_keys``, und nur dort. Wer allein über
+    ``felder`` iteriert, sieht ihn nie. Ob ein Kandidat wirklich einen Zähler
+    hat, entscheidet danach weiterhin {@link feld_hat_zaehler}.
+
+    Herausgezogen aus ``aggregator.get_betriebsart_strom_tageswerte``
+    (Bauschnitt 6, Kälte je Tag), damit die Tagesdetails und der Bereichs-Leser
+    **dieselbe** Menge sehen — auch die Innengerät-Kopien.
+    """
+    praefix = f"inv:{inv_id_str}:"
+    return set(felder or {}) | {
+        sk[len(praefix):] for sk in (mqtt_keys or ()) if sk.startswith(praefix)
+    }
+
+
+def innengeraet_felder(basis_feld: str, kandidaten) -> list[str]:
+    """Die Innengerät-Kopien eines Feldes unter den Kandidaten, sortiert.
+
+    ``betriebsart_nutzenergie_kuehlen_kwh`` → ``[…_kwh-1, …_kwh-3]``; das
+    Gerätefeld selbst gehört nicht dazu. Für ein Feld ohne ``je_innengeraet``
+    ist die Liste leer — seine Leser verhalten sich dort bitgleich zu vorher.
+    """
+    return sorted(
+        k for k in kandidaten if k != basis_feld and basis_feld_key(k) == basis_feld
+    )
+
+
 def feld_hat_zaehler(
     config: Optional[dict],
     sensor_key: str,

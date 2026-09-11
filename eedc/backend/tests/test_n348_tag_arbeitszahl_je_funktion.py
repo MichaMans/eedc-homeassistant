@@ -21,14 +21,14 @@ stündlichen Zählern entsteht"*, und alle vier Eingänge liegen in der Tagesant
 (`views.py`, `wp_strom_heizen_kwh` · `wp_strom_warmwasser_kwh` · `wp_heizung_kwh` ·
 `wp_warmwasser_kwh`). Die ehrliche Auskunft ist die Rechnung.
 
-## Die Ausnahme, und sie ist gemessen — Kühlen
+## Kühlen — bis Bauschnitt 6 die Ausnahme
 
-Für Kühlen gilt das Gegenteil, und deshalb steht dort ein Grund statt einer Zahl:
-Die **Kältemenge** (`betriebsart_nutzenergie_kuehlen_kwh`) ist zwar ein stündlicher
-Zähler, aber `get_betriebsart_strom_tageswerte` filtert über
-`ist_betriebsart_strom_feld` und holt nur den **Nenner**. Der Zähler des Quotienten
-hat keinen Tagespfad. `GRUND_KEINE_KAELTEMENGE` („kein Kältemengenzähler
-zugeordnet") wäre hier eine **Falschaussage** für jeden, der einen zugeordnet hat.
+Bis zum 11.09.2026 stand für Kühlen ein Grund statt einer Zahl: Die **Kältemenge**
+(`betriebsart_nutzenergie_kuehlen_kwh`) erreichte den Tag nicht, der Tag nannte
+deshalb „nur im Monat". Seit Bauschnitt 6 hat sie einen Tagespfad, und die Kühlzahl
+entsteht wie im Monat. Die Probe unten hält jetzt die Zahl fest; die Aussage, die
+sie vorher trug — *einer Anlage mit Kältemengenzähler nie „kein Kältemengenzähler
+zugeordnet" sagen* —, steht in `test_bs6_kaelte_je_tag.py` (P4).
 
 Schwesterdatei: `test_soll_waerme_klima_w4_arbeitszahl_je_funktion.py` — dort steht
 der **Layer**, hier die **Sicht**. Der Layer war nie defekt; genau deshalb hat ihn
@@ -45,7 +45,6 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_FREMDSTROM,
     GRUND_KEINE_KAELTEMENGE,
     GRUND_KEIN_KUEHLBETRIEB,
-    GRUND_KUEHLZAHL_NUR_MONAT,
     GRUND_STROM_NICHT_JE_FUNKTION,
 )
 from backend.core.investition_parameter import ABGRENZUNG_FREMDSTROM
@@ -203,12 +202,13 @@ async def test_n348_kuehlen_ohne_kuehlbetrieb_sagt_das(db):
     assert resp.wp_jaz_kuehlen_grund == GRUND_KEIN_KUEHLBETRIEB
 
 
-async def test_n348_kuehlen_mit_kuehlbetrieb_nennt_die_echte_luecke(db):
-    """Bei geflossenem Kühlstrom fehlt wirklich nur der Zähler des Quotienten.
+async def test_n348_kuehlen_mit_kaeltezaehler_rechnet_im_tag(db):
+    """Mit Kühlstrom UND Kältemengenzähler steht die Kühlzahl im Tag (Bauschnitt 6).
 
-    ⛔ Hier NICHT „kein Kältemengenzähler zugeordnet" — dieser Anlage ist einer
-    zugeordnet (`betriebsart_nutzenergie_kuehlen_kwh` unten), er erreicht den Tag
-    nur nicht. Der Satz würde sie an der falschen Stelle suchen lassen.
+    Bis zum 11.09.2026 hielt diese Probe den Grund „nur im Monat" fest — eine
+    Aussage, die nur wahr war, solange die Kälte keinen Tagespfad hatte. Ihre
+    Substanz („einer Anlage mit Zähler nie ‚kein Zähler' sagen") steht jetzt in
+    `test_bs6_kaelte_je_tag.py`; hier steht die Zahl: 18 ÷ 6 = 3,0.
     """
     resp = await _tag(
         db,
@@ -221,20 +221,12 @@ async def test_n348_kuehlen_mit_kuehlbetrieb_nennt_die_echte_luecke(db):
     )
 
     assert resp.wp_modus_strom_kuehlen_kwh == 6.0, "Nenner ist im Tag da"
-    assert resp.wp_jaz_kuehlen is None
-    assert resp.wp_jaz_kuehlen_grund == GRUND_KUEHLZAHL_NUR_MONAT
-
-    # ⛔ **DIESE ZEILE IST DER EIGENTLICHE WÄCHTER, und sie steht hier, weil die
-    # Probe ohne sie NICHTS GEMESSEN HAT.** Die Gegenprobe vom 29.08. hat es
-    # gezeigt: Wer `GRUND_KUEHLZAHL_NUR_MONAT = GRUND_KEINE_KAELTEMENGE` setzt —
-    # also genau den bequemen Weg geht, den dieser Test verhindern soll —,
-    # ändert **beide Seiten** der Assertion darüber mit. Sie blieb grün.
-    # Dieselbe Klasse wie N-132: ein Wächter, der eine Konstante gegen sich
-    # selbst hält, hält gar nichts. Geprüft wird deshalb die AUSSAGE:
-    # Diese Anlage HAT einen Kältemengenzähler zugeordnet — ihr zu sagen, sie
-    # habe keinen, schickt sie an die falsche Stelle.
+    assert resp.wp_jaz_kuehlen == pytest.approx(3.0)
+    # Steht ein Wert, steht kein Grund — und schon gar nicht der, dass der
+    # Zähler fehle (die Lehre der N-132-Klasse: die AUSSAGE prüfen, nicht eine
+    # Konstante gegen sich selbst).
+    assert resp.wp_jaz_kuehlen_grund is None
     assert resp.wp_jaz_kuehlen_grund != GRUND_KEINE_KAELTEMENGE
-    assert GRUND_KUEHLZAHL_NUR_MONAT != GRUND_KEINE_KAELTEMENGE
 
 
 # ── Der Wächter gegen den Rückfall ─────────────────────────────────────────

@@ -465,6 +465,29 @@ def abgrenzung_je_funktion(
     return ergebnis
 
 
+def deckung_aus_geraetezahlen(geraete_e: int, geraete_q: int) -> Optional[bool]:
+    """Deckt sich der Geräte-Kreis von Zähler und Nenner einer Funktion? (**R2**)
+
+    Die Regel hinter ``WpFakten.deckung_je_funktion`` — herausgezogen, damit der
+    **Tag** sie ebenfalls ruft statt sie nachzubauen (Bauschnitt 6, Kälte je
+    Tag). ``True`` = ja · ``False`` = nein · ``None`` = die Frage stellt sich
+    nicht:
+
+    * ``(·, 0)`` — keine Nutzenergie. Entweder gab es die Funktion nicht, oder
+      der Zähler fehlt; für beides hat die Kennzahl den genaueren Satz (S3).
+    * ``(0, q)`` — Nutzenergie ohne den Strom derselben Funktion ⇒ ``False``.
+    * sonst — gleiche Anzahl ⇒ ``True``.
+
+    ⚠ **Gezählt wird der BEITRAG, nicht die Stammdaten** — der Aufrufer zählt
+    die Geräte, deren Menge an dieser Seite des Quotienten > 0 ist.
+    """
+    if geraete_q == 0:
+        return None
+    if geraete_e == 0:
+        return False
+    return geraete_e == geraete_q
+
+
 def arbeitszahl(
     waerme_kwh: Optional[float],
     strom_kwh: Optional[float],
@@ -771,27 +794,22 @@ def arbeitszahl_je_funktion(
 #: sind selten. **Er nennt den Ausweg**, statt nur das Fehlen zu melden.
 GRUND_KEINE_KAELTEMENGE = "kein Kältemengenzähler zugeordnet"
 
-#: Grund für die **Tagessicht** — und ausdrücklich ein anderer als der darüber
-#: (N-348, 2026-08-29).
+#: Der Kältemengenzähler ist zugeordnet und meldet **null**, während Kühlstrom
+#: floss — nur die Tagessicht kann das von „kein Zähler" unterscheiden
+#: (Konzept Wärme/Klima §8, Bauschnitt 6, Entscheid Gernot 11.09.2026).
 #:
-#: ⛔ **Warum `GRUND_KEINE_KAELTEMENGE` hier eine Falschaussage wäre.** Die
-#: Kältemenge ist ein stündlicher Zähler (`betriebsart_nutzenergie_kuehlen_kwh`
-#: steht in ``KUMULATIVE_ZAEHLER_FELDER``) — sie *könnte* je Tag entstehen. Was
-#: fehlt, ist der Aggregationspfad: ``snapshot/aggregator.py::
-#: get_betriebsart_strom_tageswerte`` filtert über ``ist_betriebsart_strom_feld``
-#: und holt deshalb nur den **Nenner** (Kühlstrom), nie den Zähler. Wer einen
-#: Kältemengenzähler zugeordnet hat, bekäme also „kein Kältemengenzähler
-#: zugeordnet" zu lesen — ein Satz, der ihn an der falschen Stelle suchen lässt.
+#: ⛔ **Warum NICHT ``GRUND_KEIN_KUEHLBETRIEB``**, obwohl die Heizseite es so
+#: macht (ef696c1c: gemessene Wärme 0 ⇒ „kein Heizbetrieb"). Dort trägt die
+#: Begründung — Heizstrom ohne Heizwärme ist Standby und Umwälzung. Beim Kühlen
+#: nicht: Der Kühlstrom ist in eedc über den **eingestellten Modus** bestimmt,
+#: und ein pausiertes Gerät im Kühlmodus **kühlt** nach eedcs eigener Regel
+#: weiter (Handbuch Wärme/Klima, „Leerlauf behält deinen Modus"). Der Grund
+#: „kein Kühlbetrieb" heißt im Handbuch wörtlich *„der Kühlstrom ist null"* —
+#: neben einer sichtbaren Kühlstrom-Menge wäre er eine Falschaussage.
 #:
-#: ⚑ **Der Weg, falls die Tages-Kühlzahl je gewünscht wird**, damit ihn niemand
-#: neu suchen muss: die ``AUSGABE``-Tabelle in ``get_tagesdetail_kwh``
-#: (`aggregator.py:880`) um ``("waermepumpe", "betriebsart_nutzenergie_kuehlen_kwh")``
-#: erweitern. ⚠ **Vorher zu messen, sonst entsteht eine falsche Zahl statt einer
-#: fehlenden:** ob dieser Pfad den Innengerät-Suffix auflöst
-#: (``betriebsart_nutzenergie_kuehlen_kwh-3``). ``get_betriebsart_strom_tageswerte``
-#: reicht ihn bewusst ungelöst weiter; eine Multisplit-Anlage würde sonst zu
-#: wenig Kälte zählen und eine **zu hohe** Arbeitszahl ausweisen.
-GRUND_KUEHLZAHL_NUR_MONAT = "Kältemenge wird nicht je Tag gezählt — Kühl-Arbeitszahl im Monat"
+#: ⚠ Nur mit ``null_ist_gemessen`` — Monat und Jahr summieren vorher (``sum()``
+#: ⇒ immer eine Zahl) und dürfen den Wortlaut nicht führen.
+GRUND_KEINE_KAELTE_ABGEGEBEN = "keine Kälte abgegeben in diesem Zeitraum"
 
 #: „Es wurde nicht gekühlt" — und das **schlägt** den Grund darüber.
 #:
@@ -811,6 +829,8 @@ def arbeitszahl_kuehlen(
     strom_kuehlen_kwh: Optional[float],
     *,
     abgrenzung_verletzt: Optional[str] = None,
+    kaelte_fehlt_grund: Optional[str] = None,
+    null_ist_gemessen: bool = False,
 ) -> Arbeitszahl:
     """Kältemenge ÷ Kühlstrom — **W-5**, SOLL §4.1.
 
@@ -844,13 +864,29 @@ def arbeitszahl_kuehlen(
         strom_kuehlen_kwh: der Strom, der in den Kühlbetrieb ging.
         abgrenzung_verletzt: wie bei {@link arbeitszahl} — R2 gilt unverändert.
             Ein Fremdanteil auf dem Zähler macht auch diese Zahl unbrauchbar.
+        kaelte_fehlt_grund: **W-18 für die Kälte** — der kurze Grund, warum
+            ``kaelte_kwh`` fehlt, wenn ihn der Aufrufer kennt („für diesen Tag
+            keine Zählerstände", „Zählerrücksprung"). ⚠ **Nie für „nicht
+            zugeordnet"**: dafür ist ``GRUND_KEINE_KAELTEMENGE`` der richtige
+            Satz, und die Kurzform der Tagesgründe spricht von einem
+            *Wärme*mengenzähler. Default ``None`` ⇒ bitgleich zu vorher.
+        null_ist_gemessen: ``True`` nur, wo „gemessen 0" von „nicht erfasst"
+            unterscheidbar ist (Tag). Dann ergibt gemessene Kälte 0 bei
+            Kühlstrom > 0 ``GRUND_KEINE_KAELTE_ABGEGEBEN``.
     """
     e = float(strom_kuehlen_kwh or 0.0)
     q = float(kaelte_kwh or 0.0)
     if e <= 0:
         return Arbeitszahl(None, GRUND_KEIN_KUEHLBETRIEB)
     if q <= 0:
-        return Arbeitszahl(None, GRUND_KEINE_KAELTEMENGE)
+        # Dieselbe Bauform wie in `arbeitszahl` (W-18 + ef696c1c): ein
+        # bekannter Grund gewinnt; ein gemessener Nullwert ist kein fehlender
+        # Zähler. `q == 0`, nicht `<= 0` — ein negativer Wert wäre ein
+        # Rücksprung, und für den gibt es `kaelte_fehlt_grund`.
+        if (null_ist_gemessen and q == 0 and kaelte_kwh is not None
+                and not kaelte_fehlt_grund):
+            return Arbeitszahl(None, GRUND_KEINE_KAELTE_ABGEGEBEN)
+        return Arbeitszahl(None, kaelte_fehlt_grund or GRUND_KEINE_KAELTEMENGE)
     if abgrenzung_verletzt:
         return Arbeitszahl(None, abgrenzung_verletzt)
     # Die Herleitung wie bei `arbeitszahl` — diese Funktion rechnet bewusst

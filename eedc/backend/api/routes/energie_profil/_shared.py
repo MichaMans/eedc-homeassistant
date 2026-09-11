@@ -630,15 +630,12 @@ class TagDetailResponse(BaseModel):
     wp_jaz_heizen_grund: Optional[str] = None
     wp_jaz_warmwasser: Optional[float] = None
     wp_jaz_warmwasser_grund: Optional[str] = None
-    #: ⛔ **Im Tag gibt es hier NIE einen Wert, und das ist gemessen, nicht
-    #: vergessen:** Die Kältemenge (`betriebsart_nutzenergie_kuehlen_kwh`) ist
-    #: zwar ein stündlicher Zähler, aber der Tages-Aggregator holt ausschließlich
-    #: `betriebsart_strom_*` (`snapshot/aggregator.py::get_betriebsart_strom_
-    #: tageswerte`, Filter `ist_betriebsart_strom_feld`) — der Zähler des
-    #: Quotienten hat also keinen Tagespfad. `GRUND_KEINE_KAELTEMENGE` („kein
-    #: Kältemengenzähler zugeordnet") wäre hier deshalb eine **Falschaussage**
-    #: für jeden, der einen zugeordnet hat. Stattdessen der Grund unten, der
-    #: sagt, was zutrifft und wo die Zahl steht.
+    #: Kältemenge ÷ Kühlstrom des Tages — **seit Bauschnitt 6** (11.09.2026)
+    #: mit einem Tagespfad für den Zähler (`wp_kaelte_kwh` in
+    #: `snapshot/aggregator.py::TAGESDETAIL_AUSGABE`, Gerätefeld oder Σ
+    #: Innengeräte). Bis dahin stand hier nie ein Wert, nur der Grund „nur im
+    #: Monat". Derselbe Layer-Aufruf wie im Monat; die Geräte-Deckung prüft der
+    #: Tag selbst, weil er beide Seiten je Gerät kennt.
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
     # Speicher-Netzladung (Arbitrage) — Tages-Boundary-Diff.

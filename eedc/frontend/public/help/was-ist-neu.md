@@ -11,6 +11,24 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Arbeitszahl Kühlen jetzt auch am einzelnen Tag**
+
+Wer einen Kältemengenzähler hat, sah die Arbeitszahl Kühlen bisher nur im Monat,
+im Jahr und im Komponenten-Hub. In *Cockpit → Tag* stand an ihrer Stelle, dass die
+Kältemenge nur monatlich gezählt wird. Jetzt rechnet der Tag dieselbe Zahl:
+Kältemenge des Tages geteilt durch den Kühlstrom des Tages.
+
+Das klappt auch mit einem Kältemengenzähler **je Innengerät** — eedc zählt ihre
+Summe. Hast du zusätzlich einen Zähler am ganzen Gerät, gilt dieser.
+
+Meldet dein Kältemengenzähler an einem Tag null, obwohl Kühlstrom floss — etwa
+weil das Gerät im Kühlmodus stand und pausierte —, steht dort jetzt
+**„keine Kälte abgegeben in diesem Zeitraum"**.
+
+**Betrifft dich das?** Nur mit einem Kältemengenzähler. Ohne ihn — das ist der
+Normalfall — steht wie bisher „kein Kältemengenzähler zugeordnet".
+**Was du tun musst:** nichts.
+
 **Strom-Aufteilung am Tag: kein Leerlauf mehr, der keiner ist**
 
 Wer seiner Wärmepumpe oder Klimaanlage eigene Zähler je Betriebsart zugeordnet

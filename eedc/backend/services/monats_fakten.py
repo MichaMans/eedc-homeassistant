@@ -526,12 +526,13 @@ class WpFakten:
         dieses Monats in die Summe, sein fehlender Strom nicht. Gemessen an
         einem Zweimonats-Fall: **3,75 statt 3,0.**
         """
+        # Die Regel steht seit Bauschnitt 6 im Layer — der Tag ruft sie auch.
+        from backend.core.berechnungen.waermepumpe_kennzahl import (
+            deckung_aus_geraetezahlen,
+        )
+
         e, q = self._funktions_paar(funktion)
-        if q == 0:
-            return None
-        if e == 0:
-            return False
-        return e == q
+        return deckung_aus_geraetezahlen(e, q)
 
     def _funktions_paar(self, funktion: str) -> tuple[int, int]:
         return {

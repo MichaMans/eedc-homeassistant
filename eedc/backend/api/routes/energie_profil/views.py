@@ -648,16 +648,22 @@ async def get_tag_detail(
     # früher stehen — derselbe Ladepfad, dieselbe Faltung.
     #
     from backend.core.berechnungen import waermepumpe_kwh_je_investition
-    from backend.core.berechnungen.tages_stapel import falte_tages_stapel
+    from backend.core.berechnungen.tages_stapel import (
+        beitraege_des_tages, falte_tages_stapel,
+    )
     from backend.core.berechnungen.waermepumpe_kennzahl import (
-        GRUND_KEIN_KUEHLBETRIEB, GRUND_KUEHLZAHL_NUR_MONAT, abgrenzungs_grund,
+        GRUND_FUNKTION_NICHT_DECKUNGSGLEICH, abgrenzungs_grund,
         ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
-        arbeitszahl, arbeitszahl_je_funktion, waerme_gesamt_kwh,
+        arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
+        deckung_aus_geraetezahlen, waerme_gesamt_kwh,
     )
     from backend.core.investition_parameter import (
         abgrenzung_stoerung, ist_luft_luft_waermepumpe,
     )
-    from backend.core.tageswert_grund import tageswert_grund_text
+    from backend.core.tageswert_grund import (
+        GRUND_KEINE_ZAEHLERSTAENDE, GRUND_ZAEHLER_RUECKSPRUNG,
+        tageswert_grund_kurz, tageswert_grund_text,
+    )
     from backend.services.energie_profil import lade_modus_split_tag
     from backend.services.snapshot.aggregator import get_betriebsart_strom_tageswerte
 
@@ -691,10 +697,18 @@ async def get_tag_detail(
     #
     # **Geladen wird weiter hier, gefaltet wird dort** — dieselbe Bauform wie
     # `_lade_tages_eingaenge` neben `falte_modus_split_tag`.
+    # Bauschnitt 6: Die BEITRÄGE je Gerät werden gebraucht, nicht nur ihre
+    # Faltung — die Tages-Kühlzahl fragt, WELCHE Geräte Kühlstrom in den Stapel
+    # bringen (R2 beidseitig, s. u.). `falte_tages_stapel` ist genau
+    # `_falte(beitraege_des_tages(…))`; beides aus denselben Eingängen ⇒ bitgleich.
+    _splits_tag = await lade_modus_split_tag(db, anlage_id, datum)
+    beitraege_tag = beitraege_des_tages(
+        gemessen_je_inv, wp_kwh_je_inv, _splits_tag, investitionen_by_id, datum,
+    )
     stapel = falte_tages_stapel(
         gemessen_je_inv,
         wp_kwh_je_inv,
-        await lade_modus_split_tag(db, anlage_id, datum),
+        _splits_tag,
         investitionen_by_id,
         datum,
     )
@@ -818,6 +832,37 @@ async def get_tag_detail(
         }
         if _wp_fakten_monat else None
     )
+    # ── Bauschnitt 6: R2 für KÜHLEN aus dem Tag selbst, beidseitig ─────────
+    #
+    # ⛔ **Hier reicht die Monats-Näherung darüber NICHT**, und das ist gemessen:
+    # Die Kälte summiert `get_tagesdetail_kwh` über alle Geräte, den Kühlstrom
+    # trägt nur, wer den Tages-Stapel besteht (Bezug da · Teilmengen-Invariante
+    # · aktiv, `tages_stapel.beitraege_des_tages`). Fällt ein Gerät an diesem Tag
+    # heraus, stand seine Kälte im Zähler und sein Strom nirgends — **6,0 statt
+    # 3,0**, während der Monat sich deckt und deshalb nicht sperrt.
+    #
+    # ⭐ Anders als bei der Wärme **kennt** der Tag hier beide Seiten je Gerät
+    # (Kälte je Gerät aus `werte_je_inv`, Kühlstrom je Beitrag). Die Regel ist
+    # dieselbe wie im Monat (`deckung_aus_geraetezahlen`); weil der Tag die
+    # Geräte selbst sieht, prüft er zusätzlich, dass es **dieselben** sind.
+    _kuehl_geraete_tag = {b.inv_id for b in beitraege_tag if b.kuehlen_kwh > 0}
+    _kaelte_geraete_tag = {
+        inv_id for inv_id, kwh in
+        _tagesdetail.werte_je_inv.get("wp_kaelte_kwh", {}).items()
+        if kwh > 0
+    }
+    _deckung_kuehlen_tag = deckung_aus_geraetezahlen(
+        len(_kuehl_geraete_tag), len(_kaelte_geraete_tag),
+    )
+    if _deckung_kuehlen_tag and _kuehl_geraete_tag != _kaelte_geraete_tag:
+        _deckung_kuehlen_tag = False
+    if _deckung_je_funktion_tag is not None:
+        # Nur „kuehlen" wird ersetzt; Heizen/Warmwasser behalten die
+        # Monats-Näherung. Die None-heit des Ganzen bleibt, sie trägt
+        # `trifft_alles` in `abgrenzung_je_funktion`.
+        _deckung_je_funktion_tag = {
+            **_deckung_je_funktion_tag, "kuehlen": _deckung_kuehlen_tag,
+        }
     _wp_abgrenzung_je_funktion_tag = abgrenzung_je_funktion(
         abgrenzung_stoerung=next(
             (
@@ -914,6 +959,37 @@ async def get_tag_detail(
         null_ist_gemessen=True,
     )
 
+    # ── Arbeitszahl KÜHLEN — derselbe Aufruf wie im Monat (Bauschnitt 6) ───
+    #
+    # Zähler: die Kälte des Tages (`wp_kaelte_kwh`, Gerätefeld oder Σ
+    # Innengeräte, im Fenster der Tageszeile). Nenner: der Kühlstrom des
+    # Stapels. Die Σ über ALLE Geräte ist hier richtig: Deckt sich der
+    # Geräte-Kreis, sind es dieselben Geräte; deckt er sich nicht, sperrt R2.
+    #
+    # W-18 für die Kälte: nur „keine Stände" und „Rücksprung" gehen als
+    # Kurzform hinein. ⛔ **Nicht „nicht zugeordnet"** — dessen Kurzform spricht
+    # von einem *Wärme*mengenzähler; für die Kälte ist `GRUND_KEINE_KAELTEMENGE`
+    # (der Default des Layers) der richtige Satz, und er trifft jeden kühlenden
+    # Anwender ohne Kältemengenzähler.
+    _kaelte_grund_roh = _grund.get("wp_kaelte_kwh")
+    wp_az_kuehlen_tag = arbeitszahl_kuehlen(
+        detail.get("wp_kaelte_kwh"),
+        kuehlen_tag,
+        abgrenzung_verletzt=(
+            _wp_abgrenzung_je_funktion_tag["kuehlen"]
+            or (
+                GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+                if _deckung_kuehlen_tag is False else None
+            )
+        ),
+        kaelte_fehlt_grund=(
+            tageswert_grund_kurz(_kaelte_grund_roh)
+            if _kaelte_grund_roh in (GRUND_KEINE_ZAEHLERSTAENDE, GRUND_ZAEHLER_RUECKSPRUNG)
+            else None
+        ),
+        null_ist_gemessen=True,
+    )
+
     # ── Aktive Geräte je Typ (Namen) für die „aggregiert aus …"-Hinweise ──
     #
     # Wortgleich zur Monatssicht (`aktueller_monat.py`), nur mit der feineren
@@ -969,20 +1045,11 @@ async def get_tag_detail(
         wp_jaz_heizen_grund=wp_az_funktion_tag.heizen.grund,
         wp_jaz_warmwasser=wp_az_funktion_tag.warmwasser.wert,
         wp_jaz_warmwasser_grund=wp_az_funktion_tag.warmwasser.grund,
-        # ⛔ NICHT `arbeitszahl_kuehlen(None, kuehlen_tag)` — das ergäbe bei
-        # geflossenem Kühlstrom „kein Kältemengenzähler zugeordnet" und wäre für
-        # jeden, der einen zugeordnet hat, falsch. Der Zähler des Quotienten hat
-        # schlicht keinen Tagespfad (Begründung an `GRUND_KUEHLZAHL_NUR_MONAT`).
-        # ⭐ Die erste Fassung setzte diesen Grund UNBEDINGT — dann hätte eine
-        # Luft-Wasser-Wärmepumpe, die nie kühlt, einen Hinweis auf eine
-        # Aggregationslücke gelesen, die sie nichts angeht. Der Tag kennt den
-        # Kühlstrom, also kann er die aussagekräftigere Antwort geben; die
-        # Reihenfolge ist dieselbe wie in `arbeitszahl_kuehlen` selbst.
-        wp_jaz_kuehlen=None,
-        wp_jaz_kuehlen_grund=(
-            GRUND_KUEHLZAHL_NUR_MONAT if kuehlen_tag > 0
-            else GRUND_KEIN_KUEHLBETRIEB
-        ),
+        # Bauschnitt 6 (11.09.2026): Die Kältemenge hat jetzt einen Tagespfad —
+        # bis dahin stand hier ein Grund „nur im Monat", weil der Zähler des
+        # Quotienten den Tag nie erreichte (N-348).
+        wp_jaz_kuehlen=wp_az_kuehlen_tag.wert,
+        wp_jaz_kuehlen_grund=wp_az_kuehlen_tag.grund,
         speicher_ladung_netz_kwh=detail.get("speicher_ladung_netz_kwh"),
         speicher_effektiver_ladepreis_cent=(
             round(eff.effektiver_ladepreis_cent, 2)

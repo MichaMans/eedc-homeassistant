@@ -244,8 +244,8 @@ export interface TagDetail {
   wp_jaz_heizen_grund: string | null
   wp_jaz_warmwasser: number | null
   wp_jaz_warmwasser_grund: string | null
-  //  Im Tag immer `null` — die Kältemenge hat keinen Tages-Aggregationspfad;
-  //  der Grund daneben sagt, welcher der beiden Fälle vorliegt.
+  //  Kältemenge ÷ Kühlstrom des Tages — seit Bauschnitt 6 mit Tagespfad für
+  //  die Kälte (bis dahin im Tag immer `null`). Wert ODER Grund, wie oben.
   wp_jaz_kuehlen: number | null
   wp_jaz_kuehlen_grund: string | null
   /** **W-18** — warum die Tages-Wärme fehlt, als fertiger Satz aus dem Backend.

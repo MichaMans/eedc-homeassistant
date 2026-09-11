@@ -47,6 +47,7 @@ from backend.core.field_definitions import basis_feld_key
 __all__ = [
     "betriebsart_strom_kwh",
     "betriebsart_nutzenergie_kwh",
+    "geraetefeld_oder_innengeraete",
     "hat_gemessene_betriebsart",
     "ModusStromZeile",
     "modus_strom_zeile",
@@ -78,6 +79,21 @@ def _aufgeloest(daten: Optional[dict], basis_feld: str) -> Optional[float]:
             continue
         gefunden = True
     return summe if gefunden else None
+
+
+def geraetefeld_oder_innengeraete(
+    daten: Optional[dict], basis_feld: str,
+) -> Optional[float]:
+    """Die Auflösungsregel für **ein** Feld, das es auch je Innengerät gibt.
+
+    Öffentlicher Name für {@link _aufgeloest} — für Leser, die dieselbe Frage an
+    **anderen** Daten stellen als an einer IMD-Zeile: der Tagespfad
+    (``snapshot/aggregator.py::get_tagesdetail_kwh``) und der Bereichs-Leser
+    fragen sie an den Tages-Diffs der Zähler (Konzept Wärme/Klima §8,
+    Bauschnitt 6 — die Kälte je Tag). Die Regel selbst bleibt damit hier und
+    nur hier: Gerätefeld, sonst Σ Innengeräte, sonst ``None``, **nie addiert**.
+    """
+    return _aufgeloest(daten, basis_feld)
 
 
 def betriebsart_strom_kwh(daten: Optional[dict], modus: str) -> Optional[float]:

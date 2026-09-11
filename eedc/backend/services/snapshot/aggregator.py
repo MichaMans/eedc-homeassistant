@@ -16,12 +16,16 @@ Slot-Konvention seit Etappe 3c P2 (KONZEPT-ENERGIEPROFIL-3C.md):
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dc_field
 from datetime import date, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.berechnungen.betriebsart_gemessen import (
+    geraetefeld_oder_innengeraete,
+)
+from backend.core.betriebsmodus import BETRIEBSART_NUTZENERGIE_FELD, KUEHLEN
 from backend.core.berechnungen.stundenbilanz import (
     berechne_batterie_netto_kwh,
     stunden_verbrauch_kwh,
@@ -39,6 +43,8 @@ from backend.services.snapshot.keys import (
     PV_AGGREGAT_BASIS_FELD,
     extract_quellen_energy,
     feld_hat_zaehler,
+    innengeraet_felder,
+    zaehler_feld_kandidaten,
 )
 from backend.core.berechnungen.pv_tages_praezedenz import (
     QUELLE_AGGREGAT,
@@ -911,9 +917,7 @@ async def get_betriebsart_strom_tageswerte(
         # `sensor_key` steht in `mqtt_keys`, und nur dort. Wer allein über
         # `felder` iteriert, sieht ihn nie.
         praefix = f"inv:{inv_id_str}:"
-        kandidaten = set(felder) | {
-            sk[len(praefix):] for sk in mqtt_keys if sk.startswith(praefix)
-        }
+        kandidaten = zaehler_feld_kandidaten(inv_id_str, felder, mqtt_keys)
         je_inv: dict[str, float] = {}
         for feld in sorted(kandidaten):
             if not ist_betriebsart_strom_feld(feld):
@@ -949,6 +953,12 @@ class TagesDetail:
     werte: dict[str, float]
     #: ``{ausgabe_key: grund}`` für Keys **ohne** Wert. Nie beides zugleich.
     grund_je_feld: dict[str, str]
+    #: ``{ausgabe_key: {inv_id: kwh}}`` — dieselben Werte **je Gerät**; ``werte``
+    #: ist ihre Summe. Bauschnitt 6: Die Tages-Kühlzahl muss ihren Zähler auf
+    #: die Geräte einschränken, die ihren Nenner tragen (R2 beidseitig) — aus
+    #: der Summe allein ist das nicht ablesbar (gemessen: 6,0 statt 3,0, wenn ein
+    #: Gerät aus dem Tages-Stapel fällt, seine Kälte aber mitgezählt wird).
+    werte_je_inv: dict[str, dict[str, float]] = dc_field(default_factory=dict)
 
 
 #: **(typ, mapping-feld) → semantischer Ausgabe-Key** — die Feldmenge, die
@@ -974,6 +984,11 @@ TAGESDETAIL_AUSGABE: dict[tuple[str, str], str] = {
     # ausgeschlossen, hier für Tages-JAZ/Wärme).
     ("waermepumpe", "heizenergie_kwh"): "wp_heizung_kwh",
     ("waermepumpe", "warmwasser_kwh"): "wp_warmwasser_kwh",
+    # Kälte (Bauschnitt 6): eine **eigene Rolle**, kein Wärme-Sonderfall —
+    # deshalb NICHT in `WAERME_AUSGABE_KEYS` (Konzept Wärme/Klima §8). Das Feld
+    # gibt es auch je Innengerät; `get_tagesdetail_kwh` und der Bereichs-Leser
+    # lösen den Suffix mit `geraetefeld_oder_innengeraete` auf.
+    ("waermepumpe", BETRIEBSART_NUTZENERGIE_FELD[KUEHLEN]): "wp_kaelte_kwh",
     ("speicher", "ladung_netz_kwh"): "speicher_ladung_netz_kwh",
     ("wallbox", "ladung_pv_kwh"): "emob_ladung_pv_kwh",
     ("wallbox", "ladung_netz_kwh"): "emob_ladung_netz_kwh",
@@ -1069,6 +1084,7 @@ async def get_tagesdetail_kwh(
         if vorher is None or GRUND_RANG[grund] > GRUND_RANG[vorher]:
             grund_kandidat[out_key] = grund
 
+    je_inv: dict[str, dict[str, float]] = {}
     for inv_id_str, inv, inv_data in _investitionen_mit_mapping(
         sensor_mapping, investitionen_by_id
     ):
@@ -1078,34 +1094,52 @@ async def get_tagesdetail_kwh(
         if typ == "e-auto" and getattr(inv, "parent_investition_id", None) is not None:
             continue
         felder = inv_data.get("felder", {}) or {}
+        kandidaten = zaehler_feld_kandidaten(inv_id_str, felder, mqtt_keys)
         for (t, feld), out_key in AUSGABE.items():
             if t != typ:
                 continue
-            cfg = felder.get(feld)
-            sensor_key = f"inv:{inv_id_str}:{feld}"
-            # ⛔ N-328b: Hier entschied bis 2026-08-27 `strategie == "sensor"`,
-            # ob das Feld überhaupt erhoben wird — und wer per MQTT misst, bekam
-            # von W-18 den Grund „Kein Zähler zugeordnet" zu lesen, obwohl seine
-            # Zählerstände in der Datenbank standen. Der Grund war damit nicht
-            # nur nutzlos, sondern **falsch**: Er riet zu einer Zuordnung, die
-            # es gar nicht braucht.
-            if not feld_hat_zaehler(cfg, sensor_key, quellen_energy, mqtt_keys):
-                _merke_grund(out_key, GRUND_NICHT_ZUGEORDNET)
-                continue
-            d, grund = await _diff(
-                sensor_key, cfg.get("sensor_id") if isinstance(cfg, dict) else None,
-                wp=(typ == "waermepumpe"),
-            )
+            # ⭐ Bauschnitt 6: Gerätefeld UND seine Innengerät-Kopien (Suffix
+            # `-<id>`). Bis dahin las diese Schleife allein den exakten Key — ein
+            # Multisplit mit Kälte je Innengerät bekam deshalb keine Zahl und den
+            # Grund „nicht zugeordnet", obwohl beide Zähler zugeordnet waren
+            # (gemessen 11.09.2026). Für Felder ohne Innengerät-Kopien ist die
+            # Liste leer und die Schleife bitgleich zu vorher.
+            werte_geraet: dict[str, float] = {}
+            for k in (feld, *innengeraet_felder(feld, kandidaten)):
+                cfg = felder.get(k)
+                sensor_key = f"inv:{inv_id_str}:{k}"
+                # ⛔ N-328b: Hier entschied bis 2026-08-27 `strategie == "sensor"`,
+                # ob das Feld überhaupt erhoben wird — und wer per MQTT misst,
+                # bekam von W-18 den Grund „Kein Zähler zugeordnet" zu lesen,
+                # obwohl seine Zählerstände in der Datenbank standen. Der Grund
+                # war damit nicht nur nutzlos, sondern **falsch**: Er riet zu
+                # einer Zuordnung, die es gar nicht braucht.
+                if not feld_hat_zaehler(cfg, sensor_key, quellen_energy, mqtt_keys):
+                    _merke_grund(out_key, GRUND_NICHT_ZUGEORDNET)
+                    continue
+                d, grund = await _diff(
+                    sensor_key, cfg.get("sensor_id") if isinstance(cfg, dict) else None,
+                    wp=(typ == "waermepumpe"),
+                )
+                if d is None:
+                    _merke_grund(out_key, grund or GRUND_KEINE_ZAEHLERSTAENDE)
+                    continue
+                werte_geraet[k] = d
+            # Die EINE Regel für Gerät vs. Innengeräte — dieselbe, mit der der
+            # Monat und der Nenner (Zweig 1, `modus_strom_zeile`) auflösen.
+            d = geraetefeld_oder_innengeraete(werte_geraet, feld)
             if d is None:
-                _merke_grund(out_key, grund or GRUND_KEINE_ZAEHLERSTAENDE)
                 continue
             summen[out_key] = summen.get(out_key, 0.0) + d
+            geraete = je_inv.setdefault(out_key, {})
+            geraete[inv_id_str] = geraete.get(inv_id_str, 0.0) + d
 
     return TagesDetail(
         werte=summen,
         # Ein Key mit Wert braucht keine Erklärung — und ein Grund neben einer
         # vorhandenen Zahl wäre ein Widerspruch auf der Fläche.
         grund_je_feld={k: g for k, g in grund_kandidat.items() if k not in summen},
+        werte_je_inv=je_inv,
     )
 
 

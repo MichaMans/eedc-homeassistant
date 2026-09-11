@@ -43,7 +43,7 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 | Ort | Was dort steht |
 |-----|----------------|
 | **Cockpit → Live** | Momentanleistung gesamt und je Funktion, Betriebsmodus, Warmwasser-Temperatur |
-| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl, Wärme, Strom, Ersparnis, Kompressor-Starts, Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, Außentemperatur auf der zweiten Achse. Die Stunden ergeben zusammen genau die Aufteilung darunter; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen) |
+| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Ersparnis, Kompressor-Starts, Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, Außentemperatur auf der zweiten Achse. Die Stunden ergeben zusammen genau die Aufteilung darunter; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen) |
 | **Cockpit → Monat** | derselbe Block auf Monatsbasis, dazu die Arbeitszahlen je Funktion und ein **Verlauf je Tag** (dieselbe Darstellung wie am Tag) |
 | **Cockpit → Jahr** | Jahressummen, dieselben Kennzahlen wie im Monat — Arbeitszahl mit Grund und Heizstab-Satz, je Funktion, Kühlen, Aufteilung nach Betriebsart mit Restmenge — über das Jahr **neu gerechnet** (nicht gemittelt), ein **Verlauf je Monat**, Block *CO₂-Bilanz* |
 
@@ -148,6 +148,7 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 | **Zähler messen verschiedene Zeiträume** | Strom und Wärme stammen aus verschieden langen Messzeiträumen. | Lücken im Monatsabschluss schließen |
 | **Strom nicht getrennt je Funktion gemessen** | Betrifft nur die Arbeitszahlen *Heizen* und *Warmwasser*. | getrennte Strommessung einschalten und zuordnen |
 | **kein Kältemengenzähler zugeordnet** | Betrifft nur die Arbeitszahl *Kühlen*. | Kältemengenzähler zuordnen — oder es bleibt so |
+| **keine Kälte abgegeben in diesem Zeitraum** | Nur am **Tag**: Der Kältemengenzähler ist zugeordnet und meldet **null**, obwohl Kühlstrom geflossen ist — typisch, wenn das Gerät im Kühlmodus stand und pausierte (die Stunde zählt dann zum Kühlen, siehe *„Leerlauf behält deinen Modus"*). | nichts. **Nicht mit *kein Kältemengenzähler zugeordnet* verwechseln** — dort fehlt die Messung, hier ist sie da und sagt null |
 
 ### Und drei Gründe, die nur der **Tag** kennt
 
