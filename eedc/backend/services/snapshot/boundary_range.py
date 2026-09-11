@@ -26,6 +26,41 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Any, Optional
+
+#: Die Herkunfts-Kennung einer Tageszeile, deren Werte aus den HA-LTS-Stunden
+#: stammen (Σ der 24 Rückwärts-Slots). **Eine Konstante für Schreiber und
+#: Leser** (N-434): Der Energieprofil-Aggregator schreibt sie, die Tagessichten
+#: lesen an ihr ab, in welchem Fenster `komponenten_kwh` steht. Zwei Literale
+#: wären die F-56-Klasse — benennt jemand die Kennung um, läse der Leser still
+#: das falsche Fenster.
+TZ_QUELLE_LTS: str = "external:ha_statistics:daily"
+
+#: Präfix der Wärmepumpen-Schlüssel in `komponenten_kwh` bzw. ihrer Provenance.
+_WP_PROVENANCE_PRAEFIX = "komponenten_kwh.waermepumpe_"
+
+
+def tageszeile_ist_rueckwaerts(source_provenance: Optional[dict[str, Any]]) -> bool:
+    """Steht der Wärmepumpen-Tagesstrom dieser Tageszeile im Rückwärtsfenster?
+
+    ``True``, wenn ein ``komponenten_kwh.waermepumpe_*``-Eintrag die Quelle
+    {@link TZ_QUELLE_LTS} trägt — dann ist der Wert Σ der LTS-Slots
+    [Vortag 23:00, Heute 23:00) und jede Teilmenge desselben Geräts muss über
+    {@link BoundaryRange.for_day_backward} gelesen werden.
+
+    ``False`` sonst — auch ohne Provenance (Altbestand, Snapshot-Pfad, Fixture):
+    dann gilt das bisherige HA-Tagesfenster [00:00, 24:00). Das ist die
+    Voreinstellung, die bis N-434 überall galt; eine Zeile ohne Angabe wird
+    nicht umgedeutet.
+    """
+    if not isinstance(source_provenance, dict):
+        return False
+    for key, eintrag in source_provenance.items():
+        if not str(key).startswith(_WP_PROVENANCE_PRAEFIX):
+            continue
+        if isinstance(eintrag, dict) and eintrag.get("source") == TZ_QUELLE_LTS:
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -54,6 +89,30 @@ class BoundaryRange:
             datum=datum,
             boundary_offsets=tuple(range(-1, 24)),
             slot_pairs=tuple((h, h - 1, h) for h in range(24)),
+        )
+
+    @classmethod
+    def for_day_backward(cls, datum: date) -> "BoundaryRange":
+        """Tagesgesamt über das **Rückwärtsfenster** — dasselbe wie Σ der Slots.
+
+        2 Boundaries (offsets `-1` und `23`).
+        Tagesgesamt = `snap[23] − snap[-1]` = Energie [Vortag 23:00, Heute 23:00).
+
+        ⭐ **Warum es dieses Fenster als Tageswert gibt (N-434, 11.09.2026).** Im
+        HA-Add-on entsteht `TagesZusammenfassung.komponenten_kwh` als Σ der 24
+        LTS-Slots (`get_komponenten_tageskwh_lts`) — also in DIESEM Fenster, nicht
+        in [00:00, 24:00). Wer einen zweiten Zähler desselben Geräts als Teilmenge
+        dagegenstellt (die gemessenen Betriebsart-Zähler), muss ihn im selben
+        Fenster lesen. Sonst erscheint die Differenz zweier Randstunden als
+        Messung: 1,8 von 7,0 kWh „nicht aufgeteilt" bei einem Gerät, das nur
+        heizt — oder die Aufteilung verschwindet, weil die Teilmenge größer
+        wirkt als ihr Ganzes. Welches Fenster eine Tageszeile trägt, sagt
+        {@link tageszeile_ist_rueckwaerts}.
+        """
+        return cls(
+            datum=datum,
+            boundary_offsets=(-1, 23),
+            slot_pairs=(),
         )
 
     @classmethod

@@ -324,9 +324,12 @@ class WaermeVerlaufTagResponse(BaseModel):
     beide über dieselbe reine Funktion (``v4/waermeVerlauf.ts``), Jahr liefert
     Monate, Monat liefert Tage. ``TagWerteResponse`` dagegen ist an die
     Frontend-**Registry** gekoppelt (`lib/werte`), und ihr ``wp_strom`` ist die
-    Σ der Stundenleistungen — der **Leistungspfad**. Der Verlauf braucht den
-    **Zählerpfad**, sonst stünde in einem Bild eine Grundmenge, die nicht zur
-    Kachel darüber passt (W-17b).
+    Σ der Stundenspalte ``waermepumpe_kw``. ⚠ Hier stand bis 11.09.2026
+    „Leistungspfad" — falsch: die Spalte kommt aus dem **Zählerpfad** im
+    Rückwärts-Raster (LTS bzw. Snapshot-Slots). Der Unterschied zu
+    ``komponenten_kwh`` ist das Fenster, nicht die Quelle (N-434). Der Verlauf
+    nimmt ``komponenten_kwh``, weil die Aufteilung darunter damit rechnet
+    (W-17b).
 
     ⚠ **Kein ``wp_waerme_abgeleitet_kwh``.** Auf Tagesebene gibt es keine
     abgeleitete Wärme: Sie entsteht aus ``Strom × Arbeitszahl`` an den

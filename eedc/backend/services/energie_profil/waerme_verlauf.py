@@ -91,7 +91,9 @@ async def lade_waerme_verlauf(
     entscheidet, ob er ihn als Lücke zeichnet.
     """
     splits_je_tag = await lade_modus_split_je_tag(db, anlage.id, von=von, bis=bis)
-    zaehler_je_tag = await _zaehlerstrom_je_tag(db, anlage.id, von, bis)
+    zaehler_je_tag, rueckwaerts_tage = await _zaehlerstrom_je_tag(
+        db, anlage.id, von, bis,
+    )
     waerme_je_tag = await lade_tageswerte_je_feld(
         db, anlage, investitionen_by_id, von, bis, _WAERME_FELDER,
     )
@@ -109,8 +111,11 @@ async def lade_waerme_verlauf(
     for tag in tage:
         if not (von <= tag <= bis):
             continue
+        # N-434: dasselbe Fenster wie der Bezug dieses Tages — die Herkunft der
+        # Tageszeile entscheidet, nicht eine Voreinstellung.
         gemessen_je_inv = await get_betriebsart_strom_tageswerte(
             db, anlage, investitionen_by_id, tag,
+            rueckwaerts=tag in rueckwaerts_tage,
         )
         zaehler = zaehler_je_tag.get(tag, {})
         stapel = falte_tages_stapel(
@@ -140,16 +145,33 @@ async def lade_waerme_verlauf(
 
 async def _zaehlerstrom_je_tag(
     db: AsyncSession, anlage_id: int, von: date, bis: date,
-) -> dict[date, dict[str, float]]:
-    """Der Wärmepumpen-Tagesstrom je Gerät aus dem **Zählerpfad**.
+) -> tuple[dict[date, dict[str, float]], set[date]]:
+    """Der Wärmepumpen-Tagesstrom je Gerät — und in welchem Fenster er steht.
 
-    ⛔ **Nicht die Stundensumme des Leistungspfads** (``TagesBilanz.wp_strom_kwh``
-    = Σ ``waermepumpe_kw``). Die beiden weichen ab; die Kachel über dem Verlauf
-    und die Aufteilung darunter rechnen mit dieser Quelle, und eine dritte Zahl
-    im Bild dazwischen wäre W-17b ein zweites Mal.
+    ⚠ **Hier stand bis 11.09.2026 „nicht die Stundensumme des Leistungspfads
+    (``TagesBilanz.wp_strom_kwh``)"** — das war falsch benannt: ``waermepumpe_kw``
+    kommt aus dem **Zählerpfad** im Rückwärts-Raster (``get_hourly_kwh_by_category``
+    bzw. die LTS-Variante), nicht aus dem Leistungspfad. Der Unterschied zu
+    ``komponenten_kwh`` ist das **Fenster** (und im Snapshot-Rückfall Lückenfüllung
+    und Reset-Regel), nicht die Quelle. Die Wahl dieser Quelle bleibt richtig:
+    Kachel und Aufteilung darunter rechnen mit ihr.
+
+    ⛔ **N-434:** Im HA-Add-on ist ``komponenten_kwh`` Σ der 24 LTS-Slots, also
+    [Vortag 23:00, 23:00). Deshalb meldet diese Funktion zusätzlich die Tage,
+    deren Zeile dieses Fenster trägt — die Betriebsart-Zähler desselben Tages
+    werden im selben Fenster gelesen.
+
+    Returns:
+        ``(je_tag, rueckwaerts_tage)``.
     """
+    from backend.services.snapshot.boundary_range import tageszeile_ist_rueckwaerts
+
     result = await db.execute(
-        select(TagesZusammenfassung.datum, TagesZusammenfassung.komponenten_kwh)
+        select(
+            TagesZusammenfassung.datum,
+            TagesZusammenfassung.komponenten_kwh,
+            TagesZusammenfassung.source_provenance,
+        )
         .where(and_(
             TagesZusammenfassung.anlage_id == anlage_id,
             TagesZusammenfassung.datum >= von,
@@ -157,9 +179,12 @@ async def _zaehlerstrom_je_tag(
         ))
     )
     je_tag: dict[date, dict[str, float]] = {}
-    for datum, komponenten in result.all():
+    rueckwaerts_tage: set[date] = set()
+    for datum, komponenten, provenance in result.all():
+        if tageszeile_ist_rueckwaerts(provenance):
+            rueckwaerts_tage.add(datum)
         if komponenten:
             werte = waermepumpe_kwh_je_investition(komponenten)
             if werte:
                 je_tag[datum] = werte
-    return je_tag
+    return je_tag, rueckwaerts_tage

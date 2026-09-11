@@ -822,8 +822,20 @@ async def get_betriebsart_strom_tageswerte(
     anlage,
     investitionen_by_id: dict,
     datum: date,
+    *,
+    rueckwaerts: bool = False,
 ) -> dict[str, dict[str, float]]:
     """Tages-kWh der **gemessenen** Betriebsart-Zähler, je Wärmepumpe (#263).
+
+    ⛔ **``rueckwaerts`` ist keine Stilfrage (N-434, 11.09.2026).** Diese Werte
+    sind **Teilmengen** eines Bezugs, und der Bezug steht in
+    ``TagesZusammenfassung.komponenten_kwh`` — im HA-Add-on als Σ der 24
+    LTS-Slots, also im Fenster [Vortag 23:00, Heute 23:00). Im bisherigen
+    Tagesfenster [00:00, 24:00) gelesen, stand die Differenz zweier Randstunden
+    als „nicht aufgeteilt" in der Tagesaufteilung (gemessen: 1,8 von 7,0 kWh an
+    einem Gerät, das nur heizt) — oder die Aufteilung verschwand ganz. Der
+    Aufrufer entscheidet über ``tageszeile_ist_rueckwaerts`` an der Herkunft
+    DERSELBEN Tageszeile, aus der er den Bezug nimmt.
 
     **Warum je Investition und nicht als anlagenweite Σ** — anders als jedes
     andere Feld in `get_tagesdetail_kwh`: Die Regel *gemessen schlägt
@@ -852,8 +864,12 @@ async def get_betriebsart_strom_tageswerte(
     sensor_mapping = anlage.sensor_mapping or {}
     quellen_energy = extract_quellen_energy(anlage)  # C2b-Read-Through
     mqtt_keys = await mqtt_zaehler_keys(db, anlage.id)  # N-328b
-    rng = BoundaryRange.for_day_total(datum)
-    start_off, end_off = rng.boundary_offsets  # (0, 24)
+    rng = (
+        BoundaryRange.for_day_backward(datum)
+        if rueckwaerts
+        else BoundaryRange.for_day_total(datum)
+    )
+    start_off, end_off = rng.boundary_offsets  # (-1, 23) bzw. (0, 24)
     ts_start = rng.boundary_at(start_off)
     ts_ende = rng.boundary_at(end_off)
 

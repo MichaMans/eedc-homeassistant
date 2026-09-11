@@ -274,10 +274,12 @@ async def get_waerme_verlauf(
     Jene Route beliefert fünf Konsumenten — die Monats- und die Tagessicht, die
     Auswertungen-Tabelle mit bis zu 366 Tagen und den Monatsbericht — und ihr
     Schema ist an die Frontend-Registry gekoppelt. Ihr ``wp_strom`` ist die Σ
-    der Stundenleistungen (**Leistungspfad**); der Verlauf braucht den
-    **Zählerpfad**, weil die Kachel darüber und die Aufteilung darunter damit
-    rechnen. Zwei Zahlen für dieselbe Größe in **einem** Bild wären genau
-    W-17b, den dietmar1968 gemeldet hat.
+    der Stundenspalte ``waermepumpe_kw`` — ⚠ hier stand bis 11.09.2026
+    „Leistungspfad", richtig ist: **Zählerpfad im Rückwärts-Raster**; der
+    Unterschied zu ``komponenten_kwh`` ist das Fenster (N-434). Der Verlauf
+    nimmt ``komponenten_kwh``, weil die Aufteilung darunter damit rechnet.
+    Zwei Zahlen für dieselbe Größe in **einem** Bild wären genau W-17b, den
+    dietmar1968 gemeldet hat.
 
     ⚠ **Der Zeitraum ist auf einen Monat begrenzt.** Die Wärme entsteht aus
     Zähler-Randständen; über ein Jahr wären das Reihen, die niemand für eine
@@ -434,20 +436,33 @@ async def get_tag_detail(
     # **unverändert** weiter, samt Innengerät-Suffix, und `modus_strom_zeile`
     # löst *Gerätefeld gewinnt, sonst Σ Innengeräte* selbst auf. Genau diese
     # Regel ein zweites Mal zu schreiben war F-56.
-    gemessen_je_inv = await get_betriebsart_strom_tageswerte(
-        db, anlage, investitionen_by_id, datum,
-    )
+    from backend.services.snapshot.boundary_range import tageszeile_ist_rueckwaerts
+
     # Der Bezug je Gerät kommt aus dem **Zählerpfad** (`komponenten_kwh`), nicht
     # aus der Stundensumme des Leistungspfads — die weicht ab, und genau daran
     # hängt W-17b (30 kWh Balken unter einer 284-kWh-Kachel).
+    #
+    # ⛔ **N-434: Die Tageszeile wird VOR den Betriebsart-Zählern gelesen**, weil
+    # ihre Herkunft das Fenster bestimmt. Im HA-Add-on steht `komponenten_kwh`
+    # als Σ der 24 LTS-Slots [Vortag 23:00, 23:00); die Teilmengen desselben
+    # Geräts müssen im selben Fenster stehen, sonst wird die Differenz zweier
+    # Randstunden zu „nicht aufgeteilt" (oder die Aufteilung verschwindet).
+    tz_zeile = (await db.execute(
+        select(
+            TagesZusammenfassung.komponenten_kwh,
+            TagesZusammenfassung.source_provenance,
+        ).where(
+            TagesZusammenfassung.anlage_id == anlage_id,
+            TagesZusammenfassung.datum == datum,
+        )
+    )).one_or_none()
+    tz_komp = tz_zeile[0] if tz_zeile else None
+    tz_rueckwaerts = tageszeile_ist_rueckwaerts(tz_zeile[1] if tz_zeile else None)
+    gemessen_je_inv = await get_betriebsart_strom_tageswerte(
+        db, anlage, investitionen_by_id, datum, rueckwaerts=tz_rueckwaerts,
+    )
     wp_kwh_je_inv: dict[str, float] = {}
     if gemessen_je_inv:
-        tz_komp = (await db.execute(
-            select(TagesZusammenfassung.komponenten_kwh).where(
-                TagesZusammenfassung.anlage_id == anlage_id,
-                TagesZusammenfassung.datum == datum,
-            )
-        )).scalar_one_or_none()
         wp_kwh_je_inv = waermepumpe_kwh_je_investition(tz_komp or {})
 
     # ⭐ **Die Zusammenführung beider Zweige steht seit dem 10.09.2026 im Layer**

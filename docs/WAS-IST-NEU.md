@@ -11,6 +11,21 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Strom-Aufteilung am Tag: kein Leerlauf mehr, der keiner ist**
+
+Wer seiner Wärmepumpe oder Klimaanlage eigene Zähler je Betriebsart zugeordnet
+hat, sah in *Cockpit → Tag* manchmal einen Anteil **„Nicht aufgeteilt"**, obwohl
+das Gerät die ganze Zeit geheizt hat — oder die Aufteilung fehlte an einzelnen
+Tagen ganz.
+
+Der Grund war ein Versatz von einer Stunde: Den Tagesstrom des Geräts rechnete
+eedc von 23 Uhr des Vortags bis 23 Uhr, die Betriebsart-Zähler von Mitternacht
+bis Mitternacht. Jetzt liest eedc beide im selben Zeitfenster.
+
+**Betrifft dich das?** Wer Betriebsart-Zähler zugeordnet hat und eedc als
+Home-Assistant-Add-on nutzt.
+**Was du tun musst:** nichts. Die Tagesbalken stimmen beim nächsten Öffnen.
+
 **Arbeitszahl je Funktion: sichtbar, sobald sie sauber ist**
 
 Wer eine Wärmepumpe **und** eine Klimaanlage betreibt, sah im Cockpit bei
