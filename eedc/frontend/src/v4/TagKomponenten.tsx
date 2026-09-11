@@ -42,7 +42,10 @@ import { baueKomponentenBloecke } from './KomponentenSektionen'
 import { finanzTeaserBlock } from './MonatRahmen'
 import type { Block } from '../components/blocks'
 import type { ParkApi } from '../components/park'
-import type { TagWerte, StundenWert, SerieInfo, TagDetail } from '../api/energie_profil'
+import type {
+  TagWerte, StundenWert, SerieInfo, TagDetail, WaermeVerlaufStunde, WaermeVerlaufStunden,
+} from '../api/energie_profil'
+import type { WaermeVerlaufPunkt } from './waermeVerlauf'
 import type { AktuellerMonatResponse, SonstigesGeraet } from '../api/aktuellerMonat'
 
 /** Tages-Daten → `AktuellerMonatResponse`-Shape (nur die von den Bauern gelesenen
@@ -219,12 +222,52 @@ export function socTagWerte(stunden: StundenWert[]): { min: number; max: number;
   return { min: Math.min(...werte), max: Math.max(...werte), ende: werte[werte.length - 1] }
 }
 
+/**
+ * Die 24 Stunden des Wärme/Klima-Verlaufs → Punkte für `baueWaermeVerlauf`
+ * (Konzept Wärme/Klima §8, Bauschnitt 5).
+ *
+ * ⭐ **Keine Rechnung hier.** Die Stundenmengen verteilt das Backend so, dass
+ * ihre Summe der Aufteilungs-Balken darunter ist (`tages_stapel.py`, „die
+ * Stunde verteilt den Tag"). Dieser Bauer benennt nur um: x-Achse `${h}:00`
+ * wie im Stundenverlauf derselben Sicht, Temperatur aus der Stundenantwort
+ * (Slot = Zeile), abgeleitete Wärme gibt es am Tag nicht.
+ */
+export function baueTagWaermeVerlauf(
+  zeilen: WaermeVerlaufStunde[], stunden: StundenWert[],
+): WaermeVerlaufPunkt[] {
+  const temperatur = new Map(stunden.map((s) => [s.stunde, s.temperatur_c]))
+  return zeilen.map((z) => ({
+    name: `${z.stunde}:00`,
+    temperatur_c: temperatur.get(z.stunde) ?? null,
+    wp_strom_kwh: z.wp_strom_kwh,
+    wp_waerme_kwh: z.wp_waerme_kwh,
+    wp_waerme_abgeleitet_kwh: null,
+    wp_modus_strom_heizen_kwh: z.wp_modus_strom_heizen_kwh,
+    wp_modus_strom_warmwasser_kwh: z.wp_modus_strom_warmwasser_kwh,
+    wp_modus_strom_kuehlen_kwh: z.wp_modus_strom_kuehlen_kwh,
+    wp_modus_strom_lueften_kwh: z.wp_modus_strom_lueften_kwh,
+    wp_modus_strom_entfeuchten_kwh: z.wp_modus_strom_entfeuchten_kwh,
+    wp_modus_nicht_aufgeteilt_kwh: z.wp_modus_nicht_aufgeteilt_kwh,
+    wp_modus_gemessen: z.wp_modus_gemessen,
+    wp_modus_abdeckung_h: z.wp_modus_abdeckung_h,
+    wp_modus_strom_bezug_kwh: z.wp_modus_strom_bezug_kwh,
+  }))
+}
+
 /** Komponenten-Detailblöcke (aktiv-gegated) + Finanz-Teaser für einen Tag — gleiche
  *  Bauer wie Cockpit/Monat. Reihenfolge: Komponenten …, dann Finanzen (ganz unten). */
 export function baueTagKomponentenUndFinanz(
   tag: TagWerte, stunden: StundenWert[], serien: SerieInfo[], park: ParkApi, tagDetail?: TagDetail | null,
+  /** Der Wärme/Klima-Verlauf des Tages (eigene Route) — ohne ihn fehlt nur der Verlauf. */
+  wpVerlaufStunden?: WaermeVerlaufStunden | null,
 ): Block[] {
   const d = baueTagAlsMonat(tag, stunden, serien, tagDetail)
   const finanz = finanzTeaserBlock(d, park)
-  return [...baueKomponentenBloecke(d, park, 'tag', socTagWerte(stunden)), ...(finanz ? [finanz] : [])]
+  const wpVerlauf = wpVerlaufStunden ? baueTagWaermeVerlauf(wpVerlaufStunden.stunden, stunden) : null
+  return [
+    ...baueKomponentenBloecke(
+      d, park, 'tag', socTagWerte(stunden), wpVerlauf, wpVerlaufStunden?.ohne_stundenform_kwh ?? null,
+    ),
+    ...(finanz ? [finanz] : []),
+  ]
 }

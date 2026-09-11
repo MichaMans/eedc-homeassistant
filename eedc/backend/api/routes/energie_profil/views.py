@@ -63,6 +63,8 @@ from ._shared import (
     TagStatusResponse,
     TagesZusammenfassungResponse,
     TagWerteResponse,
+    WaermeVerlaufStundeResponse,
+    WaermeVerlaufStundenResponse,
     WaermeVerlaufTagResponse,
     TagesprofilStunde,
     WochenmusterPunkt,
@@ -342,6 +344,214 @@ async def get_waerme_verlauf(
         )
         for z in zeilen
     ]
+
+
+@router.get(
+    "/{anlage_id}/waerme-verlauf-stunden",
+    response_model=WaermeVerlaufStundenResponse,
+)
+async def get_waerme_verlauf_stunden(
+    anlage_id: int,
+    datum: date = Query(..., description="Tag (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Der Wärme/Klima-Verlauf von *Cockpit → Tag* — 24 Stunden (Bauschnitt 5).
+
+    **Warum eine eigene Route und nicht ``tag-detail``** (Entscheid Gernot
+    11.09.2026): ``tag-detail`` wird im Client mit ``.catch(() => null)``
+    geladen — ein Fehler im Stundenteil nähme den ganzen Wärmepumpen-Block des
+    Tages mit. Und die Stundenform kostet beim ersten Aufruf je Zähler 25
+    Stände; die Kacheln sollen darauf nicht warten. Präzedenz: der Monat.
+
+    ⭐ **Die Stunde verteilt den Tag** (``core/berechnungen/tages_stapel.py``):
+    dieselbe Geräte-Auswahl wie ``tag-detail`` (``beitraege_des_tages``), dieselbe
+    Tageszeile, dasselbe Fenster (N-434/N-435) — die Summe der 24 Stunden ist
+    der Balken darunter. Temperatur liefert die Stundenantwort, nicht diese.
+    """
+    result = await db.execute(select(Anlage).where(Anlage.id == anlage_id))
+    anlage = result.scalar_one_or_none()
+    if not anlage:
+        raise not_found("Anlage", anlage_id)
+
+    from backend.core.berechnungen import waermepumpe_kwh_je_investition
+    from backend.core.berechnungen.tages_stapel import (
+        STUNDEN,
+        StundenFormen,
+        beitraege_des_tages,
+        verteile_menge,
+        verteile_tages_stapel_auf_stunden,
+    )
+    from backend.services.energie_profil import (
+        lade_modus_split_tag,
+        lade_modus_stunden_tag,
+    )
+    from backend.services.snapshot.aggregator import (
+        TAGESDETAIL_AUSGABE,
+        WAERME_AUSGABE_KEYS,
+        get_betriebsart_strom_tageswerte,
+        get_tagesdetail_kwh,
+    )
+    from backend.services.snapshot.boundary_range import tageszeile_ist_rueckwaerts
+    from backend.services.snapshot.keys import extract_quellen_energy, feld_hat_zaehler
+    from backend.services.snapshot.komponenten_beitraege import investition_beitraege
+    from backend.services.snapshot.reader import mqtt_zaehler_keys
+    from backend.services.snapshot.stunden_leser import lade_stundenformen
+
+    inv_result = await db.execute(select(Investition).where(Investition.anlage_id == anlage_id))
+    investitionen_by_id = {str(inv.id): inv for inv in inv_result.scalars().all()}
+
+    # ── Der Tag: dieselben Eingänge wie `tag-detail` ─────────────────────────
+    tz_zeile = (await db.execute(
+        select(
+            TagesZusammenfassung.komponenten_kwh,
+            TagesZusammenfassung.source_provenance,
+        ).where(
+            TagesZusammenfassung.anlage_id == anlage_id,
+            TagesZusammenfassung.datum == datum,
+        )
+    )).one_or_none()
+    tz_rueckwaerts = tageszeile_ist_rueckwaerts(tz_zeile[1] if tz_zeile else None)
+    wp_kwh_je_inv = waermepumpe_kwh_je_investition((tz_zeile[0] if tz_zeile else None) or {})
+    gemessen_je_inv = await get_betriebsart_strom_tageswerte(
+        db, anlage, investitionen_by_id, datum, rueckwaerts=tz_rueckwaerts,
+    )
+    beitraege = beitraege_des_tages(
+        gemessen_je_inv, wp_kwh_je_inv,
+        await lade_modus_split_tag(db, anlage_id, datum),
+        investitionen_by_id, datum,
+    )
+    detail = await get_tagesdetail_kwh(
+        db, anlage, investitionen_by_id, datum, wp_rueckwaerts=tz_rueckwaerts,
+    )
+
+    # ── Die Form: je Zähler die 24 Slots aus derselben Standreihe ───────────
+    mapping = (anlage.sensor_mapping or {}).get("investitionen", {}) or {}
+    quellen_energy = extract_quellen_energy(anlage)
+    mqtt_keys = await mqtt_zaehler_keys(db, anlage.id)
+
+    def _zaehler(inv_id: str, feld: str):
+        cfg = ((mapping.get(inv_id) or {}).get("felder") or {}).get(feld)
+        key = f"inv:{inv_id}:{feld}"
+        if not feld_hat_zaehler(cfg, key, quellen_energy, mqtt_keys):
+            return None
+        return key, (cfg.get("sensor_id") if isinstance(cfg, dict) else None)
+
+    zaehler: dict[str, tuple[str, object]] = {}
+    gesamt_felder: dict[str, list[str]] = {}
+    for b in beitraege:
+        if not b.gemessen:
+            continue
+        for feld in b.felder:
+            z = _zaehler(b.inv_id, feld)
+            if z:
+                zaehler[z[0]] = z
+        inv = investitionen_by_id.get(b.inv_id)
+        felder_cfg = (mapping.get(b.inv_id) or {}).get("felder") or {}
+        gesamt_felder[b.inv_id] = [
+            beitrag.feld for beitrag in investition_beitraege(
+                inv, mapping.get(b.inv_id) or {},
+                ist_verfuegbar=lambda f, _c=felder_cfg, _i=b.inv_id: feld_hat_zaehler(
+                    _c.get(f), f"inv:{_i}:{f}", quellen_energy, mqtt_keys,
+                ),
+            )
+        ]
+        for feld in gesamt_felder[b.inv_id]:
+            z = _zaehler(b.inv_id, feld)
+            if z:
+                zaehler[z[0]] = z
+    waerme_zaehler: dict[str, list[str]] = {}
+    for inv_id, inv in investitionen_by_id.items():
+        if getattr(inv, "typ", None) != "waermepumpe":
+            continue
+        for (t, feld), ausgabe in TAGESDETAIL_AUSGABE.items():
+            if t != "waermepumpe" or ausgabe not in WAERME_AUSGABE_KEYS:
+                continue
+            z = _zaehler(inv_id, feld)
+            if z:
+                zaehler[z[0]] = z
+                waerme_zaehler.setdefault(ausgabe, []).append(z[0])
+    formen_je_key = await lade_stundenformen(db, anlage, datum, list(zaehler.values()))
+
+    def _summe_je_slot(keys: list[str]) -> list:
+        reihen = [formen_je_key[k] for k in keys if k in formen_je_key]
+        if not reihen:
+            return [None] * STUNDEN
+        return [
+            (sum(r[h] for r in reihen if r[h] is not None)
+             if any(r[h] is not None for r in reihen) else None)
+            for h in range(STUNDEN)
+        ]
+
+    modus_stunden, _ = await lade_modus_stunden_tag(db, anlage_id, datum)
+    formen = StundenFormen(
+        felder_je_inv={
+            b.inv_id: {
+                feld: formen_je_key.get(f"inv:{b.inv_id}:{feld}", [None] * STUNDEN)
+                for feld in b.felder
+            }
+            for b in beitraege if b.gemessen
+        },
+        gesamt_je_inv={
+            inv_id: _summe_je_slot([f"inv:{inv_id}:{f}" for f in felder])
+            for inv_id, felder in gesamt_felder.items()
+        },
+        modus_stunden_je_inv=modus_stunden,
+    )
+    verteilung = verteile_tages_stapel_auf_stunden(beitraege, formen)
+
+    # ── Wärme: je Ausgabe-Schlüssel die Tagesmenge nach ihrer Form ──────────
+    # S4: nur gemessene Wärme. Fehlt einem Schlüssel die Form, bekommt er KEINE
+    # Linie — eine Reihe Nullen sähe aus wie „nichts geheizt".
+    waerme_je_slot: list = [None] * STUNDEN
+    for ausgabe, keys in waerme_zaehler.items():
+        tageswert = detail.werte.get(ausgabe)
+        if tageswert is None:
+            continue
+        verteilt, nicht_verteilt = verteile_menge(float(tageswert), _summe_je_slot(keys))
+        if nicht_verteilt > 0:
+            continue
+        waerme_je_slot = [
+            (waerme_je_slot[h] or 0.0) + verteilt[h] for h in range(STUNDEN)
+        ]
+
+    # Die Zählerspalte des Slots — ihre Summe ist die Kachel „Strom verbraucht".
+    wp_kw = {
+        r.stunde: r.waermepumpe_kw
+        for r in (await db.execute(
+            select(TagesEnergieProfil.stunde, TagesEnergieProfil.waermepumpe_kw).where(
+                TagesEnergieProfil.anlage_id == anlage_id,
+                TagesEnergieProfil.datum == datum,
+            )
+        )).all()
+    }
+
+    def _r(v: float, hat: bool, stellen: int = 3):
+        return round(v, stellen) if hat else None
+
+    zeilen = []
+    for h, s in enumerate(verteilung.stunden):
+        hat = s.hat_split
+        zeilen.append(WaermeVerlaufStundeResponse(
+            stunde=h,
+            wp_strom_kwh=(round(wp_kw[h], 3) if wp_kw.get(h) is not None else None),
+            wp_waerme_kwh=(
+                round(waerme_je_slot[h], 3) if waerme_je_slot[h] is not None else None
+            ),
+            wp_modus_strom_heizen_kwh=_r(s.heizen_kwh, hat),
+            wp_modus_strom_warmwasser_kwh=_r(s.warmwasser_kwh, hat),
+            wp_modus_strom_kuehlen_kwh=_r(s.kuehlen_kwh, hat),
+            wp_modus_strom_lueften_kwh=_r(s.lueften_kwh, hat),
+            wp_modus_strom_entfeuchten_kwh=_r(s.entfeuchten_kwh, hat),
+            wp_modus_nicht_aufgeteilt_kwh=_r(s.nicht_aufgeteilt_kwh, hat),
+            wp_modus_strom_bezug_kwh=_r(s.bezug_kwh, hat),
+            wp_modus_abdeckung_h=_r(s.abdeckung_h, hat, 1),
+            wp_modus_gemessen=s.hat_gemessen if hat else None,
+        ))
+    ohne = verteilung.ohne_stundenform_kwh
+    return WaermeVerlaufStundenResponse(
+        stunden=zeilen,
+        ohne_stundenform_kwh=round(ohne, 2) if ohne > 0.005 else None,
+    )
 
 
 @router.get("/{anlage_id}/tag-detail", response_model=TagDetailResponse)

@@ -177,6 +177,21 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
     [anlageId, datum],
     { enabled: !!anlageId, swrKey: `v4-tag:${anlageId}:${datum}`, keepPreviousData: true }, /* de-de-allow: Cache-Key, keine Anzeige */
   )
+  // Wärme/Klima-Verlauf je Stunde (Konzept §8, Bauschnitt 5) — eigene Route,
+  // geladen NEBEN der Sicht wie im Monat: bleibt sie aus, fehlt nur der Verlauf,
+  // nicht der ganze Wärmepumpen-Block (`tag-detail` wird mit `.catch` geladen).
+  //
+  // ⛔ **Bewusst OHNE `keepPreviousData`** (N-249-Klasse): Die Tageszahlen
+  // darüber kommen aus einer ZWEITEN Abfrage. Hielte auch der Verlauf den alten
+  // Tag fest, stünden für einen Moment die Kacheln des neuen und der Verlauf des
+  // alten Tages im selben Block — zwei Tage in einer Anzeige. Lieber fehlt der
+  // Verlauf beim Blättern kurz.
+  const wpVerlaufQ = useApiData(
+    () => energieProfilApi.getWaermeVerlaufStunden(anlageId!, datum),
+    [anlageId, datum],
+    { enabled: !!anlageId, swrKey: `v4-tag-waermeverlauf:${anlageId}:${datum}` }, /* de-de-allow: Cache-Key, keine Anzeige */
+  )
+  const wpVerlaufStunden = wpVerlaufQ.data ?? null
   const stunden = useMemo<StundenWert[]>(() => tagQ.data?.stunden ?? [], [tagQ.data])
   const serien = useMemo<SerieInfo[]>(() => tagQ.data?.serien ?? [], [tagQ.data]) // volle Serien (Komponenten-Klassifikation)
   const tag: TagWerte | null = tagQ.data?.tag ?? null
@@ -273,7 +288,7 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
     // Komponenten-Detailblöcke (aktiv-gegated) + Finanz-Teaser — dieselben Bauer
     // wie Cockpit/Monat (period='tag'). `tagDetail` füttert die tagesgenauen
     // Zusatzwerte (WP-Strom-Split, Speicher-Netzladung/Ladepreis).
-    if (tag) list.push(...baueTagKomponentenUndFinanz(tag, stunden, serien, park, tagDetail))
+    if (tag) list.push(...baueTagKomponentenUndFinanz(tag, stunden, serien, park, tagDetail, wpVerlaufStunden))
     // #377: nur wenn wirklich ein Zähler gepflegt IST — ein leerer Block wäre
     // eine Anzeige über eine Funktion, die dieser Anwender nicht benutzt.
     if (zaehlerstaende && zaehlerstaende.length > 0 && !zaehlerParkIds(zaehlerstaende).every((id) => park.istGeparkt(id))) list.push({
@@ -285,7 +300,7 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
       ),
     })
     return list
-  }, [tag, vortag, wtStats, stunden, serien, datum, tagDetail, park, anlageId, laden, zaehlerstaende])
+  }, [tag, vortag, wtStats, stunden, serien, datum, tagDetail, park, anlageId, laden, zaehlerstaende, wpVerlaufStunden])
 
   if (!anlageId) {
     return (

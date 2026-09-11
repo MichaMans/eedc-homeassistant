@@ -148,7 +148,10 @@ async def _lade_tages_eingaenge(
                 # Teilmenge bei — ihre **Menge** gehört aber in den Nenner der
                 # Normierung, sonst entsteht die Hochrechnung von oben.
                 eingang.stunden_je_inv[inv_id].append(
-                    ModusStunde(kwh=mengen.get(inv_id), modus=modi.get(inv_id))
+                    ModusStunde(
+                        kwh=mengen.get(inv_id), modus=modi.get(inv_id),
+                        stunde=row.stunde,
+                    )
                 )
         je_tag[datum] = eingang
 
@@ -254,6 +257,29 @@ async def lade_modus_split_tag(
         for inv_id, stunden in eingang.stunden_je_inv.items()
     }
     return {i: s for i, s in splits.items() if not s.ist_leer}
+
+
+async def lade_modus_stunden_tag(
+    db: AsyncSession, anlage_id: int, datum: date,
+) -> tuple[dict[str, list[ModusStunde]], dict[str, float]]:
+    """Die **Stundenzeilen** eines Tages je Wärmepumpe — und die Tages-Zählermenge.
+
+    Der Eingang, aus dem {@link lade_modus_split_tag} faltet, eine Ebene früher:
+    Der Tag-Verlauf (Konzept Wärme/Klima §8, Bauschnitt 5) braucht die Stunden
+    selbst, nicht nur ihre Summe. **Derselbe Ladepfad** — keine zweite
+    Auswahlregel (Tage über die Modus-Spur, Stunden vollständig).
+
+    Returns:
+        ``({inv_id_str: [ModusStunde mit stunde]}, {inv_id_str: tages_kwh})``;
+        beide leer, wenn der Tag keine Modus-Spur trägt.
+    """
+    je_tag, zaehler_je_tag = await _lade_tages_eingaenge(
+        db, anlage_id, datum, datum + timedelta(days=1),
+    )
+    eingang = je_tag.get(datum)
+    if eingang is None:
+        return {}, {}
+    return dict(eingang.stunden_je_inv), zaehler_je_tag.get(datum, {})
 
 
 async def lade_modus_split_je_tag(

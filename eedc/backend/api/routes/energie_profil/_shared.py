@@ -361,6 +361,48 @@ class WaermeVerlaufTagResponse(BaseModel):
     wp_modus_gemessen: Optional[bool] = None
 
 
+class WaermeVerlaufStundeResponse(BaseModel):
+    """Eine Stunde des Wärme/Klima-Verlaufs in *Cockpit → Tag* (Bauschnitt 5).
+
+    **Dieselben Feldnamen wie die Tageszeile** (``WaermeVerlaufTagResponse``) —
+    der Client baut Jahr, Monat und Tag über dieselbe reine Funktion. Statt
+    ``datum`` trägt die Zeile ihren Slot (Rückwärts-Raster, Slot h = [h−1, h)).
+
+    ⚠ **Das Tor ist das Tor des Tages:** ``wp_modus_gemessen`` und
+    ``wp_modus_abdeckung_h`` stehen in jeder Stunde so, wie sie für den Tag
+    gelten. Hat der Tag eine Aufteilung, gilt sie für jede Stunde — eine Stunde,
+    die nur Rest trägt, bleibt sichtbar, sonst verlöre die Zeichnung ihre Summe.
+
+    ⚠ **Keine Temperatur** — sie steht schon in der Stundenantwort des Tages.
+    """
+
+    stunde: int
+    #: Der Wärmepumpen-Strom des Slots — die Zählerspalte, deren Summe die
+    #: Kachel „Strom verbraucht" ist.
+    wp_strom_kwh: Optional[float] = None
+    #: Gemessene Wärme des Slots (Heizung + Warmwasser), verteilt nach der
+    #: Stundenform der Zähler; ``None`` = keine Aussage.
+    wp_waerme_kwh: Optional[float] = None
+    wp_modus_strom_heizen_kwh: Optional[float] = None
+    wp_modus_strom_warmwasser_kwh: Optional[float] = None
+    wp_modus_strom_kuehlen_kwh: Optional[float] = None
+    wp_modus_strom_lueften_kwh: Optional[float] = None
+    wp_modus_strom_entfeuchten_kwh: Optional[float] = None
+    wp_modus_nicht_aufgeteilt_kwh: Optional[float] = None
+    wp_modus_strom_bezug_kwh: Optional[float] = None
+    wp_modus_abdeckung_h: Optional[float] = None
+    wp_modus_gemessen: Optional[bool] = None
+
+
+class WaermeVerlaufStundenResponse(BaseModel):
+    """Die 24 Stunden eines Tages — und was sich keiner Stunde zuordnen ließ."""
+
+    stunden: list[WaermeVerlaufStundeResponse]
+    #: Menge der Aufteilung, für die es keine Stundenform gab (P4: nicht
+    #: gleichmäßig verteilt, sondern genannt). ``None`` = alles zugeordnet.
+    ohne_stundenform_kwh: Optional[float] = None
+
+
 class TagWerteResponse(BaseModel):
     """Tageszeile für die Werte/Tabelle-Embed-Sicht in Tagesgranularität
     (IA v4 E3, Cockpit/Monat). Feldnamen sind **deckungsgleich mit den

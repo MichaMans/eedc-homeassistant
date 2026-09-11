@@ -569,6 +569,32 @@ export interface WaermeVerlaufTag {
   wp_modus_gemessen: boolean | null
 }
 
+/** Eine Stunde des Wärme/Klima-Verlaufs in *Cockpit → Tag* (Bauschnitt 5).
+ *  Dieselben Feldnamen wie `WaermeVerlaufTag`; statt `datum` der Slot
+ *  (Rückwärts-Raster wie die Stundenantwort). Das Tor (`wp_modus_gemessen`,
+ *  `wp_modus_abdeckung_h`) ist das des Tages. Keine Temperatur — die steht in
+ *  `StundenWert`. */
+export interface WaermeVerlaufStunde {
+  stunde: number
+  wp_strom_kwh: number | null
+  wp_waerme_kwh: number | null
+  wp_modus_strom_heizen_kwh: number | null
+  wp_modus_strom_warmwasser_kwh: number | null
+  wp_modus_strom_kuehlen_kwh: number | null
+  wp_modus_strom_lueften_kwh: number | null
+  wp_modus_strom_entfeuchten_kwh: number | null
+  wp_modus_nicht_aufgeteilt_kwh: number | null
+  wp_modus_strom_bezug_kwh: number | null
+  wp_modus_abdeckung_h: number | null
+  wp_modus_gemessen: boolean | null
+}
+
+export interface WaermeVerlaufStunden {
+  stunden: WaermeVerlaufStunde[]
+  /** Menge der Aufteilung ohne Stundenform — nicht verteilt, sondern genannt. */
+  ohne_stundenform_kwh: number | null
+}
+
 export const energieProfilApi = {
   getStunden: (anlageId: number, datum: string): Promise<StundenAntwort> =>
     api.get(`/energie-profil/${anlageId}/stunden?datum=${datum}`),
@@ -585,6 +611,10 @@ export const energieProfilApi = {
   /** Die Tagesreihe des Wärme/Klima-Verlaufs. Zeitraum max. 31 Tage. */
   getWaermeVerlauf: (anlageId: number, von: string, bis: string): Promise<WaermeVerlaufTag[]> =>
     api.get(`/energie-profil/${anlageId}/waerme-verlauf?von=${von}&bis=${bis}`),
+
+  /** Die 24 Stunden des Wärme/Klima-Verlaufs eines Tages. */
+  getWaermeVerlaufStunden: (anlageId: number, datum: string): Promise<WaermeVerlaufStunden> =>
+    api.get(`/energie-profil/${anlageId}/waerme-verlauf-stunden?datum=${datum}`),
 
   getTagDetail: (anlageId: number, datum: string): Promise<TagDetail> =>
     api.get(`/energie-profil/${anlageId}/tag-detail?datum=${datum}`),

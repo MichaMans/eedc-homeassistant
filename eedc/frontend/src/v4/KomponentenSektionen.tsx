@@ -224,6 +224,11 @@ export function baueKomponentenBloecke(
    *  Eingang, ohne den sich nichts ändert. Jahr liefert Monate, später Monat
    *  die Tage und Tag die Stunden. */
   wpVerlauf?: WaermeVerlaufPunkt[] | null,
+  /** Nur der Tag (Bauschnitt 5): Menge der Aufteilung, für die es keine
+   *  Stundenform gab. Sie wird nicht gleichmäßig verteilt (P4), sondern unter
+   *  dem Verlauf genannt — sonst summierte der Stapel still weniger als der
+   *  Balken darunter. */
+  wpVerlaufOhneStundenformKwh?: number | null,
 ): Block[] {
   const istTag = periode === 'tag'
   const bloecke: Block[] = []
@@ -521,6 +526,12 @@ export function baueKomponentenBloecke(
             <DetailListe rows={[{
               label: 'Aufgeteilte Menge',
               wert: `${fmt(verlauf.bezugKwh)} von ${fmt(verlauf.stromKwh)} kWh`,
+            }]} />
+          )}
+          {wpVerlaufOhneStundenformKwh != null && wpVerlaufOhneStundenformKwh > 0.05 && (
+            <DetailListe rows={[{
+              label: 'Ohne Stundenzuordnung',
+              wert: `${fmt(wpVerlaufOhneStundenformKwh, 1)} kWh`,
             }]} />
           )}
         </div>

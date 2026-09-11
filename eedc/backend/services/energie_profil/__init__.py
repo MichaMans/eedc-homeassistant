@@ -29,6 +29,7 @@ from backend.services.energie_profil.modus_split_monat import (
     lade_modus_split_je_tag,
     lade_modus_split_monat,
     lade_modus_split_tag,
+    lade_modus_stunden_tag,
 )
 from backend.services.energie_profil.rollup import rollup_month
 from backend.services.energie_profil.scheduler_jobs import (
@@ -48,6 +49,7 @@ __all__ = [
     "lade_modus_split_je_tag",
     "lade_modus_split_monat",
     "lade_modus_split_tag",
+    "lade_modus_stunden_tag",
     "resolve_and_backfill_from_statistics",
     "rollup_month",
 ]

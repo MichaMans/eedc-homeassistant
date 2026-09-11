@@ -43,9 +43,13 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 | Ort | Was dort steht |
 |-----|----------------|
 | **Cockpit → Live** | Momentanleistung gesamt und je Funktion, Betriebsmodus, Warmwasser-Temperatur |
-| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl, Wärme, Strom, Ersparnis, Kompressor-Starts, Betriebsart-Aufteilung — **alles tagesgenau** |
-| **Cockpit → Monat** | derselbe Block auf Monatsbasis, dazu die Arbeitszahlen je Funktion |
-| **Cockpit → Jahr** | Jahressummen, dieselben Kennzahlen wie im Monat — Arbeitszahl mit Grund und Heizstab-Satz, je Funktion, Kühlen, Aufteilung nach Betriebsart mit Restmenge — über das Jahr **neu gerechnet** (nicht gemittelt), Block *CO₂-Bilanz* |
+| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl, Wärme, Strom, Ersparnis, Kompressor-Starts, Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, Außentemperatur auf der zweiten Achse. Die Stunden ergeben zusammen genau die Aufteilung darunter; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen) |
+| **Cockpit → Monat** | derselbe Block auf Monatsbasis, dazu die Arbeitszahlen je Funktion und ein **Verlauf je Tag** (dieselbe Darstellung wie am Tag) |
+| **Cockpit → Jahr** | Jahressummen, dieselben Kennzahlen wie im Monat — Arbeitszahl mit Grund und Heizstab-Satz, je Funktion, Kühlen, Aufteilung nach Betriebsart mit Restmenge — über das Jahr **neu gerechnet** (nicht gemittelt), ein **Verlauf je Monat**, Block *CO₂-Bilanz* |
+
+> **Im Verlauf steht nur gemessene Wärme.** Ist die Wärme aus Strom × Arbeitszahl geschätzt, hätte
+> ihre Linie genau die Form der Stromfläche darunter — sie sähe aus wie eine zweite Messung und
+> sagte nichts. Die geschätzte Menge steht weiterhin in der Kachel, mit ihrer Herkunft daneben.
 | **PDF-Jahresbericht** | dieselben Kennzahlen wie *Cockpit → Jahr* aus derselben Rechnung — Arbeitszahl mit Grund, je Funktion, Kühlen, Herkunft einer geschätzten Wärme, Vorbehalt an der CO₂-Zeile (seit 05.09.2026; vorher stand dort eine Arbeitszahl ohne Grund und nichts je Funktion) |
 | **Auswertungen → CO₂ · Cockpit → Jahr (CO₂-Bilanz) · PDF-Monatsbericht** | die CO₂-Einsparung der Wärmepumpe trägt denselben Vorbehalt wie die Ersparnis, wenn die Wärme geschätzt ist oder ein zweiter Erzeuger am Wärmezähler hängt; der Monatsbericht nennt die Herkunft einer geschätzten Wärme mit denselben Worten wie der Hub (seit 05.09.2026) |
 | **Komponenten → Wärmepumpe** | je Gerät einzeln: Status, Verlauf, Monats-/Saisonvergleich, Kostenvergleich gegen Gas/Öl |

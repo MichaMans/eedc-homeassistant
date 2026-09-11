@@ -188,6 +188,49 @@ async def _tageswert_aus_raendern(
     return wert
 
 
+def stunden_slot_delta(
+    s0: float,
+    s1: float,
+    *,
+    sensor_key: str,
+    datum: date,
+    slot_idx: int,
+) -> Optional[float]:
+    """Die Menge **eines Stunden-Slots** aus zwei Zählerständen — die Regel selbst.
+
+    ⭐ **Warum sie eine Funktion ist** (11.09.2026, Wärme/Klima Bauschnitt 5): Sie
+    stand inline in `get_hourly_kwh_by_category`, und der Tag-Verlauf braucht
+    für die Stundenform seiner Zähler **dieselbe** Regel. Abgeschrieben wäre sie
+    die F-56-Klasse — und die Gegenprüfung hat genau diese Divergenz zwischen
+    Kachel-Stunden und Verlaufs-Stunden als Einwand gebracht.
+
+    ⚠ **Dieselbe Schwelle wie im Tagesfenster, aber eine ANDERE Frage** — und
+    deshalb bewusst eine andere Antwort. Der Tag lehnt einen zurückgesetzten
+    Zähler ab (`tageswert_aus_reihe`); der Slot über Mitternacht wertet ihn mit
+    `s1` (der Energie seit dem Reset), weil das für DIESE Stunde die richtige
+    Zahl ist. *Gleiche Formel, verschiedene Fenster, verschiedene Wahrheit* —
+    s. Docstring von `_tageswert_aus_raendern`. Geteilt wird nur die
+    **Schwelle**, seit 10.09.2026 als Konstante statt als Literal.
+
+    Returns:
+        Menge in kWh (≥ 0), oder ``None`` für einen Rücksprung, der kein
+        Tagesreset ist (protokolliert).
+    """
+    d = s1 - s0
+    if d < -TAGESRESET_TOLERANZ_KWH:
+        # Tagesreset-Zähler (HA utility_meter mit daily cycle): s0 ≈ Tagesendwert,
+        # s1 ≈ 0 nach Mitternachts-Reset. Slot wird mit s1 (Energie seit Reset)
+        # gewertet statt verworfen, sonst bliebe Slot 0 dauerhaft None und
+        # ist_unvollstaendig=True würde irreführend triggern.
+        if s1 < 0.5 and s0 > 0.5:
+            return max(0.0, s1)
+        logger.warning(
+            f"Negatives Delta bei {sensor_key} ({datum} Slot{slot_idx}): {d:.3f}"
+        )
+        return None
+    return max(0.0, d)
+
+
 def _fill_gaps_linear(snaps_per_hour: dict[int, Optional[float]]) -> None:
     """
     Füllt None-Werte in {stunde: wert}-Dict per linearer Interpolation
@@ -388,28 +431,11 @@ async def get_hourly_kwh_by_category(
             s1 = snaps[sensor_key][curr_off]
             if s0 is None or s1 is None:
                 continue  # Kategorie unvollständig für diese Stunde
-            d = s1 - s0
-            # ⚠ **Dieselbe Schwelle wie im Tagesfenster, aber eine ANDERE Frage**
-            # — und deshalb bewusst eine andere Antwort. Der Tag lehnt einen
-            # zurückgesetzten Zähler ab (`tageswert_aus_reihe`); der Slot über
-            # Mitternacht wertet ihn mit `s1` (der Energie seit dem Reset), weil
-            # das für DIESE Stunde die richtige Zahl ist. *Gleiche Formel,
-            # verschiedene Fenster, verschiedene Wahrheit* — s. Docstring von
-            # `_tageswert_aus_raendern`. Geteilt wird nur die **Schwelle**, seit
-            # 10.09.2026 als Konstante statt als Literal.
-            if d < -TAGESRESET_TOLERANZ_KWH:
-                # Tagesreset-Zähler (HA utility_meter mit daily cycle): s0 ≈ Tagesendwert,
-                # s1 ≈ 0 nach Mitternachts-Reset. Slot wird mit s1 (Energie seit Reset)
-                # gewertet statt verworfen, sonst bliebe Slot 0 dauerhaft None und
-                # ist_unvollstaendig=True würde irreführend triggern.
-                if s1 < 0.5 and s0 > 0.5:
-                    d = max(0.0, s1)
-                else:
-                    logger.warning(
-                        f"Negatives Delta bei {sensor_key} ({datum} Slot{slot_idx}): {d:.3f}"
-                    )
-                    continue
-            d = max(0.0, d)
+            d = stunden_slot_delta(
+                s0, s1, sensor_key=sensor_key, datum=datum, slot_idx=slot_idx,
+            )
+            if d is None:
+                continue
             if kat == "pv":
                 # Getrennt halten statt summieren — die Wahl fällt in 3b.
                 if sensor_key == f"basis:{PV_AGGREGAT_BASIS_FELD}":

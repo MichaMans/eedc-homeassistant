@@ -33,6 +33,21 @@ in einem Zeitraum — Strom, Wärme und Arbeitszahl. Wer einen
 Wärmemengenzähler hat, sieht die Tageswerte dadurch leicht verändert;
 Monats- und Jahreswerte bleiben, wie sie sind.
 
+**Wärme/Klima-Verlauf jetzt auch am Tag — je Stunde**
+
+In *Cockpit → Tag* zeigt der Wärme/Klima-Block jetzt denselben Verlauf wie
+Monat und Jahr, nur je Stunde: den Strom nach Betriebsart gestapelt, darüber
+die gemessene Wärme und die Außentemperatur. So siehst du, wann geheizt,
+gekühlt oder Warmwasser gemacht wurde.
+
+Die Stunden ergeben zusammen genau die Aufteilung darunter. Eine Arbeitszahl
+je Stunde gibt es bewusst nicht — Wärme und Strom derselben Stunde gehören
+nicht zusammen, belastbar wird die Zahl erst über den Tag.
+
+**Betrifft dich das?** Jeden mit Betriebsmodus-Sensor, Betriebsart-Zählern oder
+Wärmemengenzähler an einer Wärmepumpe oder Klimaanlage.
+**Was du tun musst:** nichts.
+
 **Arbeitszahl je Funktion: sichtbar, sobald sie sauber ist**
 
 Wer eine Wärmepumpe **und** eine Klimaanlage betreibt, sah im Cockpit bei
