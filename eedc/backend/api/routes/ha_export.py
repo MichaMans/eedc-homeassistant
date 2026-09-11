@@ -85,6 +85,7 @@ from backend.services.emob_ladeanteil import reichere_monatszeilen_an
 from backend.models.anlage import Anlage
 from backend.services.activity_service import log_activity
 from backend.models.monatsdaten import Monatsdaten
+from backend.services.strompreis_aggregator import aufgeloester_monatspreis
 from backend.services.energie_profil.modus_split_monat import (
     lade_modus_split_ohne_abschluss,
 )
@@ -820,6 +821,15 @@ async def calculate_anlage_sensors(
     # steckt über `historischer_netto_ertrag` in vier ausgelieferten Sensoren
     # (`netto_ertrag_euro` · `roi_prozent` · `amortisation_jahre` und dem
     # per-Investition-Sensor `e_auto_ersparnis_vs_benzin_euro`).
+    # ⭐ **#412 (11.09.2026): auch dieser Sensor sieht die volle Kaskade.** Bis
+    # dahin las die Schleife allein den Wallbox-Tarif — der **abgerechnete**
+    # Monats-Ø kam nie an, während Cockpit → Übersicht ihn für dieselbe
+    # Ersparnis längst nahm. Zwei Zahlen für eine Größe, je nach Sicht.
+    _md_result = await db.execute(
+        select(Monatsdaten).where(Monatsdaten.anlage_id == anlage.id)
+    )
+    _md_je_monat = {(m.jahr, m.monat): m for m in _md_result.scalars().all()}
+    _preis_cache_wb: dict = {}
     wallbox_preis_by_periode: dict[tuple[int, int], float] = {}
     for (_inv_id, _p_jahr, _p_monat) in historische_inv_daten:
         _periode = (_p_jahr, _p_monat)
@@ -828,9 +838,16 @@ async def calculate_anlage_sensors(
         _p_tarife = await lade_tarife_fuer_anlage(
             db, anlage.id, target_date=date(_p_jahr, _p_monat, 1)
         )
-        wallbox_preis_by_periode[_periode] = resolve_strompreis_for_komponente(
-            _p_tarife, "wallbox", fallback=netzbezug_preis_cent
-        )
+        # Der Wallbox-Tarif bleibt Stufe 4 (`stammpreis_override`) — er geht
+        # nicht verloren, nur ein gepflegter oder gemessener Ø schlägt ihn.
+        wallbox_preis_by_periode[_periode] = (await aufgeloester_monatspreis(
+            db, anlage.id, _p_jahr, _p_monat, _md_je_monat.get(_periode),
+            _p_tarife.get("allgemein"),
+            stammpreis_override=resolve_strompreis_for_komponente(
+                _p_tarife, "wallbox", fallback=netzbezug_preis_cent
+            ),
+            cache=_preis_cache_wb,
+        )).cent
     wallbox_netzbezug_preis_cent = resolve_strompreis_for_komponente(
         _tarife, "wallbox", fallback=netzbezug_preis_cent
     )

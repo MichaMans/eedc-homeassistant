@@ -133,6 +133,65 @@ Erkennung aus wie ein Tag ohne Betrieb.
 
 ---
 
+**Dynamischer Strompreis: Tag und laufender Monat rechnen jetzt mit deinen echten Stundenpreisen**
+
+Wer einen dynamischen Tarif hat (Tibber, aWATTar, EPEX), sah in *Cockpit → Tag*
+und im laufenden Monat den **festen** Preis aus den Stammdaten — obwohl eedc
+deine tatsächlichen Stundenpreise längst mitschreibt.
+
+Falsch gerechnet war das nicht: Der Preis in den Stammdaten ist der, den du
+selbst gepflegt hast, und bis zum Monatsabschluss war er die einzige Zahl, die
+eedc benutzt hat. **Es war nur die schlechtere von zwei verfügbaren.**
+
+Ab jetzt gilt diese Reihenfolge:
+
+1. **Dein abgerechneter Ø** aus dem Monatsabschluss — er schlägt alles.
+2. Sonst der **Ø deiner gemessenen Stundenpreise**, gewichtet nach dem
+   Verbrauch der jeweiligen Stunde.
+3. Sonst dein **Zeittarif** (HT/NT), über deinen Netzbezug gewichtet.
+4. Sonst der **Preis aus den Stammdaten**.
+
+**An der Mechanik nach dem Abschluss ändert sich nichts:** Trägst du deinen
+abgerechneten Ø ein, gilt er rückwirkend für jeden Tag des Monats — damit die
+Summe der Tage den Monat trifft. Der Wert springt dabei beim Abschluss wie
+bisher, nur weniger weit: Vorher stand dort schon ein gemessener statt eines
+geschätzten Preises.
+
+**Betrifft dich das?** Jeden mit dynamischem Strompreis-Sensor.
+**Was du tun musst:** nichts.
+**Was du merken wirst:** Kosten, Ersparnis und Netto-Ertrag für noch nicht
+abgeschlossene Monate werden genauer — und weichen von dem ab, was bisher
+dastand.
+
+---
+
+**Und die Kachel sagt jetzt, woher ihr Preis kommt**
+
+Unter *Ø-Preis Netz* steht in der Rechnung, welche der vier Quellen gegriffen
+hat — beim gemessenen Ø auch, aus wie vielen Stunden des Monats er stammt. Im
+laufenden Monat sind das zwangsläufig wenige, und das sollst du sehen können.
+
+---
+
+**Das Feld „Ø Strompreis" war für viele unerreichbar**
+
+Im Monatsabschluss gibt es ein Feld für deinen abgerechneten Durchschnittspreis.
+Es erschien nur, wenn in den Stammdaten die Vertragsart auf „dynamisch" stand —
+ein **optionales** Auswahlfeld, das man leicht übersieht.
+
+Wer also seinen Tibber-Sensor zugeordnet, die Vertragsart aber nie umgestellt
+hatte, bekam das Feld **nie zu sehen** und konnte seinen echten Abrechnungswert
+auch nachträglich nicht eintragen.
+
+Jetzt genügt der **zugeordnete Sensor**. Dazu erklärt der Daten-Checker den
+Zusammenhang, falls deine Vertragsart nicht gesetzt ist — ausdrücklich ohne
+Handlungsdruck: An deinen Zahlen ändert diese Angabe nichts mehr.
+
+**Betrifft dich das?** Jeden mit Preissensor und leerer Vertragsart.
+**Was du tun musst:** nichts.
+
+---
+
 **Die Anzeige stockt nicht mehr, wenn eedc eine Datenlücke nachholt**
 
 Fehlt eedc für einen Tag ein Zählerstand, holt es ihn aus der

@@ -21,6 +21,7 @@ from backend.models.investition import Investition, InvestitionTyp, InvestitionM
 from backend.utils.investition_filter import aktiv_im_monat
 from backend.models.anlage import Anlage
 from backend.models.monatsdaten import Monatsdaten
+from backend.services.strompreis_aggregator import aufgeloester_monatspreis
 from backend.models.tages_energie_profil import TagesZusammenfassung
 from backend.api.routes.strompreise import (
     lade_tarife_fuer_anlage,
@@ -197,9 +198,25 @@ async def _gewichtete_monatspreise(
     if summe_gewicht <= 0:
         return GewichtetePreise(fallback_bezug, fallback_einspeise, {})
 
+    # ⭐ **#412 (11.09.2026): auch hier gilt die volle Preis-Kaskade.** Bis dahin
+    # las diese Schleife allein den Tarif — der **abgerechnete** Monats-Ø aus
+    # dem Monatsabschluss kam nie an, obwohl Cockpit → Übersicht und die
+    # Aussichten ihn für dieselbe E-Mob-Ersparnis längst nahmen. Dieselbe
+    # Größe, zwei Zahlen, je nachdem welche Sicht der Anwender öffnet — die
+    # F-18-Klasse, eine Ebene tiefer: Der bestehende Wächter prüft, **dass**
+    # ein Lookup übergeben wird, nicht **welcher**.
+    #
+    # ⚠ Der Layer sagt es ausdrücklich: *„Der Flex-Ø gilt für den ganzen
+    # Zähler — auch für die Wallbox"* (`monats_fakten._lade_tarif`).
+    md_result = await db.execute(
+        select(Monatsdaten).where(Monatsdaten.anlage_id == anlage_id)
+    )
+    md_je_monat = {(m.jahr, m.monat): m for m in md_result.scalars().all()}
+
     gewichteter_bezug = 0.0
     gewichtete_einspeisung = 0.0
     bezug_lookup: dict[tuple[int, int], float] = {}
+    preis_cache: dict = {}
     for (jahr, monat), gewicht in gewichte.items():
         if not gewicht or gewicht <= 0:
             continue
@@ -209,6 +226,15 @@ async def _gewichtete_monatspreise(
         m_bezug = resolve_strompreis_for_komponente(
             m_tarife, verwendung, fallback=fallback_bezug
         )
+        # Die Kaskade schlägt den Komponenten-Tarif, wo sie etwas Besseres
+        # weiß — genau wie `wallbox_preis_effektiv_cent` in den Monats-Fakten.
+        # ⚠ `stammpreis_override`: Der Komponenten-Tarif bleibt Stufe 4, er geht
+        # nicht verloren; nur ein gepflegter oder gemessener Ø schlägt ihn.
+        m_bezug = (await aufgeloester_monatspreis(
+            db, anlage_id, jahr, monat, md_je_monat.get((jahr, monat)),
+            m_tarife.get("allgemein"),
+            stammpreis_override=m_bezug, cache=preis_cache,
+        )).cent
         bezug_lookup[(jahr, monat)] = m_bezug
         gewichteter_bezug += m_bezug * gewicht
         gewichtete_einspeisung += resolve_einspeiseverguetung_cent(

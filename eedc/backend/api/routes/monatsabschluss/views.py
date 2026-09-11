@@ -385,10 +385,27 @@ async def get_monatsabschluss(
     # braucht der Anwender den Weg, seinen abgerechneten Ø einzutragen.
     # ⛔ KEIN eigenes Feld und KEIN geschaetzter NT-Anteil: ein Feld, das zum
     # Falschausfuellen einlaedt, ist schlechter als kein Feld (#392-Lehre).
+    # ⭐ **Und ein ZUGEORDNETER STROMPREIS-SENSOR schaltet es ebenfalls frei**
+    # (#412, OB73-gif, 11.09.2026). Bis dahin hing das Feld allein an
+    # `vertragsart == "dynamisch"` — einem **optionalen** Dropdown ohne
+    # Vorbelegung. Wer seinen Tibber-/aWATTar-Sensor zuordnete, die Vertragsart
+    # aber nie umstellte, bekam das Feld **nie zu sehen** und konnte seinen
+    # abgerechneten Ø auch nachträglich nicht eintragen — eedc rechnete
+    # dauerhaft mit dem Stammpreis, obwohl es die Stundenpreise mitschrieb.
+    #
+    # ⚠ **Die Zuordnung ist das ehrlichere Signal als die Vertragsart:** Sie ist
+    # eine Handlung, die der Anwender bewusst vollzieht, während das Dropdown
+    # eine Angabe ist, die man vergessen kann. Gelesen wird sie über die eine
+    # Leseart (`strompreis_sensor_id`), nicht über eine zweite hier.
     from backend.core.berechnungen.zeittarif import hat_zeitfenster
+    from backend.services.energie_profil._helpers import strompreis_sensor_id
+    hat_preis_sensor = strompreis_sensor_id(anlage.sensor_mapping) is not None
     hat_dynamischen_tarif = bool(
-        allgemein_tarif
-        and (allgemein_tarif.vertragsart == "dynamisch" or hat_zeitfenster(allgemein_tarif))
+        hat_preis_sensor
+        or (
+            allgemein_tarif
+            and (allgemein_tarif.vertragsart == "dynamisch" or hat_zeitfenster(allgemein_tarif))
+        )
     )
     # #392: dieselbe Stichtags-Logik für die variable Einspeisevergütung —
     # entscheidend ist der Tarif des abzuschließenden Monats, nicht der heutige.

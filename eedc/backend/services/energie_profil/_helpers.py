@@ -698,6 +698,24 @@ async def _get_tagespeaks_aus_ha_lts(
     return TagesPeaks(pv=peak_pv, netzbezug=peak_bezug, einspeisung=peak_einsp)
 
 
+def strompreis_sensor_id(sensor_mapping: Optional[dict]) -> Optional[str]:
+    """Die Entity des zugeordneten Strompreis-Sensors — oder ``None``.
+
+    **Die eine Leseart** (11.09.2026). Sie stand als drei Zeilen in
+    ``_get_strompreis_stunden`` und war damit für jeden anderen Frager
+    unerreichbar. Zweiter Frager ist seit #412 der Monatsabschluss: Er
+    entscheidet, ob das Feld „Ø Strompreis" überhaupt erscheint, und die
+    Zuordnung eines Preissensors ist dafür ein gültiges Signal.
+
+    ⚠ Geprüft wird die **Zuordnung**, nicht die Erreichbarkeit von Home
+    Assistant — wer den Sensor zugeordnet hat, soll das Feld auch dann sehen,
+    wenn HA gerade nicht antwortet.
+    """
+    basis = (sensor_mapping or {}).get("basis", {}) or {}
+    sp = basis.get("strompreis")
+    return sp.get("sensor_id") if isinstance(sp, dict) else None
+
+
 async def _get_strompreis_stunden(
     anlage: Anlage,
     sensor_mapping: dict,
@@ -716,9 +734,7 @@ async def _get_strompreis_stunden(
     boersen_preise: dict[int, float] = {}
 
     # ── HA-Sensor (Endpreis, wenn konfiguriert) ──────────────────────────
-    basis = sensor_mapping.get("basis", {})
-    sp = basis.get("strompreis")
-    sensor_id = sp.get("sensor_id") if isinstance(sp, dict) else None
+    sensor_id = strompreis_sensor_id(sensor_mapping)
 
     if sensor_id:
         # F-26: dritte Stelle derselben Klasse. Der Zugriff hängt an einer

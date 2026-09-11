@@ -274,6 +274,14 @@ export interface AktuellerMonatResponse {
   netzbezug_preis_zeittarif?: boolean
   einspeise_preis_cent: number | null
   netzbezug_durchschnittspreis_cent: number | null
+  /** Welche Stufe der Preis-Kaskade gegriffen hat (#412):
+   *  `gepflegt` (abgerechneter Ø aus dem Monatsabschluss) · `gemessen` (Ø der
+   *  mitgeschriebenen Stundenpreise) · `zeitfenster` (HT/NT, über den Netzbezug
+   *  gewichtet) · `stamm` (Tarifspalte). Ohne diese Angabe wäre ein gemessener
+   *  Preis von einem Stammpreis nicht zu unterscheiden. */
+  netzbezug_preis_herkunft?: 'gepflegt' | 'gemessen' | 'zeitfenster' | 'stamm' | null
+  /** Anteil der Monatsstunden mit Preisdaten (0..1) — nur bei `gemessen`. */
+  netzbezug_preis_abdeckung?: number | null
   // G19-1 K3: Grundgebühr des Monats (steckt bereits in netzbezug_kosten_euro,
   // reiner Ausweis) + jährliche Zählergebühr vom Tarif (nur Jahresaufstellung,
   // nicht verrechnet).

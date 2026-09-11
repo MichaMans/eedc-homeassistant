@@ -74,7 +74,10 @@ from backend.api.routes.strompreise import (
     resolve_netzbezug_preis_cent,
     resolve_strompreis_for_komponente,
 )
-from backend.services.strompreis_aggregator import wirksamer_arbeitspreis_cent
+from backend.services.strompreis_aggregator import (
+    aufgeloester_monatspreis,
+    wirksamer_arbeitspreis_cent,
+)
 from backend.core.berechnungen import (
     PvModulWert,
     VerbrauchsKennzahlen,
@@ -787,6 +790,10 @@ class TarifFakten:
     """
 
     netzbezug_preis_cent: float = NETZBEZUG_DEFAULT_CENT
+    #: Welche Stufe der Kaskade den Preis geliefert hat (``gepflegt`` ·
+    #: ``gemessen`` · ``zeitfenster`` · ``stamm``) — die Zahl allein sagt es
+    #: nicht, und eine Sicht muss es aussprechen können (P4, #412).
+    netzbezug_preis_herkunft: Optional[str] = None
     netzbezug_stammpreis_cent: float = NETZBEZUG_DEFAULT_CENT
     einspeiseverguetung_cent: float = EINSPEISEVERGUETUNG_DEFAULT_CENT
     grundpreis_euro_monat: float = 0.0
@@ -1070,6 +1077,10 @@ async def lade_monats_fakten(
         tarif_cache = {}
     # N-267: eigener Cache je Aufruf — begruendet im Block ueber `_komponenten_preis`.
     zeittarif_cache: dict = {}
+    # #412: dieselbe Bauform für die volle Preis-Kaskade. Sie fragt je Monat
+    # die Stundenpreise ab; über ein Jahr wären das sonst zwölf Abfragen pro
+    # Leser, und Cockpit → Jahr hat mehrere.
+    preis_cache: dict = {}
     fakten: list[MonatsFakt] = []
     for schluessel in sorted(k for k in kandidaten if _im_fenster(k, von, bis)):
         fakten.append(
@@ -1086,6 +1097,7 @@ async def lade_monats_fakten(
                 tarif_cache=tarif_cache,
                 zeittarif_cache=zeittarif_cache,
                 tages_summe=tages_summen.get(schluessel),
+                preis_cache=preis_cache,
             )
         )
     return fakten
@@ -1752,6 +1764,7 @@ async def _baue_fakt(
     tarif_cache: dict[date, dict],
     zeittarif_cache: dict,
     tages_summe: Optional[TagesMonatsSumme] = None,
+    preis_cache: Optional[dict] = None,
 ) -> MonatsFakt:
     jahr, monat = schluessel
 
@@ -1861,7 +1874,8 @@ async def _baue_fakt(
     ausgaben = roh.ausgaben_euro + (md_summen["ausgaben_euro"] if md_summen else 0.0)
 
     tarif = await _lade_tarif(
-        db, anlage_id, schluessel, monatsdaten, tarif_cache, zeittarif_cache
+        db, anlage_id, schluessel, monatsdaten, tarif_cache, zeittarif_cache,
+        preis_cache=preis_cache,
     )
 
     speicher = SpeicherFakten(
@@ -2049,6 +2063,7 @@ async def _lade_tarif(
     monatsdaten: Optional[Monatsdaten],
     cache: dict[date, dict],
     zeittarif_cache: dict,
+    preis_cache: Optional[dict] = None,
 ) -> TarifFakten:
     """Tarif zum Monatsersten (P8) — ein Cache-Eintrag je Stichtag pro Anfrage."""
     stichtag = date(schluessel[0], schluessel[1], 1)
@@ -2071,9 +2086,19 @@ async def _lade_tarif(
     wallbox_cent = await _komponenten_preis(
         db, anlage_id, schluessel, tarife, "wallbox", stammpreis, cache
     )
+    # ⭐ **Die ganze Kaskade** (#412, 11.09.2026): gepflegt → gemessen →
+    # Zeitfenster → Stamm. Bis dahin fehlte die **Messung** zwischen den beiden
+    # äußeren Stufen — ein dynamischer Tarif rechnete ohne Monatsabschluss mit
+    # dem Stammpreis, obwohl die Stundenpreise mitgeschrieben werden.
+    # ⚠ `stammpreis` bleibt daneben stehen: er ist der Bezugspunkt der
+    # Komponenten-Kaskade (`_komponenten_preis`) und eine eigene Aussage.
+    preis = await aufgeloester_monatspreis(
+        db, anlage_id, schluessel[0], schluessel[1], monatsdaten, allgemein,
+        cache=preis_cache,
+    )
     return TarifFakten(
-        # Flex-Ø des Monats vor dem Stammdaten-Arbeitspreis (P8, zweite Form).
-        netzbezug_preis_cent=resolve_netzbezug_preis_cent(monatsdaten, stammpreis),
+        netzbezug_preis_cent=preis.cent,
+        netzbezug_preis_herkunft=preis.herkunft,
         netzbezug_stammpreis_cent=stammpreis,
         # #392: der Monatswert der variablen Vergütung schlägt den Stammwert —
         # dieselbe zweite P8-Form wie beim Netzbezug eine Zeile darüber.
@@ -2089,7 +2114,14 @@ async def _lade_tarif(
         ),
         wallbox_preis_cent=wallbox_cent,
         # Der Flex-Ø gilt für den ganzen Zähler — auch für die Wallbox.
-        wallbox_preis_effektiv_cent=resolve_netzbezug_preis_cent(monatsdaten, wallbox_cent),
+        # #412: dieselbe Kaskade wie beim Netzbezug eine Zeile darüber — sonst
+        # trüge DASSELBE `TarifFakten`-Objekt zwei verschiedene Auflösungen
+        # (`netzbezug_preis_cent` mit Messung, die Wallbox ohne).
+        # `stammpreis_override`: der Wallbox-Tarif bleibt Stufe 4.
+        wallbox_preis_effektiv_cent=(await aufgeloester_monatspreis(
+            db, anlage_id, schluessel[0], schluessel[1], monatsdaten, allgemein,
+            stammpreis_override=wallbox_cent,
+        )).cent,
         kraftstoffpreis_euro=monatsdaten.kraftstoffpreis_euro if monatsdaten else None,
         gaspreis_cent_kwh=monatsdaten.gaspreis_cent_kwh if monatsdaten else None,
     )

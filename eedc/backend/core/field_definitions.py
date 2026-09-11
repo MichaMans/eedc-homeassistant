@@ -117,7 +117,7 @@ BEDINGTE_BASIS_FELDER = [
         "bedingung_basis": "dynamischer_tarif",
         "mapping_key": "strompreis",
         "gruppe": "preise",
-        "hinweis": "Verbrauchsgewichteter Ø-Arbeitspreis des Monats (ct/kWh). Bei dynamischem Tarif sonst automatisch aus dem Strompreis-Sensor (Tibber/aWATTar/EPEX) berechnet; bei einem Zeittarif (HT/NT) aus deinen gemessenen Stundenwerten. Ohne Stundenwerte — etwa bei handgetragenen Monatswerten — rechnet eedc mit dem Preis aus den Stammdaten; dann ist dieses Feld der Weg zum tatsächlichen Ø.",
+        "hinweis": "Dein abgerechneter Ø-Arbeitspreis dieses Monats (ct/kWh) — er schlägt jede Berechnung. Trägst du nichts ein, rechnet eedc mit dem verbrauchsgewichteten Ø deiner mitgeschriebenen Stundenpreise (Tibber/aWATTar/EPEX) und bei einem Zeittarif (HT/NT) mit dem über deinen Netzbezug gewichteten Tarifpreis. Erst wenn beides fehlt — etwa bei handgetragenen Monatswerten — gilt der Preis aus den Stammdaten.",
     },
     {
         "feld": "einspeise_durchschnittspreis_cent",

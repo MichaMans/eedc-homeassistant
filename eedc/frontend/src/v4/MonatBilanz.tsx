@@ -140,6 +140,35 @@ export function baueMonatKpis(
  *  0 kWh ist eine Aussage und bleibt sichtbar (Rainer-PN 2026-07-25), ein
  *  fehlender Speicher blendet die Kachel aus. Geteilt von Monat + Jahr
  *  (Jahres-Aggregat hat denselben Shape). */
+/** Woher der Ø-Preis stammt — als Satz über der Rechnung (#412).
+ *
+ *  ⚠ Die Reihenfolge folgt der Kaskade im Backend
+ *  (`strompreis_aggregator.aufgeloester_monatspreis`); ein unbekannter Wert
+ *  fällt auf den neutralen Text, statt eine Herkunft zu behaupten.
+ */
+function preisFormel(d: AktuellerMonatResponse): string {
+  const kosten = ' · Kosten = Netzbezug × Ø-Preis, ohne Grundpreis'
+  switch (d.netzbezug_preis_herkunft) {
+    case 'gepflegt':
+      return 'Dein abgerechneter Ø-Preis aus dem Monatsabschluss' + kosten
+    case 'gemessen': {
+      // Die Abdeckung gehört dazu: Im laufenden Monat ist sie zwangsläufig
+      // klein, und ein Ø aus wenigen Stunden sagt weniger als einer aus allen.
+      const a = d.netzbezug_preis_abdeckung
+      const anteil = a != null ? ` (${fmtCalc(a * 100, 0)} % der Monatsstunden)` : ''
+      return `Ø deiner gemessenen Stundenpreise, verbrauchsgewichtet${anteil}` + kosten
+    }
+    case 'zeitfenster':
+      return 'Ø aus deinem Zeittarif (HT/NT), über den Netzbezug gewichtet' + kosten
+    case 'stamm':
+      return 'Arbeitspreis aus dem Strompreis-Tarif' + kosten
+    default:
+      return d.netzbezug_durchschnittspreis_cent != null
+        ? 'Ø-Bezugspreis (dynamischer Tarif, verbrauchsgewichtet)' + kosten
+        : 'Arbeitspreis aus dem Strompreis-Tarif' + kosten
+  }
+}
+
 export function baueNetzKostenKpis(d: AktuellerMonatResponse): KpiStripItem[] {
   const kpis: KpiStripItem[] = []
   if (d.speicher_ladung_netz_kwh != null) {
@@ -179,9 +208,13 @@ export function baueNetzKostenKpis(d: AktuellerMonatResponse): KpiStripItem[] {
       // Algie). Der Tooltip allein reichte nicht: er wird erst nach dem
       // Stolpern gelesen.
       subtitle: `${fmt(d.netzbezug_kwh)} kWh · ${fmtCalc(d.netzbezug_arbeitspreis_kosten_euro, 2, '—')} €`,
-      formel: d.netzbezug_durchschnittspreis_cent != null
-        ? 'Ø-Bezugspreis (dynamischer Tarif, verbrauchsgewichtet) · Kosten = Netzbezug × Ø-Preis, ohne Grundpreis'
-        : 'Arbeitspreis aus dem Strompreis-Tarif · Kosten = Netzbezug × Arbeitspreis, ohne Grundpreis',
+      // ⭐ **Die Formel nennt die HERKUNFT** (#412). Bis 11.09.2026 gab es nur
+      // zwei Texte — „dynamischer Tarif" oder „aus dem Strompreis-Tarif" —,
+      // und ein über HT/NT-Fenster gewichteter Preis lief unter dem zweiten.
+      // Mit der gemessenen Stufe wären es drei Fälle unter zwei Namen
+      // geworden: Ein aus Stundenpreisen gemittelter Wert hätte „Arbeitspreis
+      // aus dem Strompreis-Tarif" darüber gehabt — eine Falschaussage.
+      formel: preisFormel(d),
       berechnung: `${fmt(d.netzbezug_kwh)} kWh × ${fmtCalc(netzPreis, 1)} ct/kWh`,
       ergebnis: (d.grundgebuehr_euro ?? 0) > 0
         ? `= ${fmtCalc(d.netzbezug_arbeitspreis_kosten_euro, 2)} € · + ${fmtCalc(d.grundgebuehr_euro, 2)} € Grundpreis = ${fmtCalc(d.netzbezug_kosten_euro, 2)} € gesamt`

@@ -23,7 +23,10 @@ from backend.models.investition import Investition, InvestitionMonatsdaten
 from backend.models.monatsdaten import Monatsdaten
 from backend.services.prognose_auswahl import lade_aktive_monatsprognosen
 from backend.core.berechnungen.zeittarif import hat_zeitfenster
-from backend.services.strompreis_aggregator import wirksamer_arbeitspreis_cent
+from backend.services.strompreis_aggregator import (
+    aufgeloester_monatspreis,
+    wirksamer_arbeitspreis_cent,
+)
 from backend.api.routes.strompreise import (
     lade_tarife_fuer_anlage,
     resolve_einspeise_preis_cent,
@@ -487,6 +490,19 @@ class AktuellerMonatResponse(BaseModel):
     netzbezug_preis_zeittarif: bool = False
     einspeise_preis_cent: Optional[float] = None
     netzbezug_durchschnittspreis_cent: Optional[float] = None  # Flexibler Tarif (Monatsdurchschnitt)
+    #: Welche Stufe der Preis-Kaskade gegriffen hat: ``gepflegt`` (abgerechneter
+    #: Ø aus dem Monatsabschluss) · ``gemessen`` (Ø der mitgeschriebenen
+    #: Stundenpreise) · ``zeitfenster`` (HT/NT, über den Netzbezug gewichtet) ·
+    #: ``stamm`` (die Tarifspalte). ⚠ Ohne diese Angabe wäre ein **gemessener**
+    #: Preis in der Anzeige von einem Stammpreis nicht zu unterscheiden — die
+    #: Formel-Zeile der Kachel nannte bis 11.09.2026 beide „Arbeitspreis aus dem
+    #: Strompreis-Tarif" (P4: die Antwort sagt, was sie ist).
+    netzbezug_preis_herkunft: Optional[str] = None
+    #: Anteil der Monatsstunden mit Preisdaten (0..1) — **nur** bei
+    #: ``gemessen``. Ein Ø aus 40 % der Stunden hat dieselbe Herkunft wie einer
+    #: aus 98 %, aber nicht dieselbe Belastbarkeit; im **laufenden** Monat ist
+    #: er zwangsläufig klein (die Abdeckung misst gegen den vollen Monat).
+    netzbezug_preis_abdeckung: Optional[float] = None
     # G19-1 K3 (R19-3): Grundgebühr des Monats — steckt bereits in
     # netzbezug_kosten_euro (reiner Ausweis, kein zweiter Posten).
     grundgebuehr_euro: Optional[float] = None
@@ -1725,6 +1741,8 @@ async def get_aktueller_monat(
     netto_ertrag = None
     netzbezug_preis_cent = None
     netzbezug_preis_effektiv_cent = None
+    netzbezug_preis_herkunft = None
+    netzbezug_preis_abdeckung = None
     einspeise_cent = None
     grundgebuehr = None
     zaehlergebuehr_jahr = None
@@ -1791,9 +1809,17 @@ async def get_aktueller_monat(
         # ein Monats-Ø von **0,0 ct** ist bei dynamischem Tarif real (viele
         # Negativpreis-Stunden) und wäre als falsy stillschweigend auf den
         # Tarifpreis zurückgefallen — die 0-Werte-Falle.
-        netzbezug_preis_effektiv_cent = resolve_netzbezug_preis_cent(
-            md_for_gas, netzbezug_preis_cent
+        # ⭐ **#412 (11.09.2026): die Kaskade hat eine dritte Stufe bekommen** —
+        # gepflegt → **gemessen** → Zeitfenster → Stamm. Zwischen dem
+        # abgerechneten Ø und dem Tarifpreis fehlte die **Messung**: Wer einen
+        # dynamischen Tarif hat, sah im laufenden Monat den festen Tarif,
+        # obwohl eedc die Stundenpreise mitschreibt (OB73-gif).
+        _preis = await aufgeloester_monatspreis(
+            db, anlage_id, jahr, monat, md_for_gas, allgemein_tarif,
         )
+        netzbezug_preis_effektiv_cent = _preis.cent
+        netzbezug_preis_herkunft = _preis.herkunft
+        netzbezug_preis_abdeckung = _preis.abdeckung
 
         if einspeisung is not None:
             # §51 EEG: siehe `_load_vorjahr` für Begründung.
@@ -2844,6 +2870,8 @@ async def get_aktueller_monat(
         betriebskosten_anteilig_euro=betriebskosten_anteilig,
         # Tarif-Info
         netzbezug_preis_cent=netzbezug_preis_cent if allgemein_tarif else None,
+        netzbezug_preis_herkunft=netzbezug_preis_herkunft,
+        netzbezug_preis_abdeckung=netzbezug_preis_abdeckung,
         # N-267: sagt der Anzeige, dass der Preis daneben gewichtet ist.
         netzbezug_preis_zeittarif=hat_zeitfenster(allgemein_tarif),
         einspeise_preis_cent=einspeise_cent if allgemein_tarif else None,
