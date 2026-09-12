@@ -30,6 +30,9 @@ Submodule:
   per-Monat-aktives kWp) — Cockpit-Kachel == HA-Export-Sensor
 - `prognose_korrektur` — Kaskaden-Faktoren auf Prognose-Stundenprofil,
   Tageswert = Σ Export-Slots (Invariante HA-Export #150 / Prognosen-Vergleich)
+- `heizgradtage` — Heizgrenze + Heizgradtage je Tag/Monat und die Normierung
+  „Menge je Kd" (die EINE Definition für Verbrauchsprognose und
+  wetternormierten Vergleich)
 
 Geplant (step-by-step, wenn Konsumenten angefasst werden):
 - `peaks` — Peak-Werte (peak_pv/bezug/einspeisung)
@@ -169,6 +172,15 @@ from backend.core.berechnungen.energie import (
     waermepumpe_kwh_je_investition,
     summe_wallbox_eauto_kwh,
     wert_basis_kwh,
+)
+from backend.core.berechnungen.heizgradtage import (
+    GRUND_KEINE_TEMPERATURREIHE,
+    HEIZGRENZE_C,
+    HeizgradtageMonat,
+    heizgradtage_grund,
+    heizgradtage_je_monat,
+    heizgradtage_tag,
+    normiert,
 )
 from backend.core.berechnungen.invarianten import (
     aggregiere_tep_komponenten,
@@ -428,6 +440,13 @@ __all__ = [
     "guenstig_schwelle",
     "KorrigiertesTagesprofil",
     "korrigiere_tagesprofil",
+    "GRUND_KEINE_TEMPERATURREIHE",
+    "HEIZGRENZE_C",
+    "HeizgradtageMonat",
+    "heizgradtage_grund",
+    "heizgradtage_je_monat",
+    "heizgradtage_tag",
+    "normiert",
     "soll_final_einfrieren",
     "abgetretene_bkw_ids",
     "bkw_kwp_aus_kindern",

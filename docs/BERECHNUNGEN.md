@@ -110,6 +110,12 @@ Definiert in `core/calculations.py`:
 | `CO2_FAKTOR_OEL_KG_KWH` | 0.266 | kg CO2/kWh | Heizölverbrennung |
 | `SPEICHER_ZYKLEN_PRO_JAHR` | 250 | Vollzyklen | Für Speicher-Prognose |
 
+Definiert in `core/berechnungen/heizgradtage.py`:
+
+| Konstante | Wert | Einheit | Verwendung |
+|-----------|------|---------|-----------|
+| `HEIZGRENZE_C` | 15.0 | °C | Heizgradtage — Temperaturkorrektur der Verbrauchsprognose **und** wetternormierter Vergleich (§3.5f). Gradtag-Konvention, **keine** Innenraum-Temperatur. **Eine** Definitionsstelle, gewächtert von `test_berechnungs_layer_konformitaet.py::test_heizgrenze_nur_im_layer` |
+
 Definiert in `api/routes/aussichten.py`:
 
 | Konstante | Wert | Verwendung |
@@ -1352,6 +1358,44 @@ Drei Regeln, die keine Formel sind und trotzdem in jede Sicht gehören:
 | **Zeit ist nicht additiv** (W-17) | `modus_abdeckung_h` wird über **Tage** summiert, über **Geräte** maximiert (`abdeckung_ueber_geraete`). Zwei Geräte mit je 18 h ergeben 18, nicht 36. |
 | **Eine Aufteilung nennt ihre Grundmenge** (W-17b) | Der Balken bezieht sich auf `modus_strom_bezug_kwh`, die Kachel darüber auf `strom_kwh`. Weichen sie ab, steht die Zeile *„Aufgeteilte Menge"* darunter. |
 | **Ein fehlender Wert nennt seinen Grund** (W-18) | Drei unterscheidbare Zustände (`core/tageswert_grund.py`): kein Zähler · zugeordnet, aber für diesen Tag ohne Zählerstände · Zählerrücksprung. **Der Grund wird hergeleitet, nie behauptet** — `arbeitszahl(waerme_fehlt_grund=…)` nimmt ihn entgegen, weil der Layer ihn nicht kennen kann. |
+
+#### 3.5f Wetternormierung — Strom je Heizgradtag (SOLL §4.1, 12.09.2026)
+
+**Layer:** `core/berechnungen/heizgradtage.py` · **Eingabe-Builder:**
+`services/mitteltemperatur.py::lade_heizgradtage_je_monat` · **Anzeige:** Komponenten-Hub →
+Wärme/Klima → Vergleich, Achse *Saison*.
+
+```
+HDD_Tag   = max(0; 15 °C − Tagesmittel der Außentemperatur)     # Heizgrenze = HEIZGRENZE_C
+Kd_Monat  = Σ HDD_Tag über die Tage MIT Temperatur
+kWh/Kd    = Σ Heizstrom (F5) ÷ Σ Kd   über ein Saison-Fenster
+```
+
+**Der Zähler ist der getrennt gemessene Heizstrom** (`strom_heizen_kwh`, im Hub als
+`jaz_je_monat[].heizen_nenner_kwh`). Warmwasser geht nie ein — es hängt nicht vom Wetter ab —, der
+Gesamtstrom nie, weil er es enthält. Ein aus dem Betriebsmodus abgeleiteter Heizstrom ist eine
+**Verteilung** und kein Zähler (dieselbe Kategorie wie SOLL-§9-E7); ein *gemessener*
+Betriebsart-Zähler *Heizen* scheidet zusätzlich aus, weil er den Warmwasser-Strom enthält
+(`MESSBARE_MODI`, N-336).
+
+**Die Vorrangkette des Nenners ist KÜRZER als die der Ø-Anzeige** (Entscheid K-2): Stufe 1
+(Stundenmittel) und Stufe 2 (Tages-Min/Max) ja, **Stufe 3 (gepflegter
+`Monatsdaten.durchschnittstemperatur`) nein**. `max(0; 15 − T)` ist **konvex** — in einem
+Übergangsmonat mit Tagen beidseits der Heizgrenze unterschätzt der Weg über den Monatsmittelwert die
+Summe. An der Demo-Anlage im Mai 2026 gemessen: **30,1 Kd** täglich gegen **22,1 Kd** aus dem Ø, also
+**−26,6 %**. Ein Monat, der nur einen gepflegten Ø trägt, bekommt deshalb keine Kd, sondern den Grund.
+
+**Die Zahl ist eine SAISON-Größe, nie ein Monatsquotient** (Entscheid K-3): Grundlast,
+Warmwasser-Beimischung und Takt-Verluste skalieren nicht mit den Heizgradtagen und dominieren den
+Übergangsmonat. An derselben Maschine gemessen: November **0,531**, Mai **3,889** kWh/Kd — **Faktor
+7,3**, der nichts über die Wärmepumpe aussagt; im Juni gibt es überhaupt keinen Nenner (0 Kd). Über
+ein Saison-Fenster verschwindet der Effekt (Winter 25/26: 0,554 · Heizperiode 25/26: 0,592). Die
+Fenster-Summe wird **neu gerechnet, nie gemittelt** (SOLL §5), und ein Monat geht nur ein, wenn er
+**Heizgradtage und Heizstrom** trägt.
+
+**Wo nichts steht, steht der Grund** (SOLL §3.3/S3): keine Temperaturreihe · Reihe jünger als die
+Verbrauchshistorie (mit dem Monat ihres Beginns) · kein getrennt gemessener Heizstrom · Fenster ohne
+Heizgradtage. **Eine normierte Arbeitszahl gibt es nicht** — sie ist bereits ein Quotient.
 
 ### 3.6 ROI & Amortisation
 

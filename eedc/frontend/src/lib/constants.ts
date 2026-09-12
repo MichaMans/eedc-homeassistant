@@ -187,6 +187,13 @@ export const PV_KOMPONENTEN_PREFIXE = ['pv_', 'bkw_'] as const
  * Fenster überlappen bewusst — es sind alternative Fokus-Fenster, keine
  * Partition des Jahres. Bekommt #195 Punkt 3 (HDD) ein Backend-Pendant, ist
  * diese Map die Spiegel-Vorlage.
+ *
+ * ⭐ **Der Fall ist eingetreten und bewusst OHNE Spiegel gelöst** (12.09.2026,
+ * Wetternormierung SOLL §4.1): Das Backend liefert die Heizgradtage **je
+ * Monat**; welche Monate ein Fenster fasst, entscheidet weiterhin allein der
+ * Client — genau wie schon bei Σ Q / Σ E. Ein Backend-Pendant hätte ein zweites
+ * Paar für `check:spiegel-backend` erzeugt, ohne dass eine Backend-Sicht die
+ * Fenster je bräuchte.
  */
 export const SAISON_FENSTER = {
   winter:      { label: 'Winter',      bereich: 'Nov–Feb', startMonat: 11, monate: [11, 12, 1, 2] },

@@ -523,6 +523,9 @@ Wenn du Lüften oder Entfeuchten getrennt misst: Ja. Ihr Strom fällt seit v4.0.
 **„eedc sagt, ich soll einen Sensor zuordnen, den ich habe."**
 Das war ein Fehler und ist behoben. Bis v4.0.28 hing an jedem „—" derselbe fest eingebaute Satz. Seit v4.0.29 nennt eedc den zutreffenden Grund — siehe [§4](#4-wann-eine-kennzahl-verschwindet--und-warum-das-richtig-ist). Begegnet dir trotzdem ein Hinweis, den keine Eingabe abstellt: **melden.**
 
+**„Was sagt mir ‚kWh/Kd' im Vergleich?"**
+Wie viel Strom deine Heizung je **Heizgradtag** braucht — je Grad, um den es draußen kälter war als 15 °C, mal Tage. Damit lassen sich zwei Winter vergleichen, auch wenn einer mild und einer streng war: Sinkt die Zahl, arbeitet die Anlage sparsamer. **Sie ist kein Qualitätsurteil wie die Arbeitszahl** und zwischen zwei Häusern nicht vergleichbar — ein großes, schlecht gedämmtes Haus braucht immer mehr je Kältegrad als ein kleines. Sie zählt **nur den Heizbetrieb**: Warmwasser bleibt außen vor, weil es nicht vom Wetter abhängt. Du siehst sie deshalb nur mit **getrennt gemessenem Heizstrom**, nur auf der Achse *Saison* und erst, wenn eine Heizperiode auch eine Außentemperatur-Messreihe hat — der Vergleich zweier Winter kommt mit der nächsten Heizperiode. Ein **von Hand gepflegter Monatsdurchschnitt** dient dabei ausdrücklich **nicht** als Quelle: Er unterschätzt die Heizgradtage in Übergangsmonaten deutlich, weil warme und kalte Tage sich darin wegmitteln. Steht keine Zahl da, sagt eedc daneben, was fehlt.
+
 **„Ich vergleiche meine JAZ mit der aus dem Datenblatt."**
 Das sind verschiedene Größen. Datenblatt-Werte (SCOP, COP, SEER) entstehen auf einem Prüfstand unter genormten Bedingungen. eedc misst deine Anlage in deinem Haus, mit deinen Vorlauftemperaturen, deinem Warmwasserbedarf und deinem Wetter. **Eine niedrigere Zahl ist kein Defekt** — sie ist die Realität, für die du dich interessierst.
 

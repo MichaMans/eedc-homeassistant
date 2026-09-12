@@ -11,6 +11,44 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Ein Winter-Vergleich, der das Wetter herausrechnet**
+
+Ein milder Winter sieht in jeder Statistik nach einer besseren Anlage aus. Damit
+zwei Heizperioden wirklich vergleichbar werden, gibt es in *Komponenten →
+Wärme/Klima → Vergleich* jetzt eine dritte Kennzahl: **kWh/Kd** — der Heizstrom
+geteilt durch die **Heizgradtage** des Zeitraums. Ein Heizgradtag ist ein Grad,
+um den es an einem Tag draußen kälter war als 15 °C; ein kalter Januar hat
+mehrere hundert davon, ein milder Mai fast keine.
+
+Steht dort in zwei Wintern dieselbe Zahl, hat deine Anlage gleich gearbeitet —
+ganz gleich, wie streng die Winter waren. Sinkt sie, arbeitet sie sparsamer.
+
+Die Außentemperatur nimmt eedc aus den **eigenen Messreihen**; es fragt dafür
+keinen Wetterdienst. Über dem Diagramm steht, woher sie kommt und wie gerechnet
+wird, im Tooltip stehen die eingesetzten Werte.
+
+Du findest die Kennzahl **nur auf der Achse *Saison***, und das ist Absicht: Für
+einen einzelnen Übergangsmonat wäre die Zahl irreführend — dort dominieren
+Grundlast und Warmwasser, die mit der Kälte nichts zu tun haben. An derselben
+Maschine stünden sonst 0,53 im November gegen 3,89 im Mai, und im Juni gäbe es
+gar keinen Nenner.
+
+Sie zählt **nur den Heizbetrieb** und ist **kein Qualitätsurteil** wie die
+Arbeitszahl: Zwischen zwei Häusern lässt sie sich nicht vergleichen — ein großes,
+schlecht gedämmtes Haus braucht immer mehr Strom je Kältegrad. Sie vergleicht
+deine Anlage mit sich selbst.
+
+**Betrifft dich das?** Nur, wenn du den **Heizstrom getrennt misst** (eigener
+Zähler für Heizen) **und** eedc für den Zeitraum eine Außentemperatur-Messreihe
+hat. Fehlt eines von beidem, steht an der Stelle der Grund statt einer Zahl.
+**Was du tun musst:** nichts. Der zweite Balken — und damit der eigentliche
+Vergleich — kommt mit der nächsten Heizperiode.
+
+Nebenbei berichtigt: Die Fußzeile unter dem Saison-Balken nennt jetzt je
+Kennzahl, was gezählt ist — beim Strom der Gesamtverbrauch des Geräts, bei der
+Arbeitszahl nur die Heizung. Bisher stand unter beiden derselbe Satz. **Es
+ändert sich keine Zahl.**
+
 **Der Stundenverlauf trennt Heizen und Warmwasser**
 
 Misst du an deiner Wärmepumpe die Leistung für *Heizen* und *Warmwasser*

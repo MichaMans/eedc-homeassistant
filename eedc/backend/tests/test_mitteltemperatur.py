@@ -19,7 +19,9 @@ import pytest
 
 from backend.models import Anlage
 from backend.models.tages_energie_profil import TagesEnergieProfil, TagesZusammenfassung
+from backend.models.monatsdaten import Monatsdaten
 from backend.services.mitteltemperatur import (
+    lade_heizgradtage_je_monat,
     lade_monatsmittel_temperatur,
     lade_tagesmittel_temperatur,
 )
@@ -108,3 +110,74 @@ async def test_monat_ohne_jede_spur_fehlt_statt_null_zu_sein(db):
     await db.commit()
     je_monat = await lade_monatsmittel_temperatur(db, a.id)
     assert (2025, 6) not in je_monat
+
+
+# ═══ Heizgradtage — derselbe Eingang, eine andere Vorrangkette (K-2) ════════
+#
+# ⛔ **Die Kette ist hier KÜRZER als bei der Ø-Anzeige, und das ist der ganze
+# Punkt.** Stufe 1+2 (Tagesmittel) ja, Stufe 3 (gepflegter Monats-Ø) nein:
+# ``max(0; 15 − T)`` ist konvex, der Weg über den Monatsmittelwert unterschätzt
+# die Summe (an der Demo-Anlage im Mai 2026 gemessene −26,6 %). Die Formel
+# selbst steht in ``test_heizgradtage.py``; hier steht, was aus der **DB** in
+# sie hineinkommt.
+
+
+@pytest.mark.asyncio
+async def test_b9_gepflegter_monatswert_ist_KEIN_heizgradtag_eingang(db):
+    """⭐ **K-2 an der Datenbank.** Eine Anlage, die nur den von Hand gepflegten
+    Monats-Ø trägt, bekommt **keine** Heizgradtage — sondern nichts, und daneben
+    den Grund. Der Ø selbst bleibt unberührt: Für die **Anzeige** ist er Stufe 3
+    und füllt die Lücke weiterhin.
+    """
+    a = await _anlage(db, "nur gepflegt")
+    db.add(Monatsdaten(
+        anlage_id=a.id, jahr=2025, monat=5, durchschnittstemperatur=14.3,
+    ))
+    await db.commit()
+
+    hgt = await lade_heizgradtage_je_monat(db, a.id)
+    assert hgt == {}, "Stufe 3 darf nicht in die Gradtagsrechnung sickern"
+
+    # Gegenprobe: für die ANZEIGE trägt derselbe Wert weiterhin.
+    je_monat = await lade_monatsmittel_temperatur(
+        db, a.id, gepflegt_je_monat={(2025, 5): 14.3},
+    )
+    assert je_monat[(2025, 5)] == pytest.approx(14.3)
+
+
+@pytest.mark.asyncio
+async def test_b10_min_max_naeherung_traegt_die_heizgradtage(db):
+    """Stufe 2 greift auch hier: min 0 / max 10 ⇒ Tagesmittel 5,0 ⇒ 10,0 Kd."""
+    a = await _anlage(db, "nur min/max")
+    await _tag(db, a.id, date(2023, 1, 15), 0.0, 10.0)
+    await db.commit()
+    hgt = await lade_heizgradtage_je_monat(db, a.id)
+    assert hgt[(2023, 1)].kd == pytest.approx(10.0)
+    assert hgt[(2023, 1)].tage_mit_temperatur == 1
+    assert hgt[(2023, 1)].tage_im_monat == 31
+
+
+@pytest.mark.asyncio
+async def test_b11_stundenmittel_schlaegt_min_max_auch_bei_den_heizgradtagen(db):
+    """Stufe 1 vor Stufe 2 — und der Unterschied ist hier **sichtbar**:
+    echtes Mittel 5,0 ⇒ 10,0 Kd, die Näherung (0/15) läge bei 7,5 ⇒ 7,5 Kd."""
+    a = await _anlage(db, "beides")
+    tag = date(2025, 1, 15)
+    await _stunden(db, a.id, tag, [4.0, 4.0, 6.0, 6.0])
+    await _tag(db, a.id, tag, 0.0, 15.0)
+    await db.commit()
+    hgt = await lade_heizgradtage_je_monat(db, a.id)
+    assert hgt[(2025, 1)].kd == pytest.approx(10.0)
+
+
+@pytest.mark.asyncio
+async def test_heizgradtage_grenzen_wirken(db):
+    """``von``/``bis`` schneiden dieselbe Reihe wie bei der Ø-Anzeige."""
+    a = await _anlage(db, "gefenstert")
+    await _stunden(db, a.id, date(2025, 1, 10), [5.0])
+    await _stunden(db, a.id, date(2025, 3, 10), [5.0])
+    await db.commit()
+    hgt = await lade_heizgradtage_je_monat(
+        db, a.id, von=date(2025, 2, 1), bis=date(2025, 12, 31),
+    )
+    assert set(hgt) == {(2025, 3)}

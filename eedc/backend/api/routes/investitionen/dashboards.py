@@ -69,6 +69,7 @@ from backend.core.wirtschaftlichkeit_defaults import (
 )
 from backend.core.investition_parameter import abgrenzung_stoerung, ist_dienstlich
 from backend.services.emob_ladeanteil import reichere_monatszeilen_an
+from backend.services.mitteltemperatur import lade_heizgradtage_je_monat
 from backend.services.monats_fakten import lade_monats_fakten
 from backend.core.berechnungen.speicher_wirtschaftlichkeit import (
     aggregiere_speicher_ist,
@@ -120,6 +121,8 @@ from backend.core.berechnungen.investitionskosten import (
 )
 from backend.core.calculations import berechne_roi
 from backend.core.berechnungen import (
+    HEIZGRENZE_C,
+    heizgradtage_grund,
     heiz_effizienz_gepflegt,
     heizwaerme_ist_abgeleitet,
     bkw_eigenverbrauch_anteil,
@@ -854,6 +857,25 @@ async def get_waermepumpe_dashboard(
     )
     wp_anlage_md = {(m.jahr, m.monat): m for m in wp_anlage_md_result.scalars().all()}
 
+    # Heizgradtage für die Wetternormierung (SOLL Wärme/Klima §4.1, K-2/K-3).
+    # ⭐ **Einmal je Request, VOR der Geräteschleife** — das Wetter ist eine
+    # Eigenschaft der **Anlage**, nicht des Geräts: Zwei Wärmepumpen an einem
+    # Standort teilen dieselbe Außentemperatur, und je Gerät zu laden hieße,
+    # dieselbe Reihe mehrfach zu lesen und Gefahr zu laufen, sie versehentlich
+    # zu filtern. Die Liste ist deshalb in jedem Geräte-Eintrag identisch
+    # (`test_wp_hub_wetternormierung.py`).
+    wp_heizgradtage = await lade_heizgradtage_je_monat(db, anlage_id)
+    wp_heizgradtage_liste = [
+        {
+            'jahr': h.jahr, 'monat': h.monat, 'kd': h.kd,
+            'tage_mit_temperatur': h.tage_mit_temperatur,
+            'tage_im_monat': h.tage_im_monat,
+        }
+        for h in sorted(
+            wp_heizgradtage.values(), key=lambda h: (h.jahr, h.monat),
+        )
+    ]
+
     dashboards = []
     for wp in waermepumpen:
         # Issue #153 / #236: SoT-Filter inkl. stilllegungsdatum
@@ -1324,6 +1346,24 @@ async def get_waermepumpe_dashboard(
             'durchschnitt_cop_grund': _az_gesamt.grund,
             # P12: je Monat — die Zeitreihe, aus der Vergleich und Trend lesen.
             'jaz_je_monat': jaz_je_monat,
+            # Wetternormierung (SOLL §4.1): der **Nenner** je Monat, dazu die
+            # Definition und — wo die Reihe nicht so weit zurückreicht wie die
+            # Verbrauchshistorie — der Grund (S3).
+            #
+            # ⛔ **Kein Feld „hat getrennte Strommessung" daneben.** Ob der
+            # Client den normierten Modus anbietet, entscheidet er an
+            # `heizen_nenner_kwh` (steht schon in `jaz_je_monat`) — ein zweiter
+            # Weg zur selben Auskunft wäre die Drift, die P12 gerade abgeschafft
+            # hat.
+            'heizgradtage_je_monat': wp_heizgradtage_liste,
+            'heizgradtage_grund': heizgradtage_grund(
+                wp_heizgradtage,
+                erster_monat_mit_bedarf=(
+                    min((md.jahr, md.monat) for md in monatsdaten)
+                    if monatsdaten else None
+                ),
+            ),
+            'heizgrenze_c': HEIZGRENZE_C,
             # W-6: Der Heizstab-Satz gab es bis zum 26.08. **nur im Cockpit**
             # (`aktueller_monat.py`). Genau ihn verspricht die Melder-Antwort an
             # dietmar1968 aber für den Komponenten-Hub — dort war er nie.

@@ -271,6 +271,26 @@ export interface WaermepumpeDashboardResponse {
        *  weil eine ältere Antwort ihn nicht trägt; dann liest der Client die Rohspalte. */
       strom_kwh?: number
     }[]
+    /**
+     * Heizgradtage je Monat für den wetternormierten Vergleich (SOLL §4.1).
+     * `kd` = Σ max(0; Heizgrenze − Tagesmittel) über die **erfassten** Tage;
+     * `tage_mit_temperatur`/`tage_im_monat` sagen, wie vollständig das ist
+     * (ADR-002/P4). Ein Monat ohne einen einzigen Temperaturtag **fehlt** in
+     * der Liste — er ist kein Monat mit 0 Kd.
+     *
+     * ⚠ Die Liste hängt an der **Anlage**, nicht am Gerät: Zwei Wärmepumpen an
+     * einem Standort tragen dieselbe.
+     */
+    heizgradtage_je_monat?: {
+      jahr: number; monat: number; kd: number
+      tage_mit_temperatur: number; tage_im_monat: number
+    }[]
+    /** S3-Grund, wenn die Temperaturreihe weniger hergibt als die
+     *  Verbrauchshistorie (keine Reihe / beginnt später). `null`, wenn sie reicht. */
+    heizgradtage_grund?: string | null
+    /** Die Heizgrenze des Layers in °C — damit der Herkunftssatz im Client die
+     *  Zahl nicht ein zweites Mal führt. */
+    heizgrenze_c?: number
     /** W-6/W-15: Der Heizstab-Satz unterhalb einer Arbeitszahl von 2 — er stand
      *  bis zum 26.08.2026 nur im Cockpit, obwohl die Melder-Antwort ihn für den
      *  Komponenten-Hub zusagt. */

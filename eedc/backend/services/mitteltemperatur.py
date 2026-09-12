@@ -27,9 +27,18 @@ ausschließlich ``TagesEnergieProfil`` (die Stundenzeilen, `scheduler_jobs.py`) 
 aber zwölf Abrufe für eine Hilfslinie sind unverhältnismäßig — und sie träfen
 das Wetter am Anlagenstandort nicht besser als die eigene Messreihe.
 
-⚠ **Was der Wert NICHT ist:** eine Größe, aus der etwas gerechnet wird. Er
-ordnet ein und wird angezeigt. Für eine Wetternormierung (Heizgradtage) braucht
-es eine eigene, dokumentierte Definition — die Frage ist offen (Konzept §4).
+⚠ **Ø und Kd sind zwei Größen aus derselben Tagesreihe — nicht dieselbe.**
+Der **Monats-Ø** ordnet ein und wird **angezeigt** (Verlauf, Monatstabelle). Die
+**Heizgradtage** werden **gerechnet** und sind der Nenner des wetternormierten
+Vergleichs (``lade_heizgradtage_je_monat``, SOLL Wärme/Klima §4.1). Bis zum
+12.09.2026 stand hier, eine Wetternormierung brauche „eine eigene, dokumentierte
+Definition — die Frage ist offen"; sie ist es nicht mehr, die Definition steht
+im Layer (``core/berechnungen/heizgradtage.py``, Heizgrenze 15 °C).
+
+⛔ **Und die beiden teilen die Reihe, nicht die Vorrangkette.** Für die
+Heizgradtage gilt **nur Stufe 1+2** (Tagesmittel); der gepflegte Monats-Ø ist
+dort **kein** Eingang — Begründung samt Messung im Docstring von
+``lade_heizgradtage_je_monat``.
 """
 
 from __future__ import annotations
@@ -40,6 +49,10 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.berechnungen.heizgradtage import (
+    HeizgradtageMonat,
+    heizgradtage_je_monat,
+)
 from backend.models.tages_energie_profil import TagesEnergieProfil, TagesZusammenfassung
 
 
@@ -118,3 +131,35 @@ async def lade_monatsmittel_temperatur(
         if wert is not None and schluessel not in ergebnis:
             ergebnis[schluessel] = round(float(wert), 1)
     return ergebnis
+
+
+async def lade_heizgradtage_je_monat(
+    db: AsyncSession,
+    anlage_id: int,
+    von: "object" = None,
+    bis: "object" = None,
+) -> dict[tuple[int, int], HeizgradtageMonat]:
+    """Heizgradtage je Monat — Tagesmittel (Stufe 1+2) durch die Layer-Formel.
+
+    Der Eingabe-Builder zur Wetternormierung: dieselbe Tagesreihe wie die
+    Ø-Anzeige, aber **je Tag** in die Gradtag-Formel gegeben und erst dann
+    summiert.
+
+    ⛔ **Stufe 3 (gepflegter ``Monatsdaten.durchschnittstemperatur``) ist KEIN
+    Eingang** (Entscheid K-2, 12.09.2026, SOLL §4.1). ``max(0; 15 − T)`` ist
+    **konvex**: In einem Übergangsmonat mit Tagen beidseits der Heizgrenze
+    unterschätzt der Weg über den Monatsmittelwert die Summe — an der
+    Demo-Anlage im Mai 2026 gemessene **−26,6 %** (22,1 statt 30,1 Kd). Ein
+    Monat, der nur einen gepflegten Ø trägt, bekommt deshalb **keine** Kd,
+    sondern den Grund (S3). Dass hier keine dritte Stufe einsickert, hält
+    ``test_mitteltemperatur.py`` fest.
+
+    Args:
+        von/bis: ``date``-Grenzen (einschließlich); ``None`` heißt „unbegrenzt".
+
+    Returns:
+        ``{(jahr, monat): HeizgradtageMonat}`` — ein Monat ohne einen einzigen
+        Temperaturtag **fehlt**, statt mit 0 Kd dazustehen.
+    """
+    je_tag = await lade_tagesmittel_temperatur(db, anlage_id, von=von, bis=bis)
+    return heizgradtage_je_monat(je_tag)
