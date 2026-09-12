@@ -958,6 +958,7 @@ async def get_datenquellen_felder(anlage_id: int, db: AsyncSession = Depends(get
     from backend.services.datenquellen_validierung import (
         einheit_problem, state_class_problem,
         finde_redundante_aggregate, finde_doppelmappings, stufe_bedarf_ein,
+        finde_gesamtleistung_verdraengt,
     )
     feld_einheit = {_feld_id(e["match_key"]): e.get("einheit", "") for e in eintraege}
     feld_feld = {_feld_id(e["match_key"]): e.get("feld", "") for e in eintraege}
@@ -1021,6 +1022,32 @@ async def get_datenquellen_felder(anlage_id: int, db: AsyncSession = Depends(get
         for fid in feld_feld
     ]
     for fid, p in finde_redundante_aggregate(felder_belegt).items():
+        _add_problem(fid, p)
+    # Bauschnitt 7 (12.09.2026): „Leistung gesamt" verdrängt an derselben
+    # Wärmepumpe die Verlaufs-Aufteilung nach Heizen/Warmwasser.
+    #
+    # ⭐ **Maßgeblich ist die HA-`live`-Map**, nicht `belegt` und nicht
+    # `hat_wert` — sie ist genau die Menge, die die Verdrängung bewirkt
+    # (`live_sensor_config.extract_live_config` → `has_leistung`). Ein
+    # `mqtt_inbound_standard`-Stempel der B8-Materialisierung steht zwar in
+    # `quellen` (also „belegt"), erreicht diese Map aber nie und verdrängt
+    # nichts; eine tote HA-Entity steht darin und verdrängt sehr wohl.
+    # Beide Fälle sind gemessen, beide haben je einen Regel-Entwurf gekippt.
+    inv_live_felder = [
+        {
+            "id": _feld_id(e["match_key"]),
+            "feld": e.get("feld", ""),
+            "typ": e.get("typ", "basis"),
+            "inv_id": e["match_key"][1],
+            # Roher Schlüssel: `leistung_w-<gid>` (Innengerät) ist NICHT das
+            # Gerätefeld und verdrängt nicht — kein `basis_feld_key` hier.
+            "in_ha_live": e["match_key"][2] in (
+                inv_live_map.get(str(e["match_key"][1])) or {}
+            ),
+        }
+        for e in eintraege if e["match_key"][0] == "inv_live"
+    ]
+    for fid, p in finde_gesamtleistung_verdraengt(inv_live_felder).items():
         _add_problem(fid, p)
     # ⛔ Hier stand bis #406 eine dritte Lage: das Aggregat sei „für Tag und
     # Stunde durch einzelne Erzeuger-Zähler verdrängt, die Tagessumme still zu

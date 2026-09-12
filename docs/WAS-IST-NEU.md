@@ -11,6 +11,21 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Warum die Wärmepumpe im Tagesverlauf nur eine Fläche ist**
+
+Hast du deiner Wärmepumpe *Leistung gesamt* **und** *Leistung Heizen* /
+*Leistung Warmwasser* zugeordnet, wertet eedc die beiden feinen Felder im
+Verlauf nicht aus — die Aufteilung entsteht nur ohne die Gesamtleistung.
+Bisher stand das nirgends. Jetzt sagt es dir die Zuordnungs-Fläche direkt an
+den betroffenen Feldern.
+
+Es ist ein Hinweis, keine Fehlermeldung: Beide Zuordnungen sind richtig. Die
+Gesamtleistung ist der vollständige Wert deines Geräts, die getrennten Felder
+sind die feinere Auskunft. Was du behältst oder entfernst, entscheidest du.
+
+**Betrifft dich das?** Nur mit beiden Zuordnungen an derselben Wärmepumpe.
+**Was du tun musst:** nichts. Mengen und Kennzahlen ändern sich nicht.
+
 **Wärme/Klima: die Detail-Liste je Funktion**
 
 Unter deiner Wärmepumpe steht jetzt je Funktion beisammen, woraus ihre

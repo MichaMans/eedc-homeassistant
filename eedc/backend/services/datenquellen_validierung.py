@@ -127,6 +127,90 @@ def state_class_problem(feld_einheit: Optional[str], state_class: Optional[str])
     }
 
 
+#: **Bauschnitt 7** — die feinen Leistungsfelder einer Wärmepumpe. Sie erzeugen
+#: die getrennten Verlaufs-Reihen (Heizen/Warmwasser) nur, solange am selben
+#: Gerät **keine** Gesamtleistung zugeordnet ist.
+_WP_LEISTUNG_FEIN = ("leistung_heizen_w", "leistung_warmwasser_w")
+_WP_LEISTUNG_GESAMT = "leistung_w"
+
+#: Was die Zuordnung bewirkt — die **Ursache**, nicht das Bild.
+#:
+#: ⛔ **Nicht „wirkungslos", und kein Rat.** Beide Zustände sind legitim: Die
+#: Gesamtleistung ist der genauere Anlagenwert, die Aufteilung die feinere
+#: Auskunft. Zwei Formulierungen sind an der Messung gescheitert (Gegenprüfung
+#: 12.09.2026): „wirkungslos" ist falsch, weil Symbol und MQTT-Snapshots die
+#: feinen Felder weiter lesen; und der Rat „Zuordnung entfernen" hätte auf einer
+#: frischen HA-Anlage den Wärmepumpen-Anteil der Verbrauchsprognose gekostet
+#: (`live_verbrauchsprofil_service.py`, HA-Pfad). Auch „als eine Fläche" wäre zu
+#: viel behauptet: Bei einer zugeordneten, aber toten Entity erscheint die
+#: Wärmepumpe im Verlauf **gar nicht**.
+_GESAMTLEISTUNG_TEXT = (
+    "Solange „Leistung gesamt“ zugeordnet ist, wertet eedc „Leistung Heizen“ und "
+    "„Leistung Warmwasser“ im Verlauf nicht aus."
+)
+
+
+def finde_gesamtleistung_verdraengt(felder: list[dict]) -> dict[str, dict]:
+    """Feine WP-Leistungsfelder, die von der Gesamtleistung **desselben Geräts**
+    aus dem Verlauf gedrängt werden (**Bauschnitt 7**, Konzept Wärme/Klima §5).
+
+    ``felder``: ``[{"id", "feld", "typ", "inv_id", "in_ha_live": bool}]``.
+
+    ⭐ **Maßgeblich ist die HA-Zuordnungsliste, nicht „belegt" und nicht „liefert"
+    — und das ist an zwei Fehlversuchen gelernt** (Gegenprüfung, zwei Runden):
+
+    * ``_liefert`` (die Bedingung der Aggregat-Redundanz) wäre **zu eng**: Drei
+      der vier Verdrängungsstellen lesen den **Eintrag** (`live.get("leistung_w")`),
+      nicht den Wert. Eine zugeordnete, aber tote Entity verdrängt weiter — der
+      Anwender bekäme keinen Hinweis, während die Aufteilung ausbleibt.
+    * ``belegt`` wäre **zu weit**: Die B8-Materialisierung stempelt
+      ``mqtt_inbound_standard`` auf **jedes** Feld ohne HA-Sensor, also auch auf
+      diese; jede migrierte Anlage bekäme einen Hinweis, ohne etwas zugeordnet zu
+      haben. Ein solcher Stempel erreicht die ``live``-Map nie
+      (``datenquellen_mapping_sync._setze_live`` schreibt nur bei HA).
+
+    Die ``live``-Map ist genau die Menge, die die Verdrängung **bewirkt** — eine
+    Quelle, kein Nachbau. Der MQTT-Zweig (`live_tagesverlauf_service`) verdrängt
+    wertgetrieben und bleibt bewusst außen vor; dort führt kein Weg zur
+    Aufteilung, den ein Hinweis eröffnen könnte.
+
+    ⚠ **Roher Feldschlüssel, kein ``basis_feld_key``.** Mit Innengeräte-Liste gibt
+    es ``leistung_w-<gid>``; verdrängt wird nur vom **Gerätefeld**. Wer hier
+    normalisiert, meldet an einer Multisplit-Anlage eine Verdrängung, die es nicht
+    gibt (die übliche Bewegung im Baum ist die andere — deshalb der Hinweis).
+
+    Returns ``{feld_id: {"art", "schwere", "grund", "wirksame_felder", "text"}}``.
+    """
+    gesamt_je_inv: dict[str, str] = {}
+    for f in felder:
+        if (f.get("typ") == "waermepumpe" and f.get("feld") == _WP_LEISTUNG_GESAMT
+                and f.get("in_ha_live")):
+            gesamt_je_inv[str(f.get("inv_id"))] = f["id"]
+
+    out: dict[str, dict] = {}
+    for f in felder:
+        if f.get("typ") != "waermepumpe" or f.get("feld") not in _WP_LEISTUNG_FEIN:
+            continue
+        if not f.get("in_ha_live"):
+            continue
+        gesamt_fid = gesamt_je_inv.get(str(f.get("inv_id")))
+        if not gesamt_fid:
+            continue
+        out[f["id"]] = {
+            # ⛔ **Nicht `redundant`.** Für diese Art rendert die Fläche inline
+            # „auf keine setzen", und der Knopf leert **das Feld der Zeile** —
+            # er würde also die Aufteilung löschen statt der Gesamtleistung.
+            "art": "gesamtleistung_verdraengt",
+            # `info`: Es liegt kein Fehler vor. `warning` (amber) steht auf
+            # dieser Fläche für Zuordnungs-PROBLEME.
+            "schwere": "info",
+            "grund": "gesamtleistung",
+            "wirksame_felder": [gesamt_fid],
+            "text": _GESAMTLEISTUNG_TEXT,
+        }
+    return out
+
+
 def _liefert(feld: dict) -> bool:
     """Belegt UND es kommt etwas an — die Bedingung fürs Verdrängen.
 

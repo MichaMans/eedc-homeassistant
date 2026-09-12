@@ -34,6 +34,9 @@ import DatenquellenTopicListe from './DatenquellenTopicListe'
 import { useSelectedAnlage } from '../../hooks'
 import { TYP_LABELS } from '../../lib/constants'
 import { STATUS_TEXT_CLASS } from '../../lib/colors'
+// Bauschnitt 7: Ton UND Symbol der Schwere `info` kommen aus der SoT (Regel 0a) —
+// ein blauer Text unter einem Warndreieck wäre die halbe Übernahme.
+import { STATUS_ICONS } from '../../lib/komponentenStyle'
 import { formatDatum } from '../../lib/datum'
 import { TYP_ICON_STYLE } from '../../pages/InvestitionenTeile'
 import {
@@ -369,17 +372,25 @@ export default function DatenquellenZuordnung() {
             </p>
           )}
           {/* §2i: diagnostische Zuordnungs-Probleme (Einheit/state_class/Redundanz/
-              Doppelmapping). Rot=error, amber=warning; Redundanz mit Inline-„auf keine". */}
-          {f.probleme.map((p, i) => (
+              Doppelmapping). Rot=error, amber=warning; Redundanz mit Inline-„auf keine".
+              Bauschnitt 7: `info` = kein Fehler, sondern eine Folge der Zuordnung —
+              blau und mit Info-Symbol, beides aus der Stil-SoT. */}
+          {f.probleme.map((p, i) => {
+            const InfoIcon = STATUS_ICONS.info
+            return (
             <div
               key={i}
               className={`mt-1 flex items-start gap-1 text-xs ${
                 p.schwere === 'error'
                   ? 'text-red-600 dark:text-red-400'
-                  : 'text-amber-600 dark:text-amber-400'
+                  : p.schwere === 'info'
+                    ? STATUS_TEXT_CLASS.info
+                    : 'text-amber-600 dark:text-amber-400'
               }`}
             >
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {p.schwere === 'info'
+                ? <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
               <span className="max-w-prose">
                 {p.text}
                 {p.art === 'redundant' && (
@@ -393,7 +404,8 @@ export default function DatenquellenZuordnung() {
                 )}
               </span>
             </div>
-          ))}
+            )
+          })}
         </div>
         {/* Wert + ±-Invert direkt am Wert (quellen-unabhängige Wert-Eigenschaft). */}
         <div className={`flex items-center justify-end gap-1 sm:w-28 sm:flex-shrink-0 ${istKeine ? 'opacity-60' : ''}`}>

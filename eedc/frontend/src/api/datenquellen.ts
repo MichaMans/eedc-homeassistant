@@ -96,7 +96,13 @@ export interface FeldProblem {
     | 'doppelmapping'
     | 'takt'
     | 'teilweise_verdraengt'
-  schwere: 'error' | 'warning'
+    /** Bauschnitt 7: „Leistung gesamt" verdrängt an derselben Wärmepumpe die
+     *  Verlaufs-Aufteilung nach Heizen/Warmwasser. **Bewusst nicht `redundant`** —
+     *  dessen Inline-Knopf „auf keine setzen" würde hier das Feld der Zeile
+     *  leeren, also die Aufteilung statt der Gesamtleistung. */
+    | 'gesamtleistung_verdraengt'
+  /** `info`: kein Fehler, nur eine Folge der Zuordnung (Bauschnitt 7). */
+  schwere: 'error' | 'warning' | 'info'
   text: string
   /**
    * `redundant`: die wirksamen Komponenten-Felder.
