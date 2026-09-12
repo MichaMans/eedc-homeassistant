@@ -16,11 +16,14 @@ from backend.models.investition import Investition
 from backend.utils.investition_filter import aktiv_jetzt
 from backend.services.live_sensor_config import (
     ERZEUGER_TYPEN,
+    LEISTUNGS_FELDER,
     SKIP_TYPEN,
     TV_SERIE_CONFIG,
     UNIT_TO_W,
     baue_investitions_serien,
     extract_live_config,
+    inv_ids_mit_serie,
+    uebersprungene_investitionen,
 )
 from backend.core.field_definitions import (
     SONSTIGES_KATEGORIE_UNGEPFLEGT,
@@ -295,20 +298,22 @@ async def get_tagesverlauf(
     # die Tagesgrenze und entscheidet weiter, was „heute" ist.
     abruf_start = start - timedelta(hours=1) if mit_vortagsrand else start
 
-    # Investments ohne leistung_w-Konfiguration sammeln (für Hinweis im Frontend)
-    uebersprungen: list[str] = []
-    for inv in investitionen.values():
-        if inv.typ in SKIP_TYPEN or inv.typ not in TV_SERIE_CONFIG:
-            continue
-        inv_id_str = str(inv.id)
-        live_cfg = inv_live_map.get(inv_id_str, {})
-        if not live_cfg.get("leistung_w"):
-            uebersprungen.append(inv.bezeichnung or inv.typ)
-
     # Serien-Selektion (inkl. Pool-Dedup) über die geteilte Quelle — identisch
     # zum Backfill-Pfad (Issue #318, M1). Chart-Metadaten (label/farbe/max_w)
     # rekonstruieren wir hier aus den Kern-Specs; sie sind Live-spezifisch.
     serien_core, serie_entities = baue_investitions_serien(inv_live_map, investitionen)
+
+    # Wer NICHT gezeichnet wird, und warum — die geteilte Bedingung (N-447).
+    # ⛔ Sie steht bewusst NACH dem Serien-Bau: bis 12.09.2026 lief sie davor und
+    # kannte nur `leistung_w`, meldete also genau die Wärmepumpe als „nicht
+    # dargestellt", die zwölf Zeilen später in zwei Flächen zerlegt wurde.
+    uebersprungen = uebersprungene_investitionen(
+        investitionen,
+        inv_ids_mit_serie(serien_core),
+        lambda inv_id: any(
+            (inv_live_map.get(inv_id) or {}).get(f) for f in LEISTUNGS_FELDER
+        ),
+    )
     serien: list[dict] = []
     _SUFFIX_LABEL = {"heizen": " Heizen", "warmwasser": " Warmwasser"}
     for spec in serien_core:
@@ -688,7 +693,11 @@ async def _get_tagesverlauf_mqtt(
 
     serien: list[dict] = []
     serie_comp_keys: dict[str, list[str]] = {}
-    uebersprungen: list[str] = []
+    #: Für welche Investition dieser Pfad eine Serie gebaut hat — der Eingang der
+    #: geteilten `uebersprungen`-Bedingung unten (N-447). Der HA-Pfad liest ihn
+    #: aus `baue_investitions_serien`; hier entstehen die Serien als Dicts,
+    #: deshalb wird die Menge beim Bauen mitgeführt statt hinterher geraten.
+    mit_serie: set[str] = set()
 
     # WP mit getrennter Strommessung
     for inv_id, inv in investitionen.items():
@@ -713,6 +722,7 @@ async def _get_tagesverlauf_mqtt(
                 "bidirektional": config["bidirektional"],
             })
             serie_comp_keys[key_h] = [heiz_key]
+            mit_serie.add(inv_id)
         if ww_key in available_keys:
             key_w = f"waermepumpe_{inv_id}_warmwasser"
             serien.append({
@@ -724,6 +734,7 @@ async def _get_tagesverlauf_mqtt(
                 "bidirektional": config["bidirektional"],
             })
             serie_comp_keys[key_w] = [ww_key]
+            mit_serie.add(inv_id)
 
     # Investitions-Serien (alle außer WP die bereits oben verarbeitet wurden)
     for inv_id, inv in investitionen.items():
@@ -733,8 +744,10 @@ async def _get_tagesverlauf_mqtt(
         # WP: nur wenn Gesamtleistung vorhanden (getrennte Messung wurde oben behandelt)
         comp_key = f"inv:{inv_id}:leistung_w"
         if comp_key not in available_keys:
-            if typ != "waermepumpe":
-                uebersprungen.append(inv.bezeichnung or typ)
+            # ⛔ Hier stand bis 12.09.2026 `if typ != "waermepumpe"` — eine
+            # pauschale Ausnahme, die eine Wärmepumpe OHNE jede Leistungsquelle
+            # wortlos verschwinden ließ (N-447). Wer übersprungen ist,
+            # entscheidet jetzt die geteilte Bedingung unten.
             continue
 
         # E-Auto mit Parent (Wallbox) überspringen
@@ -762,6 +775,18 @@ async def _get_tagesverlauf_mqtt(
             "max_w": config.get("max_w"),
         })
         serie_comp_keys[serie_key] = [comp_key]
+        mit_serie.add(inv_id)
+
+    # Wer NICHT gezeichnet wird, und warum — dieselbe Bedingung wie im HA-Pfad
+    # (N-447). Die Pfade beantworten „hat eine Leistungsquelle?" verschieden
+    # (Mapping gegen Snapshot-Keys), die Regel darüber ist eine.
+    uebersprungen = uebersprungene_investitionen(
+        investitionen,
+        mit_serie,
+        lambda inv_id: any(
+            f"inv:{inv_id}:{f}" in available_keys for f in LEISTUNGS_FELDER
+        ),
+    )
 
     # PV Gesamt als Fallback (wenn keine individuellen PV-Sensoren)
     has_individual_pv = any(s["kategorie"] == "pv" for s in serien)

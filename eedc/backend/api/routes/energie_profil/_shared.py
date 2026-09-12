@@ -398,6 +398,19 @@ class WaermeVerlaufStundeResponse(BaseModel):
     wp_modus_strom_bezug_kwh: Optional[float] = None
     wp_modus_abdeckung_h: Optional[float] = None
     wp_modus_gemessen: Optional[bool] = None
+    # ── Der Funktions-Stapel (WK-09 B2, SOLL §3.3/S2a) ────────────────────
+    #
+    # ⭐ **Eine andere Familie, deshalb eigene Feldnamen** (SOLL §3.2): Die
+    # `wp_modus_*`-Felder darüber sind **Teilmengen** des Stroms (Betriebsart,
+    # Rest heißt *nicht aufgeteilt*); diese hier sind **Summanden** aus den
+    # Funktions-Zählern `strom_heizen_kwh`/`strom_warmwasser_kwh`. Sie dürfen
+    # nie im selben Stapel liegen — der Verlauf schaltet um (S2a).
+    wp_funktion_strom_heizen_kwh: Optional[float] = None
+    wp_funktion_strom_warmwasser_kwh: Optional[float] = None
+    #: Der Rest des Wärmepumpen-Stroms dieses Slots, der zu keiner Funktion
+    #: gehört (Standby, Geräte ohne Funktions-Zähler). Er hält die Stapelhöhe
+    #: auf dem Gesamtstrom (K1) und heißt, was er ist.
+    wp_funktion_uebrige_kwh: Optional[float] = None
 
 
 class WaermeVerlaufStundenResponse(BaseModel):
@@ -412,6 +425,12 @@ class WaermeVerlaufStundenResponse(BaseModel):
     #: Gerät gegen den Tageswert gemessen, wie beim Stapel.
     waerme_ohne_stundenform_kwh: Optional[float] = None
     kaelte_ohne_stundenform_kwh: Optional[float] = None
+    #: Gibt es an diesem Tag überhaupt gepflegte **Funktions**-Zähler? Nur dann
+    #: hat die Sicht „nach Funktion" etwas zu sagen und der Umschalter erscheint
+    #: (SOLL §3.3/S2a). ``False`` heißt „nicht erfasst", nicht „alles null".
+    funktions_stapel_verfuegbar: bool = False
+    #: Menge der **Funktions**-Zähler ohne Stundenform (P4, wie oben).
+    funktion_ohne_stundenform_kwh: Optional[float] = None
 
 
 class TagWerteResponse(BaseModel):

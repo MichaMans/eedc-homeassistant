@@ -31,6 +31,11 @@ export interface WaermeVerlaufPunkt {
   wp_modus_gemessen?: boolean | null
   wp_modus_abdeckung_h?: number | null
   wp_modus_strom_bezug_kwh?: number | null
+  /** WK-09 B2 — die **Summanden** aus den Funktions-Zählern (SOLL §3.3/S2a).
+   *  `null`/fehlend heißt „nicht erfasst": dann gibt es die Sicht nicht. */
+  wp_funktion_strom_heizen_kwh?: number | null
+  wp_funktion_strom_warmwasser_kwh?: number | null
+  wp_funktion_uebrige_kwh?: number | null
   /** Monatsmittel der Außentemperatur (°C) — zweite Achse, per Legende
    *  ausblendbar. Fehlt sie, fehlt auch die Linie: Ein kalter Monat ohne
    *  Messreihe ist kein 0-°C-Monat. */
@@ -45,8 +50,13 @@ export interface WaermeVerlaufDaten {
   bezugKwh: number
   /** Σ des gesamten Wärmepumpen-Stroms über alle Perioden. */
   stromKwh: number
-  /** Hat überhaupt eine Periode eine Aufteilung beigesteuert? */
+  /** Hat die **aktive** Sicht überhaupt einen Stapel? */
   hatStapel: boolean
+  /** Welche Familie liegt gerade im Balken? Genau eine — nie beide (S2a). */
+  sicht: VerlaufSicht
+  /** Gibt es die Sicht „nach Funktion" an diesen Daten überhaupt? Sie ist die
+   *  Bedingung für den Umschalter, unabhängig davon, was gerade gezeigt wird. */
+  hatFunktionsStapel: boolean
   /** Gibt es mindestens eine Periode mit GEMESSENER Wärme? */
   hatGemesseneWaerme: boolean
   /** Gibt es mindestens eine Periode mit gemessener Kälte? (Bauschnitt 6b) */
@@ -61,6 +71,8 @@ export interface VerlaufRest {
   strom?: number | null
   waerme?: number | null
   kaelte?: number | null
+  /** WK-09 B2: dasselbe für die Funktions-Zähler (P4). */
+  funktion?: number | null
 }
 
 const z = (v: number | null | undefined): number => (v == null ? 0 : v)
@@ -76,8 +88,14 @@ const eineStelle = (v: number): number => Math.round(v * 10) / 10
 const hatSplit = (p: WaermeVerlaufPunkt): boolean =>
   !!p.wp_modus_gemessen || z(p.wp_modus_abdeckung_h) > 0
 
-/** Die sechs Segmente in der Reihenfolge des Aufteilungs-Balkens. */
-const SEGMENTE: { key: string; feld: keyof WaermeVerlaufPunkt; label: string; farbe: string; immer?: boolean }[] = [
+/** Welche **Familie** der Balken gerade stapelt (SOLL §3.3/S2a). */
+export type VerlaufSicht = 'betriebsart' | 'funktion'
+
+interface Segment { key: string; feld: keyof WaermeVerlaufPunkt; label: string; farbe: string; immer?: boolean }
+
+/** Die sechs Segmente in der Reihenfolge des Aufteilungs-Balkens — **Teilmengen**
+ *  des Stroms je Betriebsart, der Rest heißt *nicht aufgeteilt* (SOLL §3.2). */
+const SEGMENTE: Segment[] = [
   { key: 'heizen', feld: 'wp_modus_strom_heizen_kwh', label: 'Heizen', farbe: CHART_COLORS.wpWaerme, immer: true },
   { key: 'warmwasser', feld: 'wp_modus_strom_warmwasser_kwh', label: 'Warmwasser', farbe: CHART_COLORS.wpWarmwasser },
   { key: 'kuehlen', feld: 'wp_modus_strom_kuehlen_kwh', label: 'Kühlen', farbe: CHART_COLORS.modusKuehlen, immer: true },
@@ -87,16 +105,52 @@ const SEGMENTE: { key: string; feld: keyof WaermeVerlaufPunkt; label: string; fa
 ]
 
 /**
+ * Die drei Segmente der Funktions-Sicht — **Summanden**: Heizen + Warmwasser +
+ * Übriger Strom = Gesamtstrom (K1). Eigene `key`s, damit die beiden Familien
+ * auch versehentlich nie in denselben Balken geraten können; die Farben sind
+ * dieselben Rollen wie oben (Regel 0a: eine Datenrolle, eine Farbe).
+ *
+ * ⚠ Heizen und Warmwasser erscheinen nur mit Menge (E4, Konzept §2.3 *„Wer sie
+ * nicht erfasst, sieht sie nicht"*) — eine Brauchwasser-Wärmepumpe hat keine
+ * Heizachse. Der Rest steht **immer**: dass nichts übrig bleibt, ist eine
+ * Aussage, keine Leerstelle.
+ */
+const FUNKTIONS_SEGMENTE: Segment[] = [
+  { key: 'f_heizen', feld: 'wp_funktion_strom_heizen_kwh', label: 'Heizen', farbe: CHART_COLORS.wpWaerme },
+  { key: 'f_warmwasser', feld: 'wp_funktion_strom_warmwasser_kwh', label: 'Warmwasser', farbe: CHART_COLORS.wpWarmwasser },
+  { key: 'f_uebrige', feld: 'wp_funktion_uebrige_kwh', label: 'Übriger Strom', farbe: CHART_COLORS.modusNichtAufgeteilt, immer: true },
+]
+
+/** Trägt diese Periode überhaupt Funktions-Zähler? Das Backend setzt die drei
+ *  Felder genau dann, wenn `funktions_stapel_verfuegbar` gilt — eine zweite
+ *  Durchreichung des Flags wäre eine zweite Wahrheit über dieselbe Frage. */
+const hatFunktion = (p: WaermeVerlaufPunkt): boolean =>
+  p.wp_funktion_strom_heizen_kwh != null || p.wp_funktion_strom_warmwasser_kwh != null
+
+/**
  * Baut Zeilen und Serien. Serien erscheinen nur, wenn sie etwas zu sagen haben:
  * Warmwasser/Lüften/Entfeuchten nur bei eigenem Zähler (E4, Konzept §2.3
  * *„Wer sie nicht erfasst, sieht sie nicht"*), die Wärmelinie nur mit
  * gemessener Wärme (E7), die Kältelinie nur mit gemessener Kälte.
  */
-export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDaten {
-  const mitSplit = punkte.filter(hatSplit)
+export function baueWaermeVerlauf(
+  punkte: WaermeVerlaufPunkt[], sicht: VerlaufSicht = 'betriebsart',
+): WaermeVerlaufDaten {
+  // ⭐ **S2a: ein Stapel, eine Familie.** Segmentliste und Tor hängen an der
+  // gewählten Sicht — es gibt keinen Zweig, in dem beide Familien zusammen in
+  // `stapel` landen könnten. Das ist die Wache gegen den Fehler aus SOLL §3.2
+  // („wer sie verwechselt, addiert Teilmengen zu Summanden"), und sie steht
+  // hier in der reinen Funktion statt in der Zeichnung.
+  const hatFunktionsStapel = punkte.some(hatFunktion)
+  const aktiv: VerlaufSicht = sicht === 'funktion' && hatFunktionsStapel ? 'funktion' : 'betriebsart'
+  const istFunktion = aktiv === 'funktion'
+  const tor = istFunktion ? hatFunktion : hatSplit
+  const segmente = istFunktion ? FUNKTIONS_SEGMENTE : SEGMENTE
+
+  const mitSplit = punkte.filter(tor)
   const hatStapel = mitSplit.length > 0
 
-  const aktiveSegmente = SEGMENTE.filter(
+  const aktiveSegmente = segmente.filter(
     (s) => s.immer || mitSplit.some((p) => z(p[s.feld] as number | null | undefined) > 0),
   )
 
@@ -125,7 +179,7 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
 
   const rows: WaermeVerlaufRow[] = punkte.map((p) => {
     const row: WaermeVerlaufRow = { name: p.name }
-    const split = hatSplit(p)
+    const split = tor(p)
     for (const s of aktiveSegmente) {
       // Eine Periode ohne Aufteilung trägt `null`, nicht `0` — sonst stünde
       // dort ein Balken der Höhe 0, der aussieht wie „nichts gelaufen",
@@ -171,6 +225,8 @@ export function baueWaermeVerlauf(punkte: WaermeVerlaufPunkt[]): WaermeVerlaufDa
     bezugKwh: mitSplit.reduce((a, p) => a + z(p.wp_modus_strom_bezug_kwh), 0),
     stromKwh: punkte.reduce((a, p) => a + z(p.wp_strom_kwh), 0),
     hatStapel,
+    sicht: aktiv,
+    hatFunktionsStapel,
     hatGemesseneWaerme,
     hatGemesseneKaelte,
     hatTemperatur,
@@ -191,6 +247,7 @@ export function verlaufRestZeilen(rest?: VerlaufRest | null): { label: string; k
     ['Strom ohne Stundenzuordnung', rest.strom],
     ['Wärme ohne Stundenzuordnung', rest.waerme],
     ['Kälte ohne Stundenzuordnung', rest.kaelte],
+    ['Strom je Funktion ohne Stundenzuordnung', rest.funktion],
   ] as const)
     .filter(([, kwh]) => kwh != null && kwh > REST_SCHWELLE_KWH)
     .map(([label, kwh]) => ({ label, kwh: kwh as number }))
@@ -201,7 +258,13 @@ export function verlaufRestZeilen(rest?: VerlaufRest | null): { label: string; k
  *  (S3: was die Sicht nicht zeigen kann, sagt sie). */
 export function zeigtVerlauf(v: WaermeVerlaufDaten | null, rest?: VerlaufRest | null): boolean {
   if (!v) return false
-  return v.hatStapel || v.hatGemesseneWaerme || v.hatGemesseneKaelte || verlaufRestZeilen(rest).length > 0
+  // ⚠ `hatFunktionsStapel` gehört dazu, seit es zwei Sichten gibt (S2a): Eine
+  // Wärmepumpe der Sprosse **F5** (getrennte Funktions-Zähler, kein
+  // Betriebsart-Zähler, kein Modus-Signal) hat in der Betriebsart-Sicht nichts
+  // zu zeigen — ohne diese Bedingung bliebe genau der Fall unsichtbar, für den
+  // die zweite Sicht gebaut wurde.
+  return v.hatStapel || v.hatFunktionsStapel || v.hatGemesseneWaerme
+    || v.hatGemesseneKaelte || verlaufRestZeilen(rest).length > 0
 }
 
 /** W-8 — der Titel nennt, was wirklich drinsteht. Die Temperatur ist Kontext,
@@ -211,10 +274,13 @@ export function verlaufTitel(v: WaermeVerlaufDaten): string {
     ? 'gemessene Wärme und Kälte'
     : v.hatGemesseneWaerme ? 'gemessene Wärme'
       : v.hatGemesseneKaelte ? 'gemessene Kälte' : null
+  // S2a: der Titel nennt die **Familie**, die gerade gestapelt ist — sonst
+  // trügen zwei verschiedene Größen unbeschriftet denselben Platz.
+  const stapel = v.sicht === 'funktion' ? 'Strom nach Funktion' : 'Strom nach Betriebsart'
   if (v.hatStapel && gemessen) {
-    return `Verlauf · Strom nach Betriebsart${gemessen.includes(' und ') ? ', ' : ' und '}${gemessen}`
+    return `Verlauf · ${stapel}${gemessen.includes(' und ') ? ', ' : ' und '}${gemessen}`
   }
-  if (v.hatStapel) return 'Verlauf · Strom nach Betriebsart'
+  if (v.hatStapel) return `Verlauf · ${stapel}`
   return gemessen ? `Verlauf · ${gemessen}` : 'Verlauf'
 }
 
@@ -246,6 +312,8 @@ export function punkteAusMonatsantworten(
       wp_modus_gemessen: m.wp_modus_gemessen,
       wp_modus_abdeckung_h: m.wp_modus_abdeckung_h,
       wp_modus_strom_bezug_kwh: m.wp_modus_strom_bezug_kwh,
+      // ⚠ Monat und Jahr tragen KEINE Funktions-Stundenform — S2a gilt „je
+      // Stunde". Die Sicht „nach Funktion" gibt es dort deshalb nicht.
     }))
 }
 

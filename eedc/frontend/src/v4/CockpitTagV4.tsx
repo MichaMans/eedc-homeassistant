@@ -30,6 +30,7 @@ import ZaehlerstaendeBlock, { useZaehlerstaende, zaehlerParkIds } from '../compo
 import { useApiData, useScrollErhalt } from '../hooks'
 import { BLOCK_IDENTITAET, DEDIZIERTE_KATEGORIEN, fmtZahl, WT_LANG, heuteIso, verschiebeIsoTage } from '../lib'
 import { TagVerlaufChart, TagWerteTabelle } from '../components/tag'
+import { wpSplitSerien } from '../lib/erzeugerSpalten'
 import { baueTagKpis, TagBilanz, type GleicheWochentagStats } from './TagBilanz'
 import { tagBilanzParkIds } from './bilanzParkIds'
 import { baueTagKomponentenUndFinanz } from './TagKomponenten'
@@ -226,6 +227,12 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
     const erzeugerSerien = serien.filter((s) => s.kategorie === 'pv' && s.typ !== 'virtual')
     // Extra-Serien (nicht-dedizierte) für Chart/Tabelle — wie IST-„Tagesdetail".
     const extraSerien = serien.filter((s) => !DEDIZIERTE_KATEGORIEN.has(s.kategorie))
+    // Wärmepumpen-Serien je Funktion (WK-09 B1, Konzept Wärme/Klima §4 ⑤). Sie
+    // sind Kategorie `waermepumpe` und fallen deshalb — wie die PV-Strings —
+    // aus `extraSerien` heraus. ⛔ `DEDIZIERTE_KATEGORIEN` bleibt unangetastet:
+    // dort stünden sie ZUSÄTZLICH zur `wp`-Fläche im Stapel, also dieselbe
+    // Energie zweimal. Als eigene Prop ersetzen sie die Fläche.
+    const wpSerien = wpSplitSerien(serien)
     const wochentag = WT_LANG[wochentagOf(datum)]
     if (tag) {
       // Kennzahlen-Kacheln parkbar (SLICE 1): stabile parkId je Titel; geparkte
@@ -276,7 +283,7 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
         id: 'verlauf', title: 'Stundenverlauf', ...BLOCK_IDENTITAET.verlauf,
         summary: 'Stundenmittel: Quellen ▲ / Senken ▼',
         defaultOpen: false,
-        render: () => <Parkbar id="el:stundenverlauf" titel="Stundenverlauf"><TagVerlaufChart daten={stunden} extraSerien={extraSerien} erzeugerSerien={erzeugerSerien} /></Parkbar>,
+        render: () => <Parkbar id="el:stundenverlauf" titel="Stundenverlauf"><TagVerlaufChart daten={stunden} extraSerien={extraSerien} erzeugerSerien={erzeugerSerien} wpSerien={wpSerien} /></Parkbar>,
       })
       if (!park.istGeparkt('el:stundenwerte')) list.push({
         id: 'stundenwerte', title: 'Stundenwerte', ...BLOCK_IDENTITAET.werte,

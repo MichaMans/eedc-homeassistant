@@ -595,6 +595,12 @@ export interface WaermeVerlaufStunde {
   wp_modus_strom_bezug_kwh: number | null
   wp_modus_abdeckung_h: number | null
   wp_modus_gemessen: boolean | null
+  /** WK-09 B2 — der **Funktions**-Stapel (Summanden aus den Zählern
+   *  `strom_heizen_kwh`/`strom_warmwasser_kwh`). `null` heißt „an diesem Tag
+   *  nicht erfasst": dann gibt es die Sicht „nach Funktion" nicht (S2a). */
+  wp_funktion_strom_heizen_kwh?: number | null
+  wp_funktion_strom_warmwasser_kwh?: number | null
+  wp_funktion_uebrige_kwh?: number | null
 }
 
 export interface WaermeVerlaufStunden {
@@ -605,6 +611,11 @@ export interface WaermeVerlaufStunden {
   /** Dasselbe für die Wärme- und die Kälte-Linie (N-437, Bauschnitt 6b). */
   waerme_ohne_stundenform_kwh?: number | null
   kaelte_ohne_stundenform_kwh?: number | null
+  /** Gibt es an diesem Tag Funktions-Zähler? Nur dann erscheint der Umschalter
+   *  „nach Betriebsart / nach Funktion" (SOLL §3.3/S2a). */
+  funktions_stapel_verfuegbar?: boolean
+  /** Dasselbe für die Funktions-Zähler (P4). */
+  funktion_ohne_stundenform_kwh?: number | null
 }
 
 export const energieProfilApi = {

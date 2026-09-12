@@ -466,11 +466,18 @@ async def get_waerme_verlauf_stunden(
     # Tagesreset verworfen war —, und nur das exakte Gerätefeld (Kälte je
     # Innengerät bekam keine Form). `felder_je_inv` ist genau die Schlüsselmenge,
     # mit der der Tag aufgelöst hat.
-    linien_felder = {
+    # ⭐ Seit WK-09 B2 stehen hier auch die **Funktions**-Zähler
+    # (`strom_heizen_kwh`/`strom_warmwasser_kwh`, SOLL §3.3/S2a). Sie brauchen
+    # dieselbe Stundenform aus derselben Standreihe wie die Linien — eine
+    # zweite Leseschleife wäre die F-56-Klasse.
+    verteilte_felder = {
         ausgabe: detail.felder_je_inv.get(ausgabe, {})
-        for ausgabe in (*sorted(WAERME_AUSGABE_KEYS), "wp_kaelte_kwh")
+        for ausgabe in (
+            *sorted(WAERME_AUSGABE_KEYS), "wp_kaelte_kwh",
+            "wp_strom_heizen_kwh", "wp_strom_warmwasser_kwh",
+        )
     }
-    for je_inv in linien_felder.values():
+    for je_inv in verteilte_felder.values():
         for inv_id, felder in je_inv.items():
             for feld in felder:
                 z = _zaehler(inv_id, feld)
@@ -523,7 +530,7 @@ async def get_waerme_verlauf_stunden(
         summe = [0.0] * STUNDEN
         ohne_linie = 0.0
         for ausgabe in ausgaben:
-            je_inv = linien_felder.get(ausgabe) or {}
+            je_inv = verteilte_felder.get(ausgabe) or {}
             werte, rest = verteile_felder_auf_stunden(
                 je_inv,
                 {
@@ -542,6 +549,31 @@ async def get_waerme_verlauf_stunden(
     waerme_je_slot, waerme_ohne = _linie(sorted(WAERME_AUSGABE_KEYS))
     kaelte_je_slot, kaelte_ohne = _linie(("wp_kaelte_kwh",))
 
+    # ── Der Funktions-Stapel (WK-09 B2, SOLL §3.3/S2a) ─────────────────────
+    #
+    # **Dieselbe Verteilung wie die Linien**, nur eine andere Familie: Heizen und
+    # Warmwasser sind **Summanden** des Gesamtstroms, während der Betriebsart-
+    # Stapel darüber **Teilmengen** führt (SOLL §3.2). Beide gleichzeitig zu
+    # stapeln hieße, Teilmengen zu Summanden zu addieren — deshalb schaltet der
+    # Verlauf um, statt zu überlagern (S2a), und deshalb tragen die Felder
+    # eigene Namen.
+    #
+    # ⚠ `_linie` gibt `[None] * 24` zurück, wenn nichts verteilt wurde. Für einen
+    # **Stapel** ist das kein brauchbarer Eingang (eine Stunde ohne Warmwasser
+    # ist eine echte 0, keine fehlende Aussage) — die Segmente werden deshalb
+    # unten gegen `funktions_stapel_verfuegbar` aufgelöst, wie der
+    # Betriebsart-Stapel gegen `hat_split`.
+    funk_heizen, funk_heizen_ohne = _linie(("wp_strom_heizen_kwh",))
+    funk_ww, funk_ww_ohne = _linie(("wp_strom_warmwasser_kwh",))
+    # „Nach Funktion" gibt es nur, wo Funktions-Zähler gepflegt sind — sonst hat
+    # die Sicht nichts zu sagen (S2a). Maßgeblich ist der TAGESWERT, nicht die
+    # Stundenform: ein Zähler ohne Form wird unten genannt, nicht verschwiegen.
+    funktions_stapel_verfuegbar = any(
+        (detail.werte.get(k) or 0.0) > 0.0
+        for k in ("wp_strom_heizen_kwh", "wp_strom_warmwasser_kwh")
+    )
+    funktion_ohne = funk_heizen_ohne + funk_ww_ohne
+
     # Die Zählerspalte des Slots — ihre Summe ist die Kachel „Strom verbraucht".
     wp_kw = {
         r.stunde: r.waermepumpe_kw
@@ -555,6 +587,37 @@ async def get_waerme_verlauf_stunden(
 
     def _r(v: float, hat: bool, stellen: int = 3):
         return round(v, stellen) if hat else None
+
+    def _funktions_segmente(h: int) -> dict:
+        """Die drei Segmente der Funktions-Sicht eines Slots.
+
+        ⭐ **Die Stapelhöhe ist der Gesamtstrom** (SOLL §3.3/S2a, K1): `uebrige`
+        füllt auf, was die Funktions-Zähler nicht erklären — Standby, ein
+        zweites Gerät ohne solche Zähler. Bezug ist **`wp_strom_kwh` dieses
+        Slots**, also genau die Größe, deren Summe die Kachel „Strom
+        verbraucht" ist; hier entsteht kein zweiter Gesamtstrom.
+
+        ⚠ **`bezug_kwh` des Betriebsart-Stapels wäre hier falsch:** die Größe
+        zählt nur Geräte, die eine **Betriebsart**-Aufteilung beigesteuert
+        haben. Ein Gerät mit Funktions-Zählern, aber ohne Betriebsart-Zähler und
+        ohne Modus-Signal (Sprosse **F5**) trägt dort 0 bei — der Rest wäre
+        negativ, und genau diese Lage ist der Anlass von B2.
+        """
+        if not funktions_stapel_verfuegbar:
+            return {}
+        heizen = funk_heizen[h] or 0.0
+        warmwasser = funk_ww[h] or 0.0
+        gesamt = wp_kw.get(h)
+        return {
+            "wp_funktion_strom_heizen_kwh": round(heizen, 3),
+            "wp_funktion_strom_warmwasser_kwh": round(warmwasser, 3),
+            # Ohne Gesamtstrom in diesem Slot gibt es keinen Rest zu benennen —
+            # `None` heißt „keine Aussage", nicht 0 (ADR-002/P4).
+            "wp_funktion_uebrige_kwh": (
+                round(max(0.0, gesamt - heizen - warmwasser), 3)
+                if gesamt is not None else None
+            ),
+        }
 
     zeilen = []
     for h, s in enumerate(verteilung.stunden):
@@ -577,6 +640,7 @@ async def get_waerme_verlauf_stunden(
             wp_modus_strom_bezug_kwh=_r(s.bezug_kwh, hat),
             wp_modus_abdeckung_h=_r(s.abdeckung_h, hat, 1),
             wp_modus_gemessen=s.hat_gemessen if hat else None,
+            **_funktions_segmente(h),
         ))
     ohne = verteilung.ohne_stundenform_kwh
     return WaermeVerlaufStundenResponse(
@@ -584,6 +648,10 @@ async def get_waerme_verlauf_stunden(
         ohne_stundenform_kwh=round(ohne, 2) if ohne > 0.005 else None,
         waerme_ohne_stundenform_kwh=round(waerme_ohne, 2) if waerme_ohne > 0.005 else None,
         kaelte_ohne_stundenform_kwh=round(kaelte_ohne, 2) if kaelte_ohne > 0.005 else None,
+        funktions_stapel_verfuegbar=funktions_stapel_verfuegbar,
+        funktion_ohne_stundenform_kwh=(
+            round(funktion_ohne, 2) if funktion_ohne > 0.005 else None
+        ),
     )
 
 

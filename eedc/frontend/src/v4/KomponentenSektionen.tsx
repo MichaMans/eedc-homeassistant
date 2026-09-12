@@ -12,9 +12,9 @@
  * Quelle: `AktuellerMonatResponse` (alle Komponenten-Felder bereits vorhanden).
  * Aktiv-Gating: ein Block erscheint nur, wenn die Komponente im Monat Daten hat.
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Battery, TrendingUp, TrendingDown, Plug, Power, Clock, ExternalLink } from 'lucide-react'
-import { fmtCalc } from '../components/ui'
+import { fmtCalc, SegmentControl } from '../components/ui'
 import FormelTooltip from '../components/ui/FormelTooltip'
 import QuelleBadge from '../components/ui/QuelleBadge'
 import { KpiStrip, VerteilungsBalken, GeraeteHinweis, type Block, type KpiStripItem } from '../components/blocks'
@@ -25,7 +25,7 @@ import { ModusSplitErklaerung } from '../components/waermepumpe'
 import { WaermeVerlaufChart } from './WaermeVerlaufChart'
 import {
   baueWaermeVerlauf, verlaufRestZeilen, verlaufTitel, zeigtVerlauf,
-  type VerlaufRest, type WaermeVerlaufPunkt,
+  type VerlaufRest, type VerlaufSicht, type WaermeVerlaufPunkt,
 } from './waermeVerlauf'
 import {
   wpFunktionsGruppen, zeigtStromJeFunktion, type FunktionsGruppen, type FunktionsZeile,
@@ -56,7 +56,22 @@ function geraeteNamen(d: AktuellerMonatResponse, ...typen: string[]): string[] {
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/gi, '-')
 
 /** Ein parkbares Zusatz-Element unter dem KPI-Strip (Detailliste, Balken, Hinweis). */
-interface SektionElement { id: string; titel: string; node: ReactNode }
+interface SektionElement {
+  id: string
+  titel: string
+  node: ReactNode
+  /** Das Element zeichnet seine Überschrift **selbst** (WK-09 B2). Nötig genau
+   *  dort, wo der Titel von einer Bedienung des Elements abhängt: Der
+   *  Wärme/Klima-Verlauf schaltet zwischen zwei Familien um, und S2 verlangt,
+   *  dass der Titel die gerade gestapelte Größe nennt. `titel` bleibt trotzdem
+   *  gesetzt — er beschriftet den Parkplatz-Chip. */
+  titelImNode?: boolean
+}
+
+/** Die Überschrift eines Sektions-Elements — eine Typografie, ein Ort (Regel 0a). */
+export function ElementTitel({ children }: { children: ReactNode }) {
+  return <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{children}</div>
+}
 
 /** Eine Komponenten-Sektion: KPI-Kacheln (je parkbar via parkId) + parkbare
  *  Zusatz-Elemente. Element-Park-Doktrin (Gernot 2026-06-27): JEDE Anzeige im
@@ -84,7 +99,7 @@ function Sektion({ kpis, elemente }: { kpis: KpiStripItem[]; elemente?: SektionE
       {elemente?.map((e) => (
         <Parkbar key={e.id} id={e.id} titel={e.titel}>
           <div className="space-y-2">
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{e.titel}</div>
+            {!e.titelImNode && <ElementTitel>{e.titel}</ElementTitel>}
             {e.node}
           </div>
         </Parkbar>
@@ -240,6 +255,70 @@ function wirkungsgradHinweis(
  *  Monat/Jahr); Default 'monat' lässt Cockpit/Monat unverändert. Cockpit/Tag ruft mit
  *  'tag' → gleiche Blöcke, tages-korrekte Beschriftung. Cockpit/Jahr ruft mit 'jahr'
  *  → wie 'monat' (Σ-Slot trägt die Jahressumme, Max/Tag = höchster Einzeltag des Jahres). */
+/**
+ * Der Wärme/Klima-Verlauf als Element — mit dem Umschalter zwischen den beiden
+ * **Familien** (SOLL §3.3/**S2a**, WK-09 B2).
+ *
+ * ⛔ **Nie beide Stapel zugleich.** Der Balken zeigt **entweder** den Strom nach
+ * *Betriebsart* (Teilmengen und Rest) **oder** nach *Funktion* (Summanden aus
+ * den Zählern `strom_heizen_kwh`/`strom_warmwasser_kwh`). Beides übereinander
+ * addierte Teilmengen zu Summanden — der Fehler aus SOLL §3.2, an dem schon ein
+ * Tester gescheitert ist. Die Wache dafür steht in der reinen Funktion
+ * (`baueWaermeVerlauf` liefert `stapel` nur für die aktive Sicht); hier hängt
+ * bloß der Schalter daran.
+ *
+ * ⚑ **Warum eine eigene kleine Komponente:** Der Titel muss die gerade
+ * gestapelte Größe nennen (S2) — er ist damit Zustand, und Zustand braucht
+ * einen Ort. Der Schalter selbst ist die SoT-Komponente `SegmentControl`
+ * (Style-Guide B15), keine zweite Bauform.
+ *
+ * ⚠ **Voreingestellt bleibt die heutige Sicht** (Betriebsart) — wer den Verlauf
+ * kennt, findet ihn unverändert vor; die zweite Sicht ist ein Angebot.
+ * Die Linien (Wärme, Kälte, Temperatur) stehen in **beiden** Sichten.
+ */
+function WaermeVerlaufElement({ punkte, rest }: {
+  punkte: WaermeVerlaufPunkt[]
+  rest?: VerlaufRest | null
+}) {
+  const [sicht, setSicht] = useState<VerlaufSicht>('betriebsart')
+  const v = baueWaermeVerlauf(punkte, sicht)
+  const restZeilen = verlaufRestZeilen(rest)
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <ElementTitel>{verlaufTitel(v)}</ElementTitel>
+        {v.hatFunktionsStapel && (
+          <SegmentControl
+            ariaLabel="Aufteilung des Stroms"
+            optionen={[
+              { key: 'betriebsart', label: 'nach Betriebsart' },
+              { key: 'funktion', label: 'nach Funktion' },
+            ]}
+            value={v.sicht} onChange={setSicht}
+          />
+        )}
+      </div>
+      {(v.hatStapel || v.hatGemesseneWaerme || v.hatGemesseneKaelte) && (
+        <WaermeVerlaufChart rows={v.rows} stapel={v.stapel} linien={v.linien}
+          rechteEinheit="°C" />
+      )}
+      {/* W-17b: Die Grundmenge des **Betriebsart**-Stapels ist nicht der ganze
+          Wärmepumpen-Strom. In der Funktions-Sicht ist sie es (der Rest heißt
+          „Übriger Strom"), deshalb steht die Zeile dort nicht. */}
+      {v.sicht === 'betriebsart' && v.hatStapel
+        && Math.abs(v.bezugKwh - v.stromKwh) > 0.05 && (
+        <DetailListe rows={[{
+          label: 'Aufgeteilte Menge',
+          wert: `${fmt(v.bezugKwh)} von ${fmt(v.stromKwh)} kWh`,
+        }]} />
+      )}
+      {restZeilen.length > 0 && (
+        <DetailListe rows={restZeilen.map((r) => ({ label: r.label, wert: `${fmt(r.kwh, 1)} kWh` }))} />
+      )}
+    </div>
+  )
+}
+
 export function baueKomponentenBloecke(
   d: AktuellerMonatResponse,
   park: ParkApi = NOOP_PARK,
@@ -525,29 +604,15 @@ export function baueKomponentenBloecke(
     const verlauf = wpVerlauf && wpVerlauf.length > 0 ? baueWaermeVerlauf(wpVerlauf) : null
     // N-437/E6 (a): Der Rest steht je Größe da — und das Element erscheint auch,
     // wenn NUR ein Rest da ist, sonst bliebe genau dieser Fall unsichtbar (S3).
-    const restZeilen = verlaufRestZeilen(wpVerlaufRest)
-    if (verlauf && zeigtVerlauf(verlauf, wpVerlaufRest)) wpEls.push({
+    if (verlauf && wpVerlauf && zeigtVerlauf(verlauf, wpVerlaufRest)) wpEls.push({
       id: 'el:wp-verlauf',
       // W-8 — der Titel nennt, was wirklich drinsteht (Strom · Wärme · Kälte).
-      // Die Temperatur ist Kontext, keine Größe der Anlage.
+      // Die Temperatur ist Kontext, keine Größe der Anlage. Seit WK-09 B2 hängt
+      // er an der gewählten Sicht und wird deshalb IM Element gezeichnet; hier
+      // steht der Titel der voreingestellten Sicht für den Parkplatz-Chip.
       titel: verlaufTitel(verlauf),
-      node: (
-        <div className="space-y-3">
-          {(verlauf.hatStapel || verlauf.hatGemesseneWaerme || verlauf.hatGemesseneKaelte) && (
-            <WaermeVerlaufChart rows={verlauf.rows} stapel={verlauf.stapel} linien={verlauf.linien}
-              rechteEinheit="°C" />
-          )}
-          {verlauf.hatStapel && Math.abs(verlauf.bezugKwh - verlauf.stromKwh) > 0.05 && (
-            <DetailListe rows={[{
-              label: 'Aufgeteilte Menge',
-              wert: `${fmt(verlauf.bezugKwh)} von ${fmt(verlauf.stromKwh)} kWh`,
-            }]} />
-          )}
-          {restZeilen.length > 0 && (
-            <DetailListe rows={restZeilen.map((r) => ({ label: r.label, wert: `${fmt(r.kwh, 1)} kWh` }))} />
-          )}
-        </div>
-      ),
+      titelImNode: true,
+      node: <WaermeVerlaufElement punkte={wpVerlauf} rest={wpVerlaufRest} />,
     })
     // ⛔ **Bauschnitt 8 / E1 (b): Der Balken „Wärme-Aufteilung" ist entfallen.**
     // Seine zwei Zahlen stehen jetzt in den Gruppen Heizen und Warmwasser —

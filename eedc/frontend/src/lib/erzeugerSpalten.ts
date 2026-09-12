@@ -16,9 +16,16 @@
  *  - **Nur Geräte, die es im Zeitraum gab** ([[feedback_anschaffungsdatum_grenze]]).
  *    Ein im Juni gekauftes BKW fehlt im Januar zu Recht und darf dort nicht als
  *    „ohne Sensor" gemeldet werden.
+ *
+ * ⭐ **Seit 12.09.2026 steht hier auch die Senken-Hälfte derselben Regel**
+ * ({@link wpSplitSerien}/{@link wpRestKw}): Der Butterfly-Stundenverlauf
+ * schlüsselt eine Wärmepumpe mit getrennten Leistungssensoren nach Funktion
+ * auf, und das ist Aufschlüsselung-plus-Rest wie bei den PV-Strings — nur mit
+ * umgekehrtem Vorzeichen. Zwei Dateien für eine Regel mit zwei Vorzeichen
+ * wären die Drift, gegen die diese Datei gebaut ist.
  */
 import type { Investition } from '../types'
-import type { TagWerte } from '../api/energie_profil'
+import type { SerieInfo, TagWerte } from '../api/energie_profil'
 import { compareTyp } from './constants'
 import { erzeugerMetriken, type WerteMetrik } from './werte'
 
@@ -98,6 +105,92 @@ export function pvRestKw(
 ): number {
   const summe = keys.reduce((a, k) => a + Math.max(0, komponenten?.[k] ?? 0), 0)
   return Math.max(0, (pvKw ?? 0) - summe)
+}
+
+/** Suffixe, mit denen der Leistungspfad **eine** Wärmepumpe je Funktion führt.
+ *  Spiegel: `backend/services/live_sensor_config.py::baue_investitions_serien`
+ *  (`waermepumpe_<id>_heizen` / `_warmwasser`, nur ohne „Leistung gesamt"). */
+const WP_SPLIT_SUFFIX = /_(heizen|warmwasser)$/
+
+/**
+ * Die Funktions-Serien einer Wärmepumpe aus der Serienliste eines Tages.
+ *
+ * Sie tragen die Kategorie `waermepumpe` und fallen deshalb aus `extraSerien`
+ * heraus (`DEDIZIERTE_KATEGORIEN`) — das ist richtig so: dort lägen sie
+ * **zusätzlich** zur `wp`-Fläche im Stapel, also dieselbe Energie zweimal.
+ * Als eigene Prop schlüsseln sie die vorhandene WP-Fläche auf, genau wie
+ * {@link baueErzeugerSpalten} es für die PV-Seite tut.
+ */
+export function wpSplitSerien(serien: SerieInfo[]): SerieInfo[] {
+  return serien.filter((s) => s.kategorie === 'waermepumpe' && WP_SPLIT_SUFFIX.test(s.key))
+}
+
+/**
+ * Die Funktions-Flächen einer Stunde — **auf den Zähler gedeckelt** (N-449).
+ *
+ * ⭐ **Zähler = Menge, Leistungspfad = Form.** Liegt neben den getrennten
+ * Leistungssensoren ein kWh-Zähler am Gerät, ist er die Wahrheit über die
+ * **Menge** dieser Stunde (`geraete_spalte_kw`: „Zähler schlägt Leistungspfad").
+ * Die beiden Leistungsreihen sagen dann nicht mehr, *wie viel* verbraucht
+ * wurde, sondern *wie es sich verteilt* — genau die Doktrin, mit der der
+ * Wärme/Klima-Verlauf seine Stunden bildet (`tages_stapel.py`: *„Die Stunde
+ * verteilt den Tag — sie rechnet ihn nicht neu"*).
+ *
+ * ⛔ **Warum das nötig ist (K1, SOLL §3.2).** Ist Σ|Split| **größer** als der
+ * Zähler, kann keine nicht-negative Rest-Fläche die Stapelhöhe halten — der
+ * Senken-Stapel stünde um die Drift höher als die Gesamtmenge, und
+ * `hausverbrauch` daneben rechnet weiter mit dem Zähler. Gemessen 12.09.2026 an
+ * einer gestellten Stunde: Zähler 2,4 kW gegen Σ Split 3,0 kW ⇒ 0,6 kW zu viel
+ * im Stapel. Skaliert liegen dort 1,6 und 0,8 — Σ exakt 2,4.
+ *
+ * ⚠ **Nur nach unten.** Ist Σ|Split| **kleiner** als der Zähler, wird nichts
+ * gestreckt: Was die beiden Reihen nicht erklären, ist eine echte Restgröße und
+ * heißt {@link wpRestKw} — eine hochskalierte Funktionsfläche wäre dagegen eine
+ * Behauptung über eine Verteilung, die niemand gemessen hat.
+ *
+ * Returns:
+ *   ``{key: kW}`` je Funktions-Serie, **negativ** wie die Quelle (Senke, N-261).
+ */
+export function wpSplitKw(
+  wpKw: number | null | undefined,
+  komponenten: Record<string, number> | null | undefined,
+  keys: string[],
+): Record<string, number> {
+  const roh = keys.map((k) => Math.min(0, komponenten?.[k] ?? 0))
+  const summe = roh.reduce((a, v) => a + Math.abs(v), 0)
+  const zaehler = Math.abs(wpKw ?? 0)
+  const faktor = summe > zaehler && summe > 0 ? zaehler / summe : 1
+  const werte: Record<string, number> = {}
+  keys.forEach((k, i) => { werte[k] = roh[i] * faktor })
+  return werte
+}
+
+/**
+ * Ungedeckter Wärmepumpen-Anteil einer Stunde: die Sammelspalte minus der
+ * Summe der aufgeschlüsselten Funktions-Serien — die **Senken-Hälfte** von
+ * {@link pvRestKw}, mit demselben Zweck und demselben Vorzeichen-Vorbehalt.
+ *
+ * Zwei Unterschiede zur Quellen-Seite, beide gemessen (12.09.2026):
+ *  - `TagesEnergieProfil.komponenten` führt Senken **negativ** (Leistungspfad,
+ *    `seite: "senke"` ⇒ `-abs(...)`, N-261) — deshalb `Math.abs` je Key statt
+ *    `Math.max(0, …)`. Mit der PV-Regel käme hier immer Σ = 0 heraus.
+ *  - Ohne kWh-Zähler ist `waermepumpe_kw` **exakt** `|Σ Split|`
+ *    (`geraete_spalte_kw`-Fallback) ⇒ der Rest ist 0 und erscheint nicht.
+ *    Er entsteht nur, wo ein Zähler danebensteht (Fall R-a) und beide Pfade
+ *    auseinanderliegen — dann ist er die ehrliche Restgröße statt einer
+ *    stillen Differenz.
+ *
+ * ⚑ **Die Gegenrichtung deckelt {@link wpSplitKw}** (N-449): Ist Σ|Split|
+ * größer als der Zähler, wird dort skaliert, und dieser Rest ist 0 — die
+ * Formel unten bleibt davon unberührt, weil sie ohnehin bei 0 klemmt.
+ */
+export function wpRestKw(
+  wpKw: number | null | undefined,
+  komponenten: Record<string, number> | null | undefined,
+  keys: string[],
+): number {
+  const summe = keys.reduce((a, k) => a + Math.abs(komponenten?.[k] ?? 0), 0)
+  return Math.max(0, Math.abs(wpKw ?? 0) - summe)
 }
 
 /** Wortlaut-SoT des Hinweises unter der Tabelle — eine Formulierung, ein Ort. */

@@ -255,6 +255,11 @@ export function baueTagWaermeVerlauf(
     wp_modus_gemessen: z.wp_modus_gemessen,
     wp_modus_abdeckung_h: z.wp_modus_abdeckung_h,
     wp_modus_strom_bezug_kwh: z.wp_modus_strom_bezug_kwh,
+    // WK-09 B2: die Funktions-Summanden derselben Stunde. `null` heißt „an
+    // diesem Tag nicht erfasst" — dann gibt es die Sicht „nach Funktion" nicht.
+    wp_funktion_strom_heizen_kwh: z.wp_funktion_strom_heizen_kwh ?? null,
+    wp_funktion_strom_warmwasser_kwh: z.wp_funktion_strom_warmwasser_kwh ?? null,
+    wp_funktion_uebrige_kwh: z.wp_funktion_uebrige_kwh ?? null,
   }))
 }
 
@@ -276,6 +281,7 @@ export function baueTagKomponentenUndFinanz(
             strom: wpVerlaufStunden.ohne_stundenform_kwh,
             waerme: wpVerlaufStunden.waerme_ohne_stundenform_kwh,
             kaelte: wpVerlaufStunden.kaelte_ohne_stundenform_kwh,
+            funktion: wpVerlaufStunden.funktion_ohne_stundenform_kwh,
           }
         : null,
     ),

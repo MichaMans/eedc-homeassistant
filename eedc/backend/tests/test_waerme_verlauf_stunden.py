@@ -303,3 +303,207 @@ class TestRouteGegenTagDetail:
         assert len(v.stunden) == 24
         assert all(s.wp_modus_strom_heizen_kwh is None for s in v.stunden)
         assert all(s.wp_waerme_kwh is None for s in v.stunden)
+
+
+# ── Der Funktions-Stapel (WK-09 B2, SOLL §3.3/S2a) ───────────────────────
+#
+# ⭐ **Eine andere Familie neben dem Betriebsart-Stapel, nie im selben Balken.**
+# `strom_heizen_kwh`/`strom_warmwasser_kwh` sind **Summanden** des Gesamtstroms
+# (Sprosse F5), `betriebsart_strom_*` sind **Teilmengen** (F4). Sie zu addieren
+# ist der Fehler aus SOLL §3.2, an dem schon ein Tester gescheitert ist —
+# deshalb schaltet der Verlauf um, statt zu überlagern.
+#
+# **Gemessen (12.09.2026):** Ein Funktions-Zähler bekommt dieselbe Stundenform
+# wie die Wärmelinie — `lade_stundenformen` liest ihn generisch aus derselben
+# Standreihe. 12 kWh Heizen in zwei Stunden liegen als 6,0/6,0 in Slot 6 und 18.
+
+#: 12 kWh Heizen in genau ZWEI Slots (6 und 18) à 6,0 — eine Form, die eine
+#: Gleichverteilung sofort verrät (0,5 je Slot statt 6,0).
+FUNK_HEIZEN_JE_SLOT = [6.0 if k in (6, 18) else 0.0 for k in range(25)]
+#: 3 kWh Warmwasser in drei anderen Slots à 1,0.
+FUNK_WW_JE_SLOT = [1.0 if k in (7, 12, 20) else 0.0 for k in range(25)]
+FUNK_STANDBY = 0.1
+
+
+async def _anlage_funktionszaehler(db, *, mit_funktionszaehler: bool = True):
+    """Eine WP der Sprosse **F5**: getrennte Zähler Heizen/Warmwasser plus
+    Gesamtzähler — **kein** Betriebsart-Zähler, **kein** Modus-Signal. Genau die
+    Lage, in der der Betriebsart-Stapel nichts zu sagen hat."""
+    anlage = Anlage(anlagenname="B2", leistung_kwp=10.0, installationsdatum=date(2025, 1, 1))
+    db.add(anlage)
+    await db.flush()
+    wp = Investition(anlage_id=anlage.id, typ="waermepumpe", bezeichnung="Luft-Wasser",
+                     anschaffungsdatum=date(2025, 1, 1), anschaffungskosten_gesamt=15000.0,
+                     parameter={"wp_art": "luft_wasser"})
+    db.add(wp)
+    await db.flush()
+
+    t0 = datetime.combine(DATUM, datetime.min.time())
+    heiz, ww, ges = 100.0, 50.0, 200.0
+    reihen: dict[str, dict[int, float]] = {
+        "strom_heizen_kwh": {}, "strom_warmwasser_kwh": {}, "stromverbrauch_kwh": {},
+    }
+    for k in range(-1, 25):
+        if k >= 0:
+            heiz += FUNK_HEIZEN_JE_SLOT[k]
+            ww += FUNK_WW_JE_SLOT[k]
+            ges += FUNK_HEIZEN_JE_SLOT[k] + FUNK_WW_JE_SLOT[k] + FUNK_STANDBY
+        reihen["strom_heizen_kwh"][k] = heiz
+        reihen["strom_warmwasser_kwh"][k] = ww
+        reihen["stromverbrauch_kwh"][k] = ges
+
+    felder = {}
+    for feld, reihe in reihen.items():
+        if not mit_funktionszaehler and feld != "stromverbrauch_kwh":
+            continue
+        felder[feld] = {"strategie": "sensor", "sensor_id": f"sensor.{feld}"}
+        for k, wert in reihe.items():
+            db.add(SensorSnapshot(anlage_id=anlage.id, sensor_key=f"inv:{wp.id}:{feld}",
+                                  zeitpunkt=t0 + timedelta(hours=k), wert_kwh=wert,
+                                  quelle="ha_statistics"))
+    anlage.sensor_mapping = {"investitionen": {str(wp.id): {"felder": felder}}}
+
+    bezug = reihen["stromverbrauch_kwh"][23] - reihen["stromverbrauch_kwh"][-1]
+    tz = TagesZusammenfassung(anlage_id=anlage.id, datum=DATUM, komponenten_kwh={
+        f"waermepumpe_{wp.id}": round(bezug, 3),
+    })
+    seed_tz_provenance(tz, writer="test", source=TZ_QUELLE_LTS)
+    db.add(tz)
+    for h in range(24):
+        db.add(TagesEnergieProfil(
+            anlage_id=anlage.id, datum=DATUM, stunde=h,
+            waermepumpe_kw=FUNK_HEIZEN_JE_SLOT[h] + FUNK_WW_JE_SLOT[h] + FUNK_STANDBY,
+        ))
+    await db.commit()
+    return anlage, wp
+
+
+class TestFunktionsStapel:
+    async def test_die_stunde_traegt_die_gemessene_form(self, db):
+        """Einzelwerte, keine Summe: Slot 6 heizt 6,0 und wärmt kein Wasser,
+        Slot 7 umgekehrt. Eine Gleichverteilung stünde bei 0,5 bzw. 0,125."""
+        from backend.api.routes.energie_profil.views import get_waerme_verlauf_stunden
+
+        anlage, _wp = await _anlage_funktionszaehler(db)
+        v = await get_waerme_verlauf_stunden(anlage.id, DATUM, db)
+
+        assert v.funktions_stapel_verfuegbar is True
+        s6 = v.stunden[6]
+        assert s6.wp_funktion_strom_heizen_kwh == pytest.approx(6.0, abs=1e-3)
+        assert s6.wp_funktion_strom_warmwasser_kwh == pytest.approx(0.0, abs=1e-3)
+        # Der Rest hält die Höhe auf dem Gesamtstrom: 6,1 − 6,0 = 0,1 Standby.
+        assert s6.wp_strom_kwh == pytest.approx(6.1, abs=1e-3)
+        assert s6.wp_funktion_uebrige_kwh == pytest.approx(0.1, abs=1e-3)
+
+        s7 = v.stunden[7]
+        assert s7.wp_funktion_strom_heizen_kwh == pytest.approx(0.0, abs=1e-3)
+        assert s7.wp_funktion_strom_warmwasser_kwh == pytest.approx(1.0, abs=1e-3)
+        assert s7.wp_funktion_uebrige_kwh == pytest.approx(0.1, abs=1e-3)
+
+        # Eine Stunde ganz ohne Funktion ist reiner Rest, keine Lücke.
+        s5 = v.stunden[5]
+        assert s5.wp_funktion_strom_heizen_kwh == 0.0
+        assert s5.wp_funktion_uebrige_kwh == pytest.approx(0.1, abs=1e-3)
+
+    async def test_summe_der_stunden_ist_der_tageswert(self, db):
+        """Σ Stunden = Tageszähler je Funktion (S1) — und Σ aller drei Segmente
+        = Σ Gesamtstrom, das ist K1 in dieser Sicht."""
+        from backend.api.routes.energie_profil.views import (
+            get_tag_detail, get_waerme_verlauf_stunden,
+        )
+
+        anlage, _wp = await _anlage_funktionszaehler(db)
+        tag = await get_tag_detail(anlage.id, DATUM, db)
+        v = await get_waerme_verlauf_stunden(anlage.id, DATUM, db)
+
+        assert v.funktion_ohne_stundenform_kwh is None
+        assert sum(s.wp_funktion_strom_heizen_kwh for s in v.stunden) == pytest.approx(12.0, abs=1e-3)
+        assert sum(s.wp_funktion_strom_warmwasser_kwh for s in v.stunden) == pytest.approx(3.0, abs=1e-3)
+        # Dieselben Zahlen wie die Tages-Kacheln daneben.
+        assert tag.wp_strom_heizen_kwh == pytest.approx(12.0, abs=1e-3)
+        assert tag.wp_strom_warmwasser_kwh == pytest.approx(3.0, abs=1e-3)
+        # K1: die Stapelhöhe ist der Gesamtstrom, Slot für Slot.
+        for s in v.stunden:
+            assert (
+                s.wp_funktion_strom_heizen_kwh
+                + s.wp_funktion_strom_warmwasser_kwh
+                + s.wp_funktion_uebrige_kwh
+            ) == pytest.approx(s.wp_strom_kwh, abs=1e-3)
+
+    async def test_ohne_funktionszaehler_gibt_es_die_sicht_nicht(self, db):
+        """S2a: „nach Funktion" erscheint nur, wo Funktions-Zähler gepflegt sind
+        — sonst wären es 24 Nullen unter einer Überschrift (P4)."""
+        from backend.api.routes.energie_profil.views import get_waerme_verlauf_stunden
+
+        anlage, _wp = await _anlage_funktionszaehler(db, mit_funktionszaehler=False)
+        v = await get_waerme_verlauf_stunden(anlage.id, DATUM, db)
+
+        assert v.funktions_stapel_verfuegbar is False
+        assert all(s.wp_funktion_strom_heizen_kwh is None for s in v.stunden)
+        assert all(s.wp_funktion_strom_warmwasser_kwh is None for s in v.stunden)
+        assert all(s.wp_funktion_uebrige_kwh is None for s in v.stunden)
+
+    async def test_der_betriebsart_stapel_bleibt_unberuehrt(self, db):
+        """Die zweite Sicht ändert die erste nicht — dieselbe Anlage wie
+        `TestRouteGegenTagDetail`, dieselben Zahlen."""
+        from backend.api.routes.energie_profil.views import get_waerme_verlauf_stunden
+
+        anlage, _wp1, _wp2 = await _anlage(db)
+        v = await get_waerme_verlauf_stunden(anlage.id, DATUM, db)
+
+        assert v.funktions_stapel_verfuegbar is False
+        assert v.stunden[3].wp_modus_strom_heizen_kwh == pytest.approx(0.5 + 0.4 * 12 / 9.6, abs=1e-3)
+        assert v.stunden[3].wp_waerme_kwh == pytest.approx(1.5, abs=1e-3)
+
+    async def test_menge_ohne_stundenform_wird_genannt(self, db):
+        """P4: Was in keinen Slot fällt, wird **benannt** statt verteilt.
+
+        Die Lage ist die im Modul-Kopf von `tages_stapel.py` genannte: Der
+        Tageswert steht im **Vorwärts**-Fenster [00:00, 24:00) (Snapshot-Pfad,
+        keine LTS-Provenance), die Slots liegen im Rückwärts-Raster
+        [Vortag 23:00, heute 23:00). Ein Zuwachs zwischen 23 und 24 Uhr gehört
+        damit zum Tag, aber zu keinem Slot — er darf nicht auf die 24 Stunden
+        verschmiert werden (ADR-002/P4, E6 (a)).
+        """
+        from backend.api.routes.energie_profil.views import get_waerme_verlauf_stunden
+
+        anlage = Anlage(anlagenname="B2rand", leistung_kwp=10.0,
+                        installationsdatum=date(2025, 1, 1))
+        db.add(anlage)
+        await db.flush()
+        wp = Investition(anlage_id=anlage.id, typ="waermepumpe", bezeichnung="Luft-Wasser",
+                         anschaffungsdatum=date(2025, 1, 1), anschaffungskosten_gesamt=15000.0,
+                         parameter={"wp_art": "luft_wasser"})
+        db.add(wp)
+        await db.flush()
+
+        t0 = datetime.combine(DATUM, datetime.min.time())
+        # Der ganze Warmwasser-Zuwachs (2,0 kWh) liegt in [23:00, 24:00).
+        ww, ges = 50.0, 200.0
+        felder = {}
+        for feld in ("strom_warmwasser_kwh", "stromverbrauch_kwh"):
+            felder[feld] = {"strategie": "sensor", "sensor_id": f"sensor.{feld}"}
+        for k in range(-1, 25):
+            if k == 24:
+                ww += 2.0
+                ges += 2.0
+            db.add(SensorSnapshot(anlage_id=anlage.id, sensor_key=f"inv:{wp.id}:strom_warmwasser_kwh",
+                                  zeitpunkt=t0 + timedelta(hours=k), wert_kwh=ww,
+                                  quelle="ha_statistics"))
+            db.add(SensorSnapshot(anlage_id=anlage.id, sensor_key=f"inv:{wp.id}:stromverbrauch_kwh",
+                                  zeitpunkt=t0 + timedelta(hours=k), wert_kwh=ges,
+                                  quelle="ha_statistics"))
+        anlage.sensor_mapping = {"investitionen": {str(wp.id): {"felder": felder}}}
+        # ⚠ KEINE LTS-Provenance ⇒ Vorwärtsfenster für den Tageswert.
+        db.add(TagesZusammenfassung(anlage_id=anlage.id, datum=DATUM,
+                                    komponenten_kwh={f"waermepumpe_{wp.id}": 2.0}))
+        for h in range(24):
+            db.add(TagesEnergieProfil(anlage_id=anlage.id, datum=DATUM, stunde=h,
+                                      waermepumpe_kw=0.0))
+        await db.commit()
+
+        v = await get_waerme_verlauf_stunden(anlage.id, DATUM, db)
+        assert v.funktions_stapel_verfuegbar is True
+        # Keine Stunde bekommt etwas — und die 2,0 kWh stehen als genannte Menge da.
+        assert all(s.wp_funktion_strom_warmwasser_kwh == 0.0 for s in v.stunden)
+        assert v.funktion_ohne_stundenform_kwh == pytest.approx(2.0, abs=0.02)

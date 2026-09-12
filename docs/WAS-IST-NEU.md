@@ -11,6 +11,56 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Der Stundenverlauf trennt Heizen und Warmwasser**
+
+Misst du an deiner Wärmepumpe die Leistung für *Heizen* und *Warmwasser*
+getrennt und lässt *Leistung gesamt* leer, zeichnet *Cockpit → Live* seit jeher
+**zwei** Flächen. Einen Klick weiter, im Stundenverlauf von *Cockpit → Tag*, war
+daraus **eine** graue Fläche geworden — obwohl die Aufteilung in derselben
+Antwort danebenstand. Jetzt siehst du dort dieselben zwei Flächen, in denselben
+Farben (Heizen rot, Warmwasser blau) und unter denselben Namen.
+
+Die Aufteilung **ersetzt** die alte Fläche, sie liegt nicht darauf: Die Höhe des
+Stapels bleibt gleich, deine Energiebilanz ändert sich nicht. Hast du zusätzlich
+einen kWh-Zähler am Gerät und weicht er vom Leistungspfad ab, steht die Differenz
+als *„Wärmepumpe (übrige)"* daneben — sichtbar statt still. Liegt der Zähler
+umgekehrt **unter** der Summe der beiden Leistungsreihen, teilt eedc den **Zähler**
+nach deren Form auf: Der Zähler sagt, wie viel es war, die beiden Leistungsreihen
+sagen, wie es sich verteilt. So bleibt die Höhe des Stapels in jedem Fall deine
+gemessene Menge.
+
+Und im Live-Bild verschwindet ein Widerspruch: Über den beiden gezeichneten
+Flächen stand bisher der Satz *„Nicht dargestellt (kein HA-Leistungssensor)"* —
+für ein Gerät, das direkt darunter zu sehen war.
+
+**Betrifft dich das?** Nur mit getrennten Leistungssensoren für Heizen und
+Warmwasser und ohne *Leistung gesamt*.
+**Was du tun musst:** nichts. Es ändert sich keine Zahl.
+
+**Wärme/Klima-Verlauf: nach Betriebsart oder nach Funktion**
+
+Pflegst du **getrennte Stromzähler für Heizen und Warmwasser**, gab es diese
+Aufteilung bisher nur als Tagessumme — der Verlauf stapelte ausschließlich nach
+*Betriebsart*. Über dem Verlauf steht jetzt ein Umschalter, und die zweite Sicht
+zeigt dir je Stunde *Heizen · Warmwasser · Übriger Strom*.
+
+Beides zusammen in einen Balken zu legen wäre falsch, und das ist der Grund für
+den Umschalter: Die **Betriebsart**-Zähler sind Ausschnitte deines Stroms (der
+Rest heißt *nicht aufgeteilt*), die **Funktions**-Zähler sind Summanden (Heizen +
+Warmwasser + Übriger Strom = Gesamtstrom). eedc zeigt deshalb immer genau eine
+der beiden Familien und schreibt im Titel, welche.
+
+Dazu ein Punkt, der oft für Verwirrung sorgt: Ein **Betriebsart**-Zähler kann
+Warmwasser gar nicht abtrennen — eedc bietet solche Zähler für Heizen, Kühlen,
+Lüften und Entfeuchten an, nicht für Warmwasser. Bei einem solchen Gerät steckt
+der Warmwasser-Strom im Segment *Heizen*. Wer die Trennung sehen will, braucht
+die getrennten Funktions-Zähler.
+
+**Betrifft dich das?** Nur mit getrennten Stromzählern für Heizen/Warmwasser.
+Ohne sie erscheint der Umschalter nicht.
+**Was du tun musst:** nichts. Voreingestellt bleibt die gewohnte Sicht nach
+Betriebsart; die Linien für Wärme, Kälte und Außentemperatur stehen in beiden.
+
 **Eine Arbeitszahl über Gerätegrenzen verschwindet — und sagt warum**
 
 Hast du zwei Wärmepumpen und misst an der einen die Wärme, an der anderen den
