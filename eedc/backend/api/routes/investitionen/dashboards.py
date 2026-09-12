@@ -99,7 +99,9 @@ from backend.core.field_definitions import (
 from backend.core.berechnungen import betriebsart_nutzenergie_kwh, modus_strom_zeile
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_JE_ABGRENZUNG,
+    abgrenzungs_grund,
     ersparnis_vorbehalt,
+    waerme_gesamt_kwh,
     waerme_herkunft,
     arbeitszahl,
     arbeitszahl_je_funktion,
@@ -941,6 +943,10 @@ async def get_waermepumpe_dashboard(
         # **gepflegte JAZ** zurück — eine Zahl, die nichts misst und in einem
         # Jahresvergleich wie eine Messreihe aussieht.
         jaz_je_monat: list[dict] = []
+        # N-441: (Wärme, Strom) je Monatszeile — die Grundlage der Perioden-Lage
+        # der **Gesamt**zahl unten. Sie entsteht erst ÜBER die Zeilen und ist an
+        # einer einzelnen nicht sichtbar.
+        _hub_zeilen: list[tuple[float, float]] = []
         for md in monatsdaten:
             d = md.verbrauch_daten or {}
             # **Gemessen schlägt abgeleitet** (ADR-002/P8), je Monatszeile.
@@ -993,7 +999,20 @@ async def get_waermepumpe_dashboard(
             # kumulierte Marke): ein einzelner abgeleiteter Monat darf die
             # übrigen nicht entwerten, und ein gemessener nicht von einem
             # abgeleiteten profitieren.
-            _md_waerme = d.get('heizenergie_kwh', 0) + _ww
+            #
+            # ⭐ **Die Zeile liest ihre Wärme wie der Layer (N-441, Fall K).**
+            # Hier stand bis zum 12.09.2026 `heizenergie + _ww` — ohne den
+            # kanonischen Vorrang „Gesamtwert vor Summanden" (D1). Ein Gerät,
+            # dessen Monat nur `waerme_kwh` trägt (per Import erreichbar), sah
+            # für den Hub aus wie ein Monat ohne Wärme, während der Layer
+            # 1800 kWh las: Cockpit sperrte, der Hub zeigte 3,0. Dieselbe
+            # Klasse wie N-397 — der Hub las roh, was der Layer kanonisch liest.
+            _md_waerme = waerme_gesamt_kwh(
+                d.get('waerme_kwh'), d.get('heizenergie_kwh'), _ww,
+            )
+            _hub_zeilen.append(
+                (_md_waerme, get_wp_strom_kwh(d, wp.parameter)),
+            )
             _md_az = arbeitszahl(
                 _md_waerme, get_wp_strom_kwh(d, wp.parameter),
                 waerme_abgeleitet_kwh=(
@@ -1085,8 +1104,28 @@ async def get_waermepumpe_dashboard(
         # abgeleitete verteilt den vorhandenen Gesamtstrom, der gemessene ist
         # seit W-16 in `get_wp_strom_kwh` enthalten — die Menge steckt also so
         # oder so im Nenner, bevor sie abgezogen wird.
-        _wp_abgrenzung_gesamt = GRUND_JE_ABGRENZUNG.get(
-            abgrenzung_stoerung(wp) or ""
+        # ⭐ **N-441: die Perioden-Lage erreicht die Hub-Gesamtzahl.** Ein Monat
+        # trägt Wärme ohne Strom, ein anderer trägt Strom — die Summe nimmt
+        # beide Seiten mit. Gemessen an EINEM Gerät (März 1800 kWh Wärme ohne
+        # Strom, Juli 1800/600): der Hub zeigte **6,0 ohne Grund**, wortgleich
+        # zu *Cockpit → Jahr*, das dieselbe Lage nicht sah.
+        #
+        # ⚠ **Und deshalb steht hier jetzt die Kette statt `GRUND_JE_ABGRENZUNG`.**
+        # Ein zweiter Weg neben `abgrenzungs_grund` wäre genau der Turm, den
+        # W-15 an dieser Zeile schon einmal abgetragen hat; die Anwender-Angabe
+        # bleibt vorn, weil die Kette sie zuerst fragt.
+        #
+        # ⚑ **Warum sperren und nicht „zeilenweise wie je Funktion"?** Die
+        # Gesamtzahl summiert alle Zeilen; sie zeilenweise zu machen wäre ein
+        # **neuer** Rechenweg neben der Cockpit-Jahreszahl. SOLL §3.3/**S1**
+        # verlangt denselben Wert für dieselbe Größe — und die Kette gibt es
+        # schon. (Hub **je Funktion** bleibt zeilenweise, Entscheid E5 a.)
+        _wp_abgrenzung_gesamt = abgrenzungs_grund(
+            abgrenzung_stoerung=abgrenzung_stoerung(wp),
+            perioden_versetzt=(
+                any(w > 0 and e == 0 for w, e in _hub_zeilen)
+                and any(e > 0 for _, e in _hub_zeilen)
+            ),
         )
         _az_gesamt = arbeitszahl(
             gesamt_waerme, gesamt_strom,

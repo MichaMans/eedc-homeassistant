@@ -511,6 +511,11 @@ def _monatswert(
                 abgrenzung_stoerung=wp.abgrenzung_stoerung,
                 bauarten_gemischt=wp.bauarten_gemischt,
                 geraete_ohne_waerme=wp.waerme_deckt_nicht_alle_geraete,
+                # N-441: die Gegenrichtung. Waerme von Geraet A und Strom von
+                # Geraet B ergaben bis zum 12.09.2026 `1 == 1` — der Monat ging
+                # als **belastbar** hinaus, und der Server bildete daraus einen
+                # Regionalwert fuer fremde Anlagen.
+                geraete_verschieden=wp.geraete_verschieden,
             ) is None
             and wp.jaz_belastbar
         )

@@ -712,6 +712,8 @@ async def list_monatsdaten_aggregiert(
                 abgrenzung_stoerung=f.wp.abgrenzung_stoerung,
                 bauarten_gemischt=f.wp.bauarten_gemischt,
                 geraete_ohne_waerme=f.wp.waerme_deckt_nicht_alle_geraete,
+                # N-441: Waerme von einem Geraet, Strom von einem anderen.
+                geraete_verschieden=f.wp.geraete_verschieden,
             ),
         )
 

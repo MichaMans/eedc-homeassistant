@@ -26,6 +26,7 @@ Layer, damit ihre Bedingungen mitwandern — nicht nur ihr Rechenweg.
 
 from __future__ import annotations
 
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import Optional
 
@@ -183,6 +184,44 @@ GRUND_FREMDWAERME = "zweiter Erzeuger am Wärmezähler"
 #: wäre einer aus zwei Wirklichkeiten.
 GRUND_ZEITRAUM = "Zähler messen verschiedene Zeiträume"
 
+#: **N-441 — die Block-Ebene bekommt die zweite Richtung.** Wärme von einem
+#: Gerät, Strom von einem anderen: beide Seiten tragen Geräte, aber nicht
+#: dieselben.
+#:
+#: ⛔ **Warum {@link GRUND_GERAETE_OHNE_WAERME} das nicht abdeckt.** Jener Satz
+#: ist **gerichtet** — „im Nenner der Strom von allen, im Zähler die Wärme von
+#: weniger" (Handbuch §4). Er beschreibt die echte Teilmenge ``w ⊊ s`` und
+#: stimmt dort. In der Gegenrichtung (ein Gerät meldet Wärme, sein Strom fehlt)
+#: kippt die Zahl nach **oben**, und ein Rat, „einen Wärmemengenzähler
+#: zuzuordnen", ginge ins Leere. Gemessen am Anlassfall (Wärme 2400 von A,
+#: Heizstrom 800 von B): **3,0 ohne jeden Grund**, an die Community als
+#: belastbar gemeldet.
+#:
+#: ⚠ Wortgleich zu seinem Funktions-Zwilling
+#: {@link GRUND_FUNKTION_NICHT_DECKUNGSGLEICH}, nur ohne „dieser Funktion" —
+#: hier geht es um die **Gesamt**zahl des Blocks. Und wie dort nennt er die
+#: Ursache, nicht den Ausweg: einen allgemeingültigen gibt es nicht.
+GRUND_GERAETE_VERSCHIEDEN = "Wärme und Strom stammen von verschiedenen Geräten"
+
+#: **N-441 — dieselbe Störung über die ZEIT statt über die Geräte**, auf der
+#: Block-Ebene. Das Block-Analogon zu
+#: {@link GRUND_FUNKTION_VERSCHIEDENE_MONATE}.
+#:
+#: Ein Monat trägt Wärme **ohne** Strom, ein anderer trägt Strom: Die
+#: Jahressumme nimmt beide mit und ergäbe eine zu hohe Zahl (gemessen **6,0**
+#: statt 3,0 in *Cockpit → Jahr* **und** im Komponenten-Hub). Bis hierher sah
+#: die Block-Regel nur den einzelnen Monat und faltete ihn mit ``any(...)`` —
+#: eine Lage, die erst über mehrere Monate entsteht, konnte sie strukturell
+#: nicht sehen.
+#:
+#: ⚠ **„Wärme", nicht „Nutzenergie"** — anders als beim Funktions-Zwilling.
+#: Die Gesamtzahl des Blocks trägt **keine** Kältemenge im Zähler
+#: (``arbeitszahl`` zieht den Kühlstrom aus dem Nenner ab, W-14/E4); ihr Zähler
+#: ist Wärme, und der Satz darf das sagen.
+GRUND_GERAETE_VERSCHIEDENE_MONATE = (
+    "Wärme und Strom stammen aus verschiedenen Monaten"
+)
+
 #: **R2/Bauart — SOLL §5:** Der Block trägt Geräte **verschiedener Bauart**
 #: (Luft-Wasser-Wärmepumpe und Luft-Luft-Split-Klimaanlage). Ihre Mengen dürfen
 #: nebeneinander stehen, eine **gemeinsame Kennzahl** nicht: Sie haben
@@ -274,6 +313,8 @@ def abgrenzungs_grund(
     bauarten_gemischt: bool = False,
     geraete_ohne_waerme: bool = False,
     zeitraum_versetzt: bool = False,
+    geraete_verschieden: bool = False,
+    perioden_versetzt: bool = False,
 ) -> Optional[str]:
     """Der Grund, warum Q und E **nicht dieselbe Abgrenzung** tragen — oder ``None``.
 
@@ -308,6 +349,25 @@ def abgrenzungs_grund(
             `api/routes/aktueller_monat.py`. Hub und Tagesansicht lesen jeweils
             **eine** Quelle; dort gibt es den Fall nicht, und `False` ist deshalb
             keine Lücke, sondern die Wahrheit.
+        geraete_verschieden: `WpFakten.geraete_verschieden` — mindestens ein
+            Gerät steuert Wärme bei, ohne dass sein Strom im Nenner steht
+            (N-441). Die **Gegenrichtung** zu ``geraete_ohne_waerme``; beide
+            Lagen sind disjunkt und decken zusammen genau „beide Seiten tragen
+            Geräte, aber nicht dieselben" ab.
+        perioden_versetzt: Ein Monat trägt Wärme ohne Strom, ein anderer trägt
+            Strom (N-441). Nur der Aufrufer, der über **mehrere** Monate faltet
+            (Jahr, Hub), kann die Lage sehen; für einen einzelnen Monat ist
+            ``False`` die Wahrheit und keine Lücke.
+
+    ⭐ **Die beiden neuen Glieder hängen ans ENDE — auch hinter
+    ``zeitraum_versetzt``, und das ist gemessen:** Im Monat können
+    ``geraete_verschieden`` und ``zeitraum_versetzt`` **gemeinsam** wahr sein
+    (`api/routes/aktueller_monat.py`, Vier-Quellen-Auflösung). Stünde das neue
+    Glied davor, wechselte dort ein heute gezeigter Grund samt Hub-Link, ohne
+    dass sich an der Anlage etwas geändert hätte. Hinten angehängt ändert sich
+    **kein** bestehender Text. Untereinander gewinnt *Geräte* vor *Monate* —
+    dieselbe Entscheidung wie auf der Funktions-Ebene (N-438): Verschiedene
+    Geräte decken sich auch dann nicht, wenn jeder Monat vollständig wäre.
     """
     if abgrenzung_stoerung:
         grund = GRUND_JE_ABGRENZUNG.get(abgrenzung_stoerung)
@@ -319,6 +379,10 @@ def abgrenzungs_grund(
         return GRUND_GERAETE_OHNE_WAERME
     if zeitraum_versetzt:
         return GRUND_ZEITRAUM
+    if geraete_verschieden:
+        return GRUND_GERAETE_VERSCHIEDEN
+    if perioden_versetzt:
+        return GRUND_GERAETE_VERSCHIEDENE_MONATE
     return None
 
 
@@ -343,8 +407,15 @@ ARBEITSZAHL_FUNKTIONEN = ("heizen", "warmwasser", "kuehlen")
 #: {@link GRUND_KEINE_KAELTEMENGE}, der einen Zähler vorschlägt. Hier gibt es
 #: keinen allgemeingültigen Handgriff: Je nach Anlage ist die getrennte
 #: Strommessung des zweiten Geräts der Weg, oder es gibt schlicht keinen.
+#:
+#: ⚠ **„Nutzenergie", nicht „Wärme" (N-441, 12.09.2026).** Der Satz erscheint
+#: auch an der **Kühl**-Kennzahl (``ARBEITSZAHL_FUNKTIONEN`` trägt ``kuehlen``),
+#: und deren Zähler ist eine **Kälte**menge — seit Bauschnitt 6b eine eigene
+#: Rolle, die nicht wieder „Wärme" heißen darf. Genau dieselbe Korrektur hat
+#: N-438 einen Tag zuvor an {@link GRUND_FUNKTION_VERSCHIEDENE_MONATE}
+#: vorgenommen; hier war sie noch offen.
 GRUND_FUNKTION_NICHT_DECKUNGSGLEICH = (
-    "Wärme und Strom dieser Funktion stammen von verschiedenen Geräten"
+    "Nutzenergie und Strom dieser Funktion stammen von verschiedenen Geräten"
 )
 
 #: **N-438** — dieselbe Sperre, aber über die **Zeit** statt über die Geräte.
@@ -382,11 +453,26 @@ GRUND_FUNKTION_VERSCHIEDENE_MONATE = (
 #: ``GRUND_FREMDWAERME`` (die Angabe hängt am Gerät, der Hub sperrt genauso),
 #: die Abgeleitet-Sperre (dieselbe Regel je Gerät) und alle Datenlage-Gründe
 #: („kein Wärmemengenzähler", „kein Heizbetrieb") — dort fehlt dem Hub dasselbe.
+#:
+#: ⭐ **``GRUND_GERAETE_VERSCHIEDEN`` gehört hinein (N-441, Entscheid Gernot
+#: 12.09.2026), und zwar aus einer Messung:** Der Hub sagt in dieser Lage
+#: **nicht dasselbe** wie das Cockpit — er nennt je Gerät, welche Seite fehlt
+#: („kein Stromverbrauch erfasst" am wärmemeldenden Gerät, „kein
+#: Wärmemengenzähler zugeordnet" am strommeldenden). Das ist die Diagnose, die
+#: die anlagenweite Zahl nicht geben kann; der 10.09.-Grundsatz („ein Link auf
+#: eine Sicht, die dasselbe sagt, ist schlechter als keiner") greift hier
+#: gerade nicht.
+#:
+#: ⛔ **``GRUND_GERAETE_VERSCHIEDENE_MONATE`` gehört NICHT hinein** — der Hub
+#: sperrt seine Gesamtzahl seit N-441 mit **demselben** Grund (S1). Ein Link
+#: dorthin führte auf denselben Satz. Wie sein Funktions-Zwilling
+#: ``GRUND_FUNKTION_VERSCHIEDENE_MONATE``, der ebenfalls nicht hier steht.
 GRUENDE_HUB_HILFT: frozenset[str] = frozenset({
     GRUND_BAUARTEN_GEMISCHT,
     GRUND_GERAETE_OHNE_WAERME,
     GRUND_ZEITRAUM,
     GRUND_FUNKTION_NICHT_DECKUNGSGLEICH,
+    GRUND_GERAETE_VERSCHIEDEN,
 })
 
 
@@ -472,7 +558,7 @@ def abgrenzung_je_funktion(
     ergebnis: dict[str, Optional[str]] = {}
     for f in ARBEITSZAHL_FUNKTIONEN:
         if global_grund and trifft_alles:
-            ergebnis[f] = global_grund
+            ergebnis[f] = _ohne_waerme_wort(f, global_grund)
             continue
         if (deckung_je_funktion or {}).get(f) is False:
             # Der konkretere Grund gewinnt (S3) — er beschreibt genau DIESE
@@ -482,7 +568,7 @@ def abgrenzung_je_funktion(
             # Geräte oder andere Monate. Welche vorliegt, weiß nur der Aufrufer,
             # der über die Perioden faltet (das Jahr); er sagt es hier. Ohne
             # seine Angabe bleibt es beim Geräte-Satz — bitgleich zu vorher.
-            ergebnis[f] = global_grund or (
+            ergebnis[f] = _ohne_waerme_wort(f, global_grund) or (
                 GRUND_FUNKTION_VERSCHIEDENE_MONATE
                 if (perioden_je_funktion or {}).get(f)
                 else GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
@@ -492,7 +578,32 @@ def abgrenzung_je_funktion(
     return ergebnis
 
 
-def deckung_aus_geraetezahlen(geraete_e: int, geraete_q: int) -> Optional[bool]:
+def _ohne_waerme_wort(funktion: str, grund: Optional[str]) -> Optional[str]:
+    """Der Block-Satz „nicht alle Geräte melden Wärme" an der **Kühl**-Zeile.
+
+    ⛔ **Er darf dort nicht stehen (N-441, Fall P).** Der Zähler der Kühlzahl
+    ist eine **Kälte**menge; ein Satz über fehlende *Wärme*-Melder ist unter ihr
+    eine Falschaussage — gemessen an einer Anlage mit drei Geräten (A vollständig,
+    B nur Kälte, C nur Strom): ``wp_jaz_kuehlen_grund`` = „nicht alle Geräte
+    melden Wärme".
+
+    ⭐ **Dieselbe Klasse, die N-438 einen Tag zuvor für den Monate-Satz geheilt
+    hat** — dort durch den Wortlaut der Konstante, hier durch einen Tausch: Für
+    ``kuehlen`` tritt der **Funktions**-Satz an die Stelle des Block-Satzes. Er
+    sagt dasselbe (verschiedene Geräte) in der Sprache dieser Funktion.
+
+    ⚠ **Nur dieser eine Grund wird getauscht.** Heizstab-Angabe, gemischte
+    Bauarten und Zeitraum-Versatz beschreiben den Block und nennen keine
+    Nutzenergie-Art; sie bleiben unverändert an allen drei Zeilen stehen.
+    """
+    if funktion == "kuehlen" and grund == GRUND_GERAETE_OHNE_WAERME:
+        return GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+    return grund
+
+
+def deckung_aus_geraeten(
+    geraete_e: AbstractSet[int], geraete_q: AbstractSet[int],
+) -> Optional[bool]:
     """Deckt sich der Geräte-Kreis von Zähler und Nenner einer Funktion? (**R2**)
 
     Die Regel hinter ``WpFakten.deckung_je_funktion`` — herausgezogen, damit der
@@ -500,19 +611,28 @@ def deckung_aus_geraetezahlen(geraete_e: int, geraete_q: int) -> Optional[bool]:
     Tag). ``True`` = ja · ``False`` = nein · ``None`` = die Frage stellt sich
     nicht:
 
-    * ``(·, 0)`` — keine Nutzenergie. Entweder gab es die Funktion nicht, oder
+    * ``q`` leer — keine Nutzenergie. Entweder gab es die Funktion nicht, oder
       der Zähler fehlt; für beides hat die Kennzahl den genaueren Satz (S3).
-    * ``(0, q)`` — Nutzenergie ohne den Strom derselben Funktion ⇒ ``False``.
-    * sonst — gleiche Anzahl ⇒ ``True``.
+    * ``e`` leer, ``q`` nicht — Nutzenergie ohne den Strom derselben Funktion
+      ⇒ ``False``.
+    * sonst — **dieselben Geräte** (``e == q``) ⇒ ``True``.
 
-    ⚠ **Gezählt wird der BEITRAG, nicht die Stammdaten** — der Aufrufer zählt
+    ⛔ **Identität, nicht Anzahl (N-441, 12.09.2026).** Bis dahin nahm die Regel
+    zwei ``int`` und verglich ``geraete_e == geraete_q``. Der Anlassfall fiel
+    damit durch: Gerät A meldet 2400 kWh Wärme, Gerät B 800 kWh Heizstrom —
+    ``(1, 1)``, also „deckt sich", und im Cockpit stand **3,0 ohne jeden
+    Grund**, an der Community-Grenze als *belastbar* markiert. Ein Quotient aus
+    der Wärme des einen und dem Strom des anderen Geräts ist keine Arbeitszahl;
+    dass beide Seiten gleich **viele** Geräte haben, sagt darüber nichts.
+
+    ⚠ **Gezählt wird der BEITRAG, nicht die Stammdaten** — der Aufrufer sammelt
     die Geräte, deren Menge an dieser Seite des Quotienten > 0 ist.
     """
-    if geraete_q == 0:
+    if not geraete_q:
         return None
-    if geraete_e == 0:
+    if not geraete_e:
         return False
-    return geraete_e == geraete_q
+    return set(geraete_e) == set(geraete_q)
 
 
 def arbeitszahl(

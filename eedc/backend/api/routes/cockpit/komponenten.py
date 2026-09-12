@@ -248,6 +248,9 @@ async def get_komponenten_zeitreihe(
                 # oben („EINE Quelle") meint die Daten-Herkunft, nicht ein Gerät.
                 bauarten_gemischt=wp.bauarten_gemischt,
                 geraete_ohne_waerme=wp.waerme_deckt_nicht_alle_geraete,
+                # N-441: die Gegenrichtung — Waerme von einem Geraet, Strom von
+                # einem anderen. Dieselbe anlagenweite Summe wie oben.
+                geraete_verschieden=wp.geraete_verschieden,
             ),
         )
         wp_cop = _wp_az.wert

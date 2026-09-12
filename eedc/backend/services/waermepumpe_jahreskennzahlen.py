@@ -102,10 +102,49 @@ def waermepumpe_jahreskennzahlen(
     stoerung = next(
         (f.wp.abgrenzung_stoerung for f in fakten if f.wp.abgrenzung_stoerung), None,
     )
+    # ── N-441: die Block-Lagen des JAHRES, drei Faltungen statt einer ──────
+    #
+    # ⛔ **Die je-Monat-Faltung allein sieht zwei Lagen strukturell nicht.**
+    # Sie fragt jeden Monat einzeln und verodert; was erst **über** Monate
+    # entsteht, kann sie nicht kennen:
+    #
+    # * **Perioden-Versatz** — ein Monat traegt Waerme ohne Strom, ein anderer
+    #   traegt Strom. Jeder Monat fuer sich ist unauffaellig, die Jahressumme
+    #   nimmt beide Seiten mit: gemessen **6,0** statt 3,0, und zwar ohne jeden
+    #   Grund daneben. Dieselbe Zwei-Lagen-Unterscheidung (Geraete gegen Monate),
+    #   die `_perioden_lage` unten fuer die Funktions-Ebene trifft (N-438).
+    # * **Geraete-Kreuzung ueber Monate** — Waerme von Geraet 1 im Maerz, Strom
+    #   von Geraet 2 im Juli. Kein einzelner Monat traegt beide Seiten, die
+    #   VEREINIGUNGEN tun es: gemessen **4,0** ohne Grund. Ohne die
+    #   Vereinigungs-Faltung stuende hier „aus verschiedenen Monaten" — richtig
+    #   gesperrt, aber mit der harmloseren Haelfte begruendet.
+    #
+    # ⚠ **Die je-Monat-Faltung bleibt daneben noetig**: Zwei Monate mit
+    # vertauschten Geraeten haben dieselben Vereinigungen und faellen der
+    # Vereinigungs-Regel nicht auf.
+    _strom_jahr: frozenset[int] = frozenset().union(
+        *(f.wp.geraete_mit_strom for f in fakten)
+    ) if fakten else frozenset()
+    _waerme_jahr: frozenset[int] = frozenset().union(
+        *(f.wp.geraete_mit_waerme for f in fakten)
+    ) if fakten else frozenset()
+    _geraete_ohne_waerme_jahr = any(
+        f.wp.waerme_deckt_nicht_alle_geraete for f in fakten
+    ) or bool(_waerme_jahr and _waerme_jahr < _strom_jahr)
+    _geraete_verschieden_jahr = any(
+        f.wp.geraete_verschieden for f in fakten
+    ) or bool(
+        _strom_jahr and _waerme_jahr and not _waerme_jahr <= _strom_jahr
+    )
+    _perioden_versetzt_jahr = any(
+        not f.wp.geraete_mit_strom and f.wp.geraete_mit_waerme for f in fakten
+    ) and any(f.wp.geraete_mit_strom for f in fakten)
     abgrenzung = abgrenzungs_grund(
         abgrenzung_stoerung=stoerung,
         bauarten_gemischt=any(f.wp.bauarten_gemischt for f in fakten),
-        geraete_ohne_waerme=any(f.wp.waerme_deckt_nicht_alle_geraete for f in fakten),
+        geraete_ohne_waerme=_geraete_ohne_waerme_jahr,
+        geraete_verschieden=_geraete_verschieden_jahr,
+        perioden_versetzt=_perioden_versetzt_jahr,
     )
     # SOLL §3.2b je Funktion — ueber das JAHR gefaltet.
     #
@@ -136,16 +175,23 @@ def waermepumpe_jahreskennzahlen(
         """Liegt die verletzte Deckung an der ZEIT statt an den Geraeten? (**N-438**)
 
         Beide Lagen ergeben dasselbe Urteil `False` — gemessen:
-        ``deckung_aus_geraetezahlen(0, 1)`` und ``(1, 2)`` liefern beides `False`.
-        Der Grund darf sie trotzdem nicht verwechseln: Bei EINEM Geraet, dessen
-        Strom erst ab einem spaeteren Monat erfasst ist, sprach der Satz von
-        „verschiedenen Geraeten".
+        ``deckung_aus_geraeten(∅, {1})`` und ``({1}, {1, 2})`` liefern beides
+        `False`. Der Grund darf sie trotzdem nicht verwechseln: Bei EINEM
+        Geraet, dessen Strom erst ab einem spaeteren Monat erfasst ist, sprach
+        der Satz von „verschiedenen Geraeten".
 
         ⛔ **Die beiden Pruefungen sind DISJUNKT, und genau daran ist ein erster
         Entwurf gescheitert:** „Perioden-Lage, aber bei verschiedenen
         Geraetezahlen gewinnt die Geraete-Lage" haette den eigenen Ausloeser
-        geschluckt — ein Monat mit ``e == 0 ∧ q > 0`` hat **immer** ``e != q``.
+        geschluckt — ein Monat mit ``e = ∅ ∧ q ≠ ∅`` hat **immer** ``e != q``.
         Die Geraete-Lage fragt deshalb nur Monate, die ueberhaupt Strom tragen.
+
+        ⭐ **Und nur Monate, die auch Nutzenergie tragen (N-441, sechste Lage
+        des N-438-Baus).** ``q`` leer heisst Standby: Strom ohne Nutzenergie.
+        ``_deckung_im_jahr`` klammert solche Monate schon als ``None`` aus,
+        `_perioden_lage` tat es nicht — bei EINEM Geraet mit einem Sommer-Monat
+        ohne Waerme und einem Monat ohne Strom stand deshalb „von verschiedenen
+        Geraeten", wo es nur eines gibt.
 
         Liegen beide vor, gewinnt die **Geraete**-Lage: Sie ist die
         grundsaetzlichere Stoerung — verschiedene Geraete decken sich auch dann
@@ -155,11 +201,11 @@ def waermepumpe_jahreskennzahlen(
             (getattr(fk.wp, f"geraete_e_{funktion}"), getattr(fk.wp, f"geraete_q_{funktion}"))
             for fk in fakten
         ]
-        if any(e > 0 and e != q for e, q in paare):
+        if any(e and q and e != q for e, q in paare):
             return False
         return (
-            any(e == 0 and q > 0 for e, q in paare)
-            and any(e > 0 for e, _ in paare)
+            any(not e and q for e, q in paare)
+            and any(e for e, _ in paare)
         )
 
     _deckung_je_funktion = {f: _deckung_im_jahr(f) for f in ARBEITSZAHL_FUNKTIONEN}

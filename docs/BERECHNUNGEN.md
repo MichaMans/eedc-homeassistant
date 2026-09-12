@@ -1311,12 +1311,13 @@ Arbeitszahl Kühlen     = nutzenergie_kuehlen_kwh ÷ betriebsart_strom_kuehlen_k
 > (`geraetefeld_oder_innengeraete`, dieselbe Regel wie der Monat), im **Fenster der Tageszeile**
 > wie der Kühlstrom (N-435). Der Kühlstrom ist der des Tages-Stapels. ⚠ **Die Geräte-Deckung
 > prüft der Tag selbst:** Kälte trägt jedes Gerät mit Zähler bei, Kühlstrom nur, wer den Stapel
-> besteht; deshalb vergleicht er beide Geräte-Mengen (`deckung_aus_geraetezahlen` plus
-> Mengengleichheit) statt die Deckung aus dem Monat zu übernehmen — sonst stünde die Kälte
+> besteht; deshalb vergleicht er beide Geräte-Mengen (`deckung_aus_geraeten`, die seit N-441
+> die **Identität** prüft statt der Anzahl) statt die Deckung aus dem Monat zu übernehmen — sonst stünde die Kälte
 > eines herausgefallenen Geräts im Zähler und sein Strom nirgends.
 
 ⚠ **Die R2-Sperren gelten für alle vier** — Anwender-Angabe `abgrenzung`, abgeleitete Wärme,
-**gemischte Bauarten**, Geräte ohne Wärme, Zeitraum-Versatz.
+**gemischte Bauarten**, Geräte ohne Wärme, Zeitraum-Versatz, **verschiedene Geräte** und
+**verschiedene Monate** (die letzten beiden seit N-441; die Kette steht in `abgrenzungs_grund`).
 
 > **R2/Bauart — neu am 28.08.2026** (`GRUND_BAUARTEN_GEMISCHT`, SOLL §5): Trägt ein Block eine
 > Luft-Wasser-Wärmepumpe **und** eine Luft-Luft-Split-Klimaanlage, gibt es **keine gemeinsame

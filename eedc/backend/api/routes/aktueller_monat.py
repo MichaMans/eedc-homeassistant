@@ -1926,6 +1926,14 @@ async def get_aktueller_monat(
             and monats_fakt.wp.waerme_deckt_nicht_alle_geraete
         ),
         zeitraum_versetzt=_wp_seiten_teilzeitraum == 1,
+        # N-441: die Gegenrichtung. ⚠ Sie haengt **hinter** `zeitraum_versetzt`
+        # in der Kette (`abgrenzungs_grund`), weil hier — und nur hier — beide
+        # zugleich wahr sein koennen: Der Zeitraum-Versatz entsteht aus der
+        # Vier-Quellen-Aufloesung dieses Monats. Vorn eingehaengt haette das
+        # neue Glied dort einen heute gezeigten Grund samt Hub-Link getauscht.
+        geraete_verschieden=(
+            monats_fakt is not None and monats_fakt.wp.geraete_verschieden
+        ),
     )
     # SOLL §3.2b (10.09.2026): WELCHE Funktionen die Verletzung trifft. Bis
     # hierher galt sie unbesehen fuer beide Zeilen — bei einer Waermepumpe neben

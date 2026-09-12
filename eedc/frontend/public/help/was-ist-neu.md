@@ -11,6 +11,32 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Eine Arbeitszahl über Gerätegrenzen verschwindet — und sagt warum**
+
+Hast du zwei Wärmepumpen und misst an der einen die Wärme, an der anderen den
+Strom, stand in *Cockpit → Monat* und *Jahr* trotzdem eine Arbeitszahl — aus
+zwei Geräten zusammengesetzt und deshalb keine. eedc hat bis jetzt gezählt, ob
+**gleich viele** Geräte beide Seiten tragen; „eines hier, eines dort" ging
+durch. Jetzt vergleicht es, ob es **dieselben** sind.
+
+Dasselbe galt über die Zeit: Wer seinen Stromzähler erst mitten im Jahr in
+Betrieb genommen hat, sah eine Jahreszahl aus der Wärme aller Monate und dem
+Strom der gemessenen — sie ist jetzt weg, mit dem Satz „Wärme und Strom stammen
+aus verschiedenen Monaten". Im Komponenten-Hub steht derselbe Satz.
+
+Und in der Gegenrichtung **erscheinen** zwei Zahlen, die zu Unrecht fehlten: bei
+einer Anlage mit einem Sommermonat ohne gemessene Wärme und bei einem
+Zweitgerät, das nur kühlt.
+
+**Betrifft dich das?** Nur mit mehreren Wärmepumpen oder mit Lücken auf einer
+der beiden Seiten. Eine Anlage, bei der Wärme und Strom vollständig vom selben
+Gerät kommen, ändert sich nicht.
+**Was du tun musst:** Steht der neue Satz bei dir, sagt dir *Komponenten →
+Wärme/Klima* je Gerät, welche Seite fehlt — der Block verlinkt dorthin. Eine
+Kaskade oder mehrere Wärmepumpen an **einem** gemeinsamen Zähler trägst du als
+**ein** Gerät ein; getrennt erfasst kann eedc nicht wissen, dass ihre Zähler
+zusammengehören.
+
 **Warum die Wärmepumpe im Tagesverlauf nur eine Fläche ist**
 
 Hast du deiner Wärmepumpe *Leistung gesamt* **und** *Leistung Heizen* /

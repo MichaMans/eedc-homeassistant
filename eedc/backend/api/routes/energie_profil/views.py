@@ -688,7 +688,7 @@ async def get_tag_detail(
         GRUND_FUNKTION_NICHT_DECKUNGSGLEICH, abgrenzungs_grund,
         ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
         arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
-        deckung_aus_geraetezahlen, waerme_gesamt_kwh,
+        deckung_aus_geraeten, waerme_gesamt_kwh,
     )
     from backend.core.investition_parameter import (
         abgrenzung_stoerung, ist_luft_luft_waermepumpe,
@@ -822,6 +822,12 @@ async def get_tag_detail(
     _geraete_ohne_waerme_monat = any(
         f.wp.waerme_deckt_nicht_alle_geraete for f in _wp_fakten_monat
     )
+    # N-441: die Gegenrichtung, aus derselben Monats-Naeherung wie die Zeile
+    # darueber und aus demselben Grund — die Tagesebene fuehrt die Waerme nur
+    # als Anlagensumme.
+    _geraete_verschieden_monat = any(
+        f.wp.geraete_verschieden for f in _wp_fakten_monat
+    )
     wp_abgrenzung_tag = abgrenzungs_grund(
         abgrenzung_stoerung=next(
             (
@@ -837,6 +843,7 @@ async def get_tag_detail(
         ),
         bauarten_gemischt=len(_bauarten_tag) > 1,
         geraete_ohne_waerme=_geraete_ohne_waerme_monat,
+        geraete_verschieden=_geraete_verschieden_monat,
     )
     # SOLL §3.2b (10.09.2026): WELCHE Funktionen die Verletzung trifft.
     #
@@ -876,19 +883,19 @@ async def get_tag_detail(
     #
     # ⭐ Anders als bei der Wärme **kennt** der Tag hier beide Seiten je Gerät
     # (Kälte je Gerät aus `werte_je_inv`, Kühlstrom je Beitrag). Die Regel ist
-    # dieselbe wie im Monat (`deckung_aus_geraetezahlen`); weil der Tag die
-    # Geräte selbst sieht, prüft er zusätzlich, dass es **dieselben** sind.
+    # dieselbe wie im Monat (`deckung_aus_geraeten`) — und seit N-441 vergleicht
+    # sie selbst die **Identitäten**. Der Zwei-Zeilen-Sonderweg, der hier bis
+    # zum 12.09.2026 stand (Anzahlen an die Regel, Identität per `if` daneben),
+    # ist damit entfallen: eine Regel statt anderthalb.
     _kuehl_geraete_tag = {b.inv_id for b in beitraege_tag if b.kuehlen_kwh > 0}
     _kaelte_geraete_tag = {
         inv_id for inv_id, kwh in
         _tagesdetail.werte_je_inv.get("wp_kaelte_kwh", {}).items()
         if kwh > 0
     }
-    _deckung_kuehlen_tag = deckung_aus_geraetezahlen(
-        len(_kuehl_geraete_tag), len(_kaelte_geraete_tag),
+    _deckung_kuehlen_tag = deckung_aus_geraeten(
+        _kuehl_geraete_tag, _kaelte_geraete_tag,
     )
-    if _deckung_kuehlen_tag and _kuehl_geraete_tag != _kaelte_geraete_tag:
-        _deckung_kuehlen_tag = False
     if _deckung_je_funktion_tag is not None:
         # Nur „kuehlen" wird ersetzt; Heizen/Warmwasser behalten die
         # Monats-Näherung. Die None-heit des Ganzen bleibt, sie trägt

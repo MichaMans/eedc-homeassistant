@@ -331,8 +331,8 @@ async def test_monat_mit_waerme_ohne_funktionsstrom_sperrt_das_jahr(db):
 
 # ═══ N-438 — der Grund nennt die Lage, die wirklich vorliegt ════════════════
 #
-# Die verletzte Deckung hat ZWEI Ursachen, und `deckung_aus_geraetezahlen`
-# liefert für beide `False` (gemessen: `(0, 1)` und `(1, 2)`). Bis zum
+# Die verletzte Deckung hat ZWEI Ursachen, und `deckung_aus_geraeten` liefert
+# für beide `False` (gemessen: `(∅, {1})` und `({1}, {1, 2})`). Bis zum
 # 12.09.2026 trug deshalb auch die Ein-Geräte-Anlage den Geräte-Satz.
 
 
@@ -358,11 +358,13 @@ async def test_n438_ein_geraet_nennt_die_monate_nicht_die_geraete(db):
 async def test_n438_zwei_geraete_bleiben_beim_geraete_satz(db):
     """Zwei wärmemeldende Geräte, nur eines mit Heizstrom — der alte Satz stimmt.
 
-    ⚠ **Die Fixture braucht UNGLEICHE Gerätezahlen** (hier q=2, e=1). Ein erster
-    Entwurf gab A nur Wärme und B nur Strom — das ergibt **je eines** auf beiden
-    Seiten, und `deckung_aus_geraetezahlen(1, 1)` urteilt `True`. Die Zählung
-    sieht Anzahlen, nicht Identitäten; die Probe hätte also gar keine Sperre
-    ausgelöst und wäre am `None` gescheitert (gemessen 12.09.2026).
+    ⚠ **Die Fixture braucht ein ECHTES Über-Einander** (hier ``q = {A, B}``,
+    ``e = {A}``). Ein erster Entwurf gab A nur Wärme und B nur Strom — damals
+    verglich die Regel Anzahlen, ``(1, 1)`` urteilte `True`, und die Probe löste
+    gar keine Sperre aus (gemessen 12.09.2026). ⭐ **Seit N-441 vergleicht
+    `deckung_aus_geraeten` die Identitäten**, jener Entwurf wäre heute also
+    ebenfalls gesperrt — aber mit derselben Aussage. Diese Fixture bleibt, weil
+    sie die Teilmengen-Richtung trifft, die der Block-Satz beschreibt.
     """
     a = await _anlage(db, "N-438 zwei Geraete")
     await _geraet(db, a, "WP A", dict(_WP),
