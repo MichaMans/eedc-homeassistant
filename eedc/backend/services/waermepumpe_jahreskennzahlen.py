@@ -132,12 +132,43 @@ def waermepumpe_jahreskennzahlen(
         ]
         return all(urteile) if urteile else None
 
+    def _perioden_lage(funktion: str) -> bool:
+        """Liegt die verletzte Deckung an der ZEIT statt an den Geraeten? (**N-438**)
+
+        Beide Lagen ergeben dasselbe Urteil `False` — gemessen:
+        ``deckung_aus_geraetezahlen(0, 1)`` und ``(1, 2)`` liefern beides `False`.
+        Der Grund darf sie trotzdem nicht verwechseln: Bei EINEM Geraet, dessen
+        Strom erst ab einem spaeteren Monat erfasst ist, sprach der Satz von
+        „verschiedenen Geraeten".
+
+        ⛔ **Die beiden Pruefungen sind DISJUNKT, und genau daran ist ein erster
+        Entwurf gescheitert:** „Perioden-Lage, aber bei verschiedenen
+        Geraetezahlen gewinnt die Geraete-Lage" haette den eigenen Ausloeser
+        geschluckt — ein Monat mit ``e == 0 ∧ q > 0`` hat **immer** ``e != q``.
+        Die Geraete-Lage fragt deshalb nur Monate, die ueberhaupt Strom tragen.
+
+        Liegen beide vor, gewinnt die **Geraete**-Lage: Sie ist die
+        grundsaetzlichere Stoerung — verschiedene Geraete decken sich auch dann
+        nicht, wenn jeder Monat vollstaendig waere.
+        """
+        paare = [
+            (getattr(fk.wp, f"geraete_e_{funktion}"), getattr(fk.wp, f"geraete_q_{funktion}"))
+            for fk in fakten
+        ]
+        if any(e > 0 and e != q for e, q in paare):
+            return False
+        return (
+            any(e == 0 and q > 0 for e, q in paare)
+            and any(e > 0 for e, _ in paare)
+        )
+
     _deckung_je_funktion = {f: _deckung_im_jahr(f) for f in ARBEITSZAHL_FUNKTIONEN}
     _je_funktion_grund = abgrenzung_je_funktion(
         abgrenzung_stoerung=stoerung,
         bauarten_gemischt=any(f.wp.bauarten_gemischt for f in fakten),
         geraete_ohne_waerme=any(f.wp.waerme_deckt_nicht_alle_geraete for f in fakten),
         deckung_je_funktion=_deckung_je_funktion,
+        perioden_je_funktion={f: _perioden_lage(f) for f in ARBEITSZAHL_FUNKTIONEN},
     )
     az = arbeitszahl(
         waerme, strom,

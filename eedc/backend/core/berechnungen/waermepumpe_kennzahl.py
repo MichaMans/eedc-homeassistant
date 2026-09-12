@@ -347,6 +347,23 @@ GRUND_FUNKTION_NICHT_DECKUNGSGLEICH = (
     "Wärme und Strom dieser Funktion stammen von verschiedenen Geräten"
 )
 
+#: **N-438** — dieselbe Sperre, aber über die **Zeit** statt über die Geräte.
+#:
+#: Ein Monat trägt Nutzenergie **ohne** den Strom derselben Funktion, ein anderer
+#: trägt den Strom: Die Jahressumme nimmt beide mit und ergäbe eine zu hohe Zahl
+#: (gemessen 3,75 statt 3,0, s. `test_r2_je_funktion`). Die Sperre ist damit
+#: richtig — ihr **Grund** durfte aber nicht von „verschiedenen Geräten" sprechen,
+#: wo es nur **eines** gibt. Der Unterschied liegt im Zeitraum (SOLL §3.3/**S3**:
+#: nicht „—", sondern der Grund — und zwar der zutreffende).
+#:
+#: ⚠ **„Nutzenergie", nicht „Wärme".** Der Satz erscheint auch an der
+#: Kühl-Kennzahl (`ARBEITSZAHL_FUNKTIONEN` trägt `kuehlen`, der Grund geht in
+#: `arbeitszahl_kuehlen`), und deren Zähler ist eine **Kälte**menge — seit
+#: Bauschnitt 6b eine eigene Rolle, die nicht wieder „Wärme" heißen darf.
+GRUND_FUNKTION_VERSCHIEDENE_MONATE = (
+    "Nutzenergie und Strom dieser Funktion stammen aus verschiedenen Monaten"
+)
+
 
 #: Die Gründe, bei denen der **Komponenten-Hub** die Zahl trotzdem zeigt.
 #:
@@ -395,6 +412,7 @@ def abgrenzung_je_funktion(
     geraete_ohne_waerme: bool = False,
     zeitraum_versetzt: bool = False,
     deckung_je_funktion: Optional[dict[str, Optional[bool]]] = None,
+    perioden_je_funktion: Optional[dict[str, bool]] = None,
 ) -> dict[str, Optional[str]]:
     """Je Funktion ihr Abgrenzungs-Grund — oder ``None`` (**SOLL §3.2b**).
 
@@ -459,7 +477,16 @@ def abgrenzung_je_funktion(
         if (deckung_je_funktion or {}).get(f) is False:
             # Der konkretere Grund gewinnt (S3) — er beschreibt genau DIESE
             # Funktion, während `global_grund` den ganzen Block beschreibt.
-            ergebnis[f] = global_grund or GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+            #
+            # N-438: **Zwei Lagen ergeben dieselbe verletzte Deckung** — andere
+            # Geräte oder andere Monate. Welche vorliegt, weiß nur der Aufrufer,
+            # der über die Perioden faltet (das Jahr); er sagt es hier. Ohne
+            # seine Angabe bleibt es beim Geräte-Satz — bitgleich zu vorher.
+            ergebnis[f] = global_grund or (
+                GRUND_FUNKTION_VERSCHIEDENE_MONATE
+                if (perioden_je_funktion or {}).get(f)
+                else GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+            )
         else:
             ergebnis[f] = None
     return ergebnis

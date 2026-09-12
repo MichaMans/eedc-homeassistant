@@ -36,8 +36,10 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_BAUARTEN_GEMISCHT,
     GRUND_FREMDSTROM,
     GRUND_FUNKTION_NICHT_DECKUNGSGLEICH,
+    GRUND_FUNKTION_VERSCHIEDENE_MONATE,
     abgrenzung_je_funktion,
     arbeitszahl_je_funktion,
+    hub_hilft,
 )
 from backend.models import Anlage, Investition  # noqa: F401
 from backend.models.investition import InvestitionMonatsdaten
@@ -304,6 +306,14 @@ async def test_monat_mit_waerme_ohne_funktionsstrom_sperrt_das_jahr(db):
     Monat** und nicht die Zahlen. Ein erster Entwurf verglich Maxima und war
     gegen diesen Fall blind; der Sprengsatz dazu blieb still, und genau das war
     der Befund.
+
+    ⚠ **Wortlaut umgestellt am 12.09.2026 (N-438), Substanz unverändert.** Die
+    Probe hielt bis dahin `GRUND_FUNKTION_NICHT_DECKUNGSGLEICH` fest — an einer
+    Anlage mit **einem** Gerät. Die Sperre war richtig (3,75 wäre die Zahl
+    gewesen, und sie erscheint weiterhin nicht), der Grund sprach aber von
+    „verschiedenen Geräten", wo der Unterschied im **Zeitraum** liegt. Was diese
+    Probe sichert, ist unverändert: **die Sperre greift, und sie nennt einen
+    Grund**; welcher, sagt jetzt die Lage.
     """
     a = await _anlage(db, "Waerme ohne Funktionsstrom")
     wp = await _geraet(db, a, "WP", dict(_WP), {
@@ -316,7 +326,135 @@ async def test_monat_mit_waerme_ohne_funktionsstrom_sperrt_das_jahr(db):
     await db.commit()
     j = await _jahr(db, a.id)
     assert j.wp_jaz_heizen is None, "3,75 waere die Zahl gewesen"
+    assert j.wp_jaz_heizen_grund == GRUND_FUNKTION_VERSCHIEDENE_MONATE
+
+
+# ═══ N-438 — der Grund nennt die Lage, die wirklich vorliegt ════════════════
+#
+# Die verletzte Deckung hat ZWEI Ursachen, und `deckung_aus_geraetezahlen`
+# liefert für beide `False` (gemessen: `(0, 1)` und `(1, 2)`). Bis zum
+# 12.09.2026 trug deshalb auch die Ein-Geräte-Anlage den Geräte-Satz.
+
+
+@pytest.mark.asyncio
+async def test_n438_ein_geraet_nennt_die_monate_nicht_die_geraete(db):
+    """EIN Gerät, Heizstrom erst ab Juli: der Unterschied liegt im Zeitraum."""
+    a = await _anlage(db, "N-438 ein Geraet")
+    wp = await _geraet(db, a, "WP", dict(_WP), {"heizenergie_kwh": 1800.0}, monat=3)
+    db.add(InvestitionMonatsdaten(
+        investition_id=wp.id, jahr=JAHR, monat=7,
+        verbrauch_daten={"heizenergie_kwh": 1800.0, "strom_heizen_kwh": 600.0},
+    ))
+    await db.commit()
+
+    j = await _jahr(db, a.id)
+
+    assert j.wp_jaz_heizen is None, "6,0 waere die Zahl gewesen"
+    assert j.wp_jaz_heizen_grund == GRUND_FUNKTION_VERSCHIEDENE_MONATE
+    assert "Geräten" not in j.wp_jaz_heizen_grund
+
+
+@pytest.mark.asyncio
+async def test_n438_zwei_geraete_bleiben_beim_geraete_satz(db):
+    """Zwei wärmemeldende Geräte, nur eines mit Heizstrom — der alte Satz stimmt.
+
+    ⚠ **Die Fixture braucht UNGLEICHE Gerätezahlen** (hier q=2, e=1). Ein erster
+    Entwurf gab A nur Wärme und B nur Strom — das ergibt **je eines** auf beiden
+    Seiten, und `deckung_aus_geraetezahlen(1, 1)` urteilt `True`. Die Zählung
+    sieht Anzahlen, nicht Identitäten; die Probe hätte also gar keine Sperre
+    ausgelöst und wäre am `None` gescheitert (gemessen 12.09.2026).
+    """
+    a = await _anlage(db, "N-438 zwei Geraete")
+    await _geraet(db, a, "WP A", dict(_WP),
+                  {"heizenergie_kwh": 2400.0, "strom_heizen_kwh": 800.0})
+    await _geraet(db, a, "WP B", dict(_WP), {"heizenergie_kwh": 600.0})
+    await db.commit()
+
+    j = await _jahr(db, a.id)
+
     assert j.wp_jaz_heizen_grund == GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+
+
+@pytest.mark.asyncio
+async def test_n438_mischfall_die_geraete_lage_gewinnt(db):
+    """Zwei Geräte UND ein stromloser Monat: die grundsätzlichere Störung zählt.
+
+    ⛔ Ein erster Regel-Entwurf hätte hier seinen eigenen Auslöser geschluckt —
+    ein Monat mit `e == 0 ∧ q > 0` hat **immer** `e != q`. Die Geräte-Lage fragt
+    deshalb nur Monate, die überhaupt Strom tragen.
+    """
+    a = await _anlage(db, "N-438 Mischfall")
+    wp_a = await _geraet(db, a, "WP A", dict(_WP),
+                         {"heizenergie_kwh": 2400.0, "strom_heizen_kwh": 800.0})
+    await _geraet(db, a, "WP B", dict(_WP), {"heizenergie_kwh": 600.0})
+    db.add(InvestitionMonatsdaten(
+        investition_id=wp_a.id, jahr=JAHR, monat=3,
+        verbrauch_daten={"heizenergie_kwh": 600.0},
+    ))
+    await db.commit()
+
+    j = await _jahr(db, a.id)
+
+    assert j.wp_jaz_heizen_grund == GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
+
+
+@pytest.mark.asyncio
+async def test_n438_ohne_jeden_heizstrom_bleibt_die_maskierung(db):
+    """Kein Monat trägt Heizstrom ⇒ der Nenner fehlt ganz.
+
+    `arbeitszahl` prüft `e_gesamt <= 0` **vor** der Abgrenzung; dieser Satz ist
+    der genauere (S3) und darf nicht von der neuen Regel verdrängt werden.
+    ⚠ `getrennte_strommessung` ist gesetzt — sonst käme das `hat_split`-Tor davor.
+    """
+    a = await _anlage(db, "N-438 ohne Strom")
+    wp = await _geraet(db, a, "WP", dict(_WP), {"heizenergie_kwh": 1800.0}, monat=3)
+    db.add(InvestitionMonatsdaten(
+        investition_id=wp.id, jahr=JAHR, monat=7,
+        verbrauch_daten={"heizenergie_kwh": 1800.0},
+    ))
+    await db.commit()
+
+    j = await _jahr(db, a.id)
+
+    assert j.wp_jaz_heizen is None
+    assert j.wp_jaz_heizen_grund == "kein Stromverbrauch erfasst"
+
+
+@pytest.mark.asyncio
+async def test_n438_gilt_auch_fuer_warmwasser_und_kuehlen(db):
+    """Dieselbe Lage an den beiden anderen Funktionen — deshalb „Nutzenergie".
+
+    Beim Kühlen ist der Zähler eine **Kälte**menge (Bauschnitt 6b); ein Satz mit
+    dem Wort „Wärme" wäre dort falsch.
+    """
+    a = await _anlage(db, "N-438 WW")
+    wp = await _geraet(db, a, "WP", dict(_WP), {"warmwasser_kwh": 600.0}, monat=3)
+    db.add(InvestitionMonatsdaten(
+        investition_id=wp.id, jahr=JAHR, monat=7,
+        verbrauch_daten={"warmwasser_kwh": 600.0, "strom_warmwasser_kwh": 250.0},
+    ))
+
+    b = await _anlage(db, "N-438 Kuehlen")
+    klima = await _geraet(db, b, "Klima", dict(_KLIMA),
+                          {"betriebsart_nutzenergie_kuehlen_kwh": 900.0}, monat=3)
+    db.add(InvestitionMonatsdaten(
+        investition_id=klima.id, jahr=JAHR, monat=7,
+        verbrauch_daten={"betriebsart_nutzenergie_kuehlen_kwh": 900.0,
+                         "betriebsart_strom_kuehlen_kwh": 300.0},
+    ))
+    await db.commit()
+
+    assert (await _jahr(db, a.id)).wp_jaz_warmwasser_grund == GRUND_FUNKTION_VERSCHIEDENE_MONATE
+    kuehl_grund = (await _jahr(db, b.id)).wp_jaz_kuehlen_grund
+    assert kuehl_grund == GRUND_FUNKTION_VERSCHIEDENE_MONATE
+    assert "Wärme" not in kuehl_grund
+
+
+def test_n438_der_neue_grund_fuehrt_nicht_in_den_hub():
+    """Der Hub rechnet je Gerät und über dieselben Monate — er beantwortet die
+    Perioden-Lage nicht. Ein Link dorthin wäre ein Weg ins Nichts."""
+    assert hub_hilft(GRUND_FUNKTION_VERSCHIEDENE_MONATE) is False
+    assert hub_hilft(GRUND_FUNKTION_NICHT_DECKUNGSGLEICH) is True
 
 
 # ═══ Bauschnitt 3 — der Weg zum Hub, aber nur wo er hilft ═══════════════════
