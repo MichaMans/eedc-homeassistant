@@ -2539,9 +2539,11 @@ Für jeden Monat mit WP-Daten:
                   ∨ Investition.parameter.alter_preis_cent_kwh   # Fallback statisch
     Gas_Kosten    = (Heizung + WW) / 0.9 * Gas_Preis / 100
                   + alternativ_zusatzkosten_jahr / 12     # Zusatzkosten anteilig pro Monat
-    WP_Netzkosten = Strom * 0.5 * WP_Preis / 100         # 50% Netzanteil-Annahme
+    WP_Netzkosten = Strom * WP_Preis / 100               # der GANZE Strom (SOLL S1b)
     Ersparnis     = Gas_Kosten - WP_Netzkosten
 ```
+
+> **Der ganze WP-Strom trägt den Netztarif (SOLL Wärme/Klima S1b).** Hier stand bis September 2026 ein fester Abschlag von 50 % („Netzanteil-Annahme"). Er ist ersatzlos entfallen: Der PV-Strom, den die Wärmepumpe verbraucht, ist auf der PV-Seite bereits als Eigenverbrauch gutgeschrieben — ihn hier ein zweites Mal abzuziehen zählte dieselbe Kilowattstunde doppelt (ADR-002/P9). Begründung und Zahlenbeispiel stehen im Kasten zur Planungsformel in [§3.5](#35-wärmepumpe-einsparung).
 
 > **Monats-Gaspreis (v3.21.0):** Wenn `Monatsdaten.gaspreis_cent_kwh` pro Monat gepflegt ist, wird er Monat für Monat verwendet — ein Tarifwechsel ändert dann nicht mehr rückwirkend die ganze Historie. Ohne Eintrag bleibt es beim statischen `alter_preis_cent_kwh` der Investition. Pflege in der assistierten `MonatsdatenForm` (über `BEDINGTE_BASIS_FELDER` mit `bedingung_basis: hat_waermepumpe`) — in V4 der EINE Erfassungsweg; der frühere Monatsabschluss-Wizard ist als V4-Fläche stillgelegt und läuft nur noch über die V3-Route (bis zum Flip).
 >

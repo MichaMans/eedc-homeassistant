@@ -1085,10 +1085,16 @@ class MonatsdatenChecks:
                         f"getrennter Strommessung obsolet"
                     ),
                     details=(
-                        "Der Sensor wird in der Aggregation ignoriert — Gesamt-"
-                        "Strom kommt aus Strom Heizen + Strom Warmwasser. Beim "
-                        "nächsten Speichern des Sensor-Mappings wird der Eintrag "
-                        "automatisch entfernt — kein Klick nötig."
+                        # N-463 (13.09.2026): Hier stand „Beim nächsten Speichern
+                        # des Sensor-Mappings wird der Eintrag automatisch entfernt
+                        # — kein Klick nötig." Diesen Pfad gibt es seit der
+                        # Datenquellen-Fläche nicht mehr (gemessen: kein Speicherweg
+                        # entfernt Mapping-Felder). Eine Zusage ohne Code bleibt
+                        # nicht stehen.
+                        "Der Sensor wird nicht mehr gelesen — der Gesamtstrom kommt "
+                        "aus Strom Heizen + Strom Warmwasser, solange beide gepflegt "
+                        "sind. Du kannst ihn unter Einstellungen → Datenquellen "
+                        "entfernen; nötig ist es nicht."
                     ),
                 ))
 

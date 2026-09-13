@@ -622,6 +622,11 @@ Betrieb genommen hat, sah eine Jahreszahl aus der Wärme aller Monate und dem
 Strom der gemessenen — sie ist jetzt weg, mit dem Satz „Wärme und Strom stammen
 aus verschiedenen Monaten". Im Komponenten-Hub steht derselbe Satz.
 
+Denselben Satz liest du jetzt auch an der einzelnen Zeile *Arbeitszahl · Heizen* oder
+*· Warmwasser* — vorher hieß es dort „von verschiedenen Geräten", obwohl du nur eines
+hast. Die Zahl war schon vorher gesperrt, richtig gesperrt; nur die Begründung stimmte
+nicht.
+
 Und in der Gegenrichtung **erscheinen** zwei Zahlen, die zu Unrecht fehlten: bei
 einer Anlage mit einem Sommermonat ohne gemessene Wärme und bei einem
 Zweitgerät, das nur kühlt.
@@ -776,7 +781,7 @@ Strom **eines** Geräts teilte. An einer nachgestellten Anlage kam so 4,75
 heraus, wo gar keine Zahl hätte stehen dürfen.
 
 Der Fall rutschte durch jede bisherige Prüfung: Beide Geräte sind Wärmepumpen,
-beide melden Wärme — es sah unauffällig aus. Jetzt steht dort *„Wärme und Strom
+beide melden Wärme — es sah unauffällig aus. Jetzt steht dort *„Nutzenergie und Strom
 dieser Funktion stammen von verschiedenen Geräten"*.
 
 **Betrifft dich das?** Nur mit zwei wärmemeldenden Geräten, von denen eines
@@ -886,6 +891,8 @@ geschätzten Preises.
 abgeschlossene Monate werden genauer — und weichen von dem ab, was bisher
 dastand.
 
+
+*Gemeldet von OB73-gif ([#412](https://github.com/supernova1963/eedc-homeassistant/issues/412)).*
 ---
 
 **Und die Kachel sagt jetzt, woher ihr Preis kommt**
@@ -954,28 +961,27 @@ unterscheiden.
 
 **Der Browser füllt Suchfelder nicht mehr von sich aus aus**
 
-Mit 4.0.44 hat die Suche in den Einstellungen ein eigenes ✕ zum Leeren bekommen. Für den
-Melder, dessen Bericht dazu geführt hatte, war das Feld damit trotzdem nicht loszuwerden:
-Sein Browser hatte sich den Begriff gemerkt und setzte ihn nach **jedem** Löschen sofort
-wieder ein. Am Ende half nur, das automatische Ausfüllen im Browser selbst abzuschalten.
+**Betrifft dich das?** Jeden, dessen Browser sich Eingaben merkt.
 
-Der Grund, warum das ausgerechnet hier so unangenehm ist: Ein automatisch eingesetzter
-Begriff steht in einem Filterfeld genauso da wie ein getippter — die Liste darunter ist
-leer, und die Seite ist von einer kaputten Seite nicht mehr zu unterscheiden. In einem
-Feld, in das du Daten einträgst, ist automatisches Ausfüllen eine Hilfe; in einem Feld,
-das eine Liste verengt, ist es eine Sackgasse.
+**Was war:** Mit 4.0.44 hat die Suche in den Einstellungen ein eigenes ✕ zum Leeren bekommen.
+Für den Melder, dessen Bericht dazu geführt hatte, war das Feld damit trotzdem nicht
+loszuwerden: Sein Browser hatte sich den Begriff gemerkt und setzte ihn nach **jedem** Löschen
+sofort wieder ein. Am Ende half nur, das automatische Ausfüllen im Browser selbst abzuschalten.
+Der Grund, warum das ausgerechnet hier so unangenehm ist: Ein automatisch eingesetzter Begriff
+steht in einem Filterfeld genauso da wie ein getippter — die Liste darunter ist leer, und die
+Seite ist von einer kaputten Seite nicht mehr zu unterscheiden. In einem Feld, in das du Daten
+einträgst, ist automatisches Ausfüllen eine Hilfe; in einem Feld, das eine Liste verengt, ist es
+eine Sackgasse.
 
-Deshalb sagen jetzt **alle Such- und Filterfelder** dem Browser, dass sie nicht ausgefüllt
-werden sollen: die Suche in den Einstellungen, die Sensor- und Gateway-Auswahl unter
-*Datenquellen* und die beiden Filter der Protokollansicht. Das PIN-Feld der
-Einstellungssperre ist bewusst ausgenommen — dort soll dein Passwortmanager weiterhin
-helfen dürfen.
+**Was jetzt:** Alle Such- und Filterfelder sagen dem Browser, dass sie nicht ausgefüllt werden
+sollen: die Suche in den Einstellungen, die Sensor- und Gateway-Auswahl unter *Datenquellen* und
+die beiden Filter der Protokollansicht. Das PIN-Feld der Einstellungssperre ist bewusst
+ausgenommen — dort soll dein Passwortmanager weiterhin helfen dürfen.
 
-**Betrifft dich das?** Jeden, dessen Browser sich Eingaben merkt. **Was du tun musst:**
-nichts. ⚠ **Eine Einschränkung, die dazugehört:** Ob ein Browser sich daran hält,
-entscheidet er selbst — es gibt dafür keine Garantie, nur die vorgesehene Angabe, und wir
-haben es nicht in jedem Browser nachgemessen. Wenn dein Browser weiterhin ausfüllt, bleibt
-der Weg über seine eigenen Einstellungen.
+**Was du tun musst:** nichts. ⚠ **Eine Einschränkung, die dazugehört:** Ob ein Browser sich
+daran hält, entscheidet er selbst — es gibt dafür keine Garantie, nur die vorgesehene Angabe,
+und wir haben es nicht in jedem Browser nachgemessen. Wenn dein Browser weiterhin ausfüllt,
+bleibt der Weg über seine eigenen Einstellungen.
 
 *Gemeldet von Radiocarbonat im simon42-Forum.*
 
@@ -9058,6 +9064,15 @@ Wer in den letzten Tagen Counter-Spikes im Tagesprofil gesehen hatte, repariert 
 Vorher las jede Stelle die Daten leicht unterschiedlich — manche summierten Heizen+Warmwasser, manche nutzten den alten Sammel-Sensor (sofern noch gemappt). Folge: leicht abweichende JAZ-Werte zwischen Cockpit Komponenten und Monatsbericht.
 
 Ein neuer SoT-Helper `get_wp_strom_kwh` ist jetzt der einzige Lese-Pfad. Bei aktiver getrennter Messung wird der Sammel-Sensor ignoriert. Im Sensor-Zuordnung → Zusammenfassung-Schritt erscheint der alte Sammel-Sensor als „(obsolet)" mit Hinweis, dass er entfernt werden kann.
+
+> ⚠ **Nachträglich richtiggestellt (September 2026):** Die beiden Sätze oben stimmen nicht mehr.
+> Ein zugeordneter Gesamtzähler wird **nicht** ignoriert — er zählt, solange die getrennten
+> Zähler *Strom Heizen* und *Strom Warmwasser* nicht **beide** gepflegt sind. Erst mit beiden ist
+> ihre Summe der Verbrauch des Geräts, und dann bleibt der Gesamtzähler bewusst außen vor, damit
+> dieselbe Kilowattstunde nicht zweimal zählt. Damals war das unauffällig, weil in der Regel
+> beide Zähler zugleich eingerichtet wurden; wer nur einen hatte, verlor still seine Zahlen.
+> Den Schritt „Sensor-Zuordnung → Zusammenfassung" gibt es außerdem nicht mehr — die Zuordnung
+> steht heute unter *Einstellungen → Datenquellen*.
 
 → [Cockpit → Wärmepumpe](HANDBUCH_BEDIENUNG.md#41-cockpit)
 
