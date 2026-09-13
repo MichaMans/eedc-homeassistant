@@ -939,6 +939,64 @@ async def get_betriebsart_strom_tageswerte(
     return ergebnis
 
 
+async def get_wp_strom_stufe_je_investition(
+    db: AsyncSession,
+    anlage,
+    investitionen_by_id: dict,
+) -> dict[str, str]:
+    """Welche **K3-Stufe** trägt der Tagesbezug je Wärmepumpe? (N-462)
+
+    ``{inv_id_str: "fein" | "gesamt"}`` — dieselbe Frage und **dieselben
+    Eingänge**, mit denen ``investition_beitraege`` den Tageswert in
+    ``TagesZusammenfassung.komponenten_kwh`` gelegt hat: die Registry-Achsen des
+    Geräts und ``feld_hat_zaehler`` über HA-Mapping **und** MQTT-Keys.
+
+    ⛔ **Warum das eine eigene Funktion ist und keine Ableitung aus dem
+    Kennzeichen.** ``funktionsfremd_abzug_kwh`` fragt *„steht der funktionsfremde
+    Anteil überhaupt im Nenner?"* (SOLL-§9-E7/Option A). Der Nenner des
+    Tagesstapels ist ``komponenten_kwh[waermepumpe_<id>]``, und ob darin die
+    feine Summe oder der Gesamtzähler steht, entscheidet K3 — nicht
+    ``getrennte_strommessung``. **Gemessen** (13.09.2026): derselbe Bezug,
+    derselbe abgeleitete Split, Tages-Arbeitszahl **3,00 mit** und **3,75 ohne**
+    gesetztes Kennzeichen — 20 % Unterschied durch einen Schalter, der in dieser
+    Lage nichts misst. Klasse **N-450**: *„denselben Layer zu rufen genügt nicht,
+    es müssen dieselben EINGÄNGE sein."*
+
+    ⚠ **Die Antwort hängt an der Zuordnung, nicht am Tag** — sie gilt für die
+    ganze Reihe und wird deshalb **einmal** vor einer Tagesschleife erhoben
+    (``waerme_verlauf``), nicht je Tag.
+    """
+    from backend.core.field_definitions import wp_strom_stufe
+
+    sensor_mapping = anlage.sensor_mapping or {}
+    quellen_energy = extract_quellen_energy(anlage)
+    mqtt_keys = await mqtt_zaehler_keys(db, anlage.id)
+
+    ergebnis: dict[str, str] = {}
+    for inv_id_str, inv, inv_data in _investitionen_mit_mapping(
+        sensor_mapping, investitionen_by_id
+    ):
+        if getattr(inv, "typ", None) != "waermepumpe":
+            continue
+        felder = inv_data.get("felder", {}) or {}
+        praefix = f"inv:{inv_id_str}:"
+
+        def _belegt(feld: str, _f=felder, _p=praefix) -> bool:
+            return feld_hat_zaehler(
+                _f.get(feld), _p + feld, quellen_energy, mqtt_keys,
+            )
+
+        params = getattr(inv, "parameter", None) or {}
+        if not isinstance(params, dict):
+            params = {}
+        ergebnis[str(inv_id_str)] = wp_strom_stufe(
+            params,
+            ist_belegt=_belegt,
+            hat_gesamtzaehler=_belegt("stromverbrauch_kwh"),
+        )
+    return ergebnis
+
+
 @dataclass(frozen=True)
 class TagesDetail:
     """Die Tages-Detailwerte **und warum die fehlenden fehlen** (W-18).

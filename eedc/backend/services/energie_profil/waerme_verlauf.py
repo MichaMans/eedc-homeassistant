@@ -48,6 +48,7 @@ from backend.services.snapshot.aggregator import (
     TAGESDETAIL_AUSGABE,
     WAERME_AUSGABE_KEYS,
     get_betriebsart_strom_tageswerte,
+    get_wp_strom_stufe_je_investition,
 )
 from backend.services.snapshot.bereichs_leser import lade_tageswerte_je_feld
 
@@ -118,6 +119,13 @@ async def lade_waerme_verlauf(
         rueckwaerts_tage=rueckwaerts_tage,
     )
     temperatur_je_tag = await lade_tagesmittel_temperatur(db, anlage.id, von, bis)
+    # N-462: Welche K3-Stufe trägt der Bezug je Gerät? Sie hängt an der
+    # **Zuordnung**, nicht am Tag — deshalb einmal vor der Schleife, nicht
+    # 28–31 mal darin (SOLL-§9-E7/Option A: „abgezogen wird nur, was im Nenner
+    # steht" — und was im Nenner steht, entscheidet K3).
+    stufe_je_inv = await get_wp_strom_stufe_je_investition(
+        db, anlage, investitionen_by_id,
+    )
 
     # ⚠ Zweig 1 (gemessene Betriebsart-Zähler) ist selbst snapshot-basiert und
     # hat heute nur einen Tages-Einstieg. Er wird deshalb je Tag gerufen — aber
@@ -144,6 +152,7 @@ async def lade_waerme_verlauf(
             splits_je_tag.get(tag, {}),
             investitionen_by_id,
             tag,
+            stufe_je_inv=stufe_je_inv,
         )
         werte = nutzenergie_je_tag.get(tag, {})
         # ⛔ Nie `sum(werte.values())` — seit 6b steht dort auch die Kälte.

@@ -11,6 +11,59 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Dein Gesamtzähler zählt wieder — auch mit dem Schalter „Getrennte Strommessung"**
+
+**Betrifft dich das?** Nur, wenn du an einer Wärmepumpe oder Klimaanlage
+*Getrennte Strommessung* eingeschaltet hast, ohne **beide** getrennten Zähler zu
+führen. Wer den Schalter nie angefasst hat oder beide Zähler pflegt, sieht keinen
+Unterschied.
+
+**Was war:** Der Schalter war eine Zusage: Stand er auf *ein*, las eedc
+ausschließlich *Strom Heizen* und *Strom Warmwasser* — und wenn eines davon
+fehlte, hatte das Gerät für jede Monats-Sicht **keinen Stromverbrauch**. In
+*Cockpit → Monat*, *Cockpit → Jahr*, im Komponenten-Hub, in Kosten, CO₂, im PDF,
+im Community-Vergleich und in den Home-Assistant-Sensoren stand dann 0 kWh, mit
+einer gepflegten Seite die Hälfte — obwohl dein Gesamtwert im Monatsabschluss
+sichtbar danebenstand und *Cockpit → Tag* ihn seit v4.0.29 mitzählte. Die
+Arbeitszahl fiel dadurch zu hoch aus: an einer nachgestellten Anlage 5,0 statt
+3,0. Und wer den Schalter umlegte, nachdem er Monate mit einem Gesamtzähler
+gepflegt hatte, verlor rückwirkend seine ganze Historie.
+
+**Was jetzt:** Der Schalter sagt, **wie** gezählt wird — nicht, **ob** gezählt
+wird. Hast du beide getrennten Zähler, ist ihre Summe der Verbrauch des Geräts
+und ein zusätzlicher Gesamtzähler wird bewusst nicht mitgerechnet (sonst zählte
+dieselbe Kilowattstunde zweimal). Hast du erst einen — oder noch keinen —, zählt
+dein Gesamtzähler weiter, in **jeder** Sicht. Auch der Stundenverlauf in
+*Cockpit → Tag* zeigt die Wärmepumpe dann wieder, statt leer zu bleiben. Die
+Zahlen der Vergangenheit kommen **ohne Neuberechnung** zurück; du musst nichts
+anstoßen.
+
+⭐ **Bei einer Split-Klimaanlage** gibt es keinen Warmwasserkreis — ihre
+Aufteilung kann also nie vollständig sein, und ihr Gesamtzähler zählt jetzt immer.
+Ein früher einmal gepflegter Warmwasser-Wert an einem solchen Gerät entwertet ihn
+nicht mehr.
+
+⚠ **Was gesperrt bleibt, bleibt gesperrt:** Ohne *Strom Heizen* gibt es keine
+*Arbeitszahl Heizen*, ohne *Strom Warmwasser* keine *Arbeitszahl Warmwasser* —
+ein Gesamtzähler kann nicht sagen, welcher Teil wohin ging. Der Daten-Checker
+nennt dir jede fehlende Seite wie bisher einzeln.
+
+⚠ **Zwei Home-Assistant-Sensoren springen dabei einmalig:**
+`wp_cop_durchschnitt` und `wp_ersparnis_euro` bekommen in dieser Lücke erstmals
+bzw. korrigiert einen Wert. Das ist derselbe Effekt wie beim CO₂-Sensor zu
+v4.0.0 — die Langzeitstatistik zeigt den Sprung, die neue Zahl ist die richtige.
+
+⭐ **Und der Kühlanteil kürzt die Arbeitszahl wieder richtig.** Wird der
+Kühlbetrieb aus dem **Betriebsmodus abgeleitet** und zählt gleichzeitig dein
+Gesamtzähler, steckt der Kühlstrom in diesem Zähler und wird jetzt abgezogen —
+dieselbe Anlage zeigte mit gesetztem Schalter 3,0 statt 3,75. Bei vollständig
+getrennt gemessenem Strom bleibt es unverändert dabei, dass eine abgeleitete
+Aufteilung den gemessenen Nenner nicht kürzt.
+
+**Was du tun kannst:** Nichts — die Zahlen stehen beim nächsten Aufruf da. Wer den
+Schalter damals ausgeschaltet hat, um den Block *Wärme/Klima* zurückzubekommen,
+kann ihn jetzt wieder einschalten.
+
 **Der Strom deiner Wärmepumpe wird jetzt überall voll gerechnet — auch der Teil aus der eigenen PV**
 
 **Betrifft dich das?** Jeden mit einer Wärmepumpe. Am deutlichsten, wenn du

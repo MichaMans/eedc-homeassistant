@@ -96,6 +96,7 @@ from backend.core.field_definitions import (
     hat_wp_warmwasser_wert,
     ist_gepflegte_sonstiges_kategorie,
     ist_zaehler_kategorie,
+    nenner_ist_feine_summe,
 )
 from backend.core.berechnungen import (
     betriebsart_nutzenergie_kwh,
@@ -978,9 +979,11 @@ async def get_waermepumpe_dashboard(
         # der **Gesamt**zahl unten. Sie entsteht erst ÜBER die Zeilen und ist an
         # einer einzelnen nicht sichtbar.
         _hub_zeilen: list[tuple[float, float]] = []
-        #: SOLL-§9-E7/Option A — die Lage DIESES Geräts (der Block faltet
-        #: genau eine Investition, deshalb steht sie außerhalb der Schleife).
-        _wp_hat_split = bool((wp.parameter or {}).get("getrennte_strommessung"))
+        #: ⛔ **N-462 (13.09.2026): die Lage steht NICHT mehr vor der Schleife.**
+        #: SOLL-§9-E7/Option A fragt „steckt der funktionsfremde Anteil im
+        #: Nenner?", und das entscheidet die **Stufe der Monatszeile** (K3), nicht
+        #: das Kennzeichen des Geräts — ein Monat mit vollständiger feiner Achse
+        #: und der nächste ohne beantworten es verschieden.
         for md in monatsdaten:
             d = md.verbrauch_daten or {}
             # **Gemessen schlägt abgeleitet** (ADR-002/P8), je Monatszeile.
@@ -1003,7 +1006,7 @@ async def get_waermepumpe_dashboard(
             gesamt_modus_lueften += _zeile.lueften_kwh
             gesamt_modus_entfeuchten += _zeile.entfeuchten_kwh
             _zeile_abzug = funktionsfremd_abzug_kwh(
-                _zeile, hat_split=_wp_hat_split,
+                _zeile, hat_split=nenner_ist_feine_summe(d, wp.parameter),
             )
             gesamt_modus_funktionsfremd_abzug += _zeile_abzug
             # W-5: die Kältemenge — nur gemessen, nie abgeleitet.

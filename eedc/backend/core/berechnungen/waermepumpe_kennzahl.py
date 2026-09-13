@@ -869,6 +869,13 @@ def arbeitszahl_je_funktion(
 
     Args:
         hat_split: liegt der Strom **getrennt je Funktion** vor
+            ⛔ **Dasselbe Wort, andere Frage als in** {@link
+            backend.core.berechnungen.betriebsart_gemessen.funktionsfremd_abzug_kwh}:
+            Dort heißt ``hat_split`` seit N-462 *ist der Nenner die feine
+            Summe?*; hier bleibt es das **Kennzeichen**
+            ``getrennte_strommessung``, denn ohne feine Zähler gibt es E je
+            Funktion gar nicht — egal, welche Menge die Gesamt-Arbeitszahl als
+            Nenner nimmt.
             (`getrennte_strommessung`)? Ohne ihn gibt es E je Funktion nicht —
             dann tragen **beide** Zahlen den Grund
             {@link GRUND_STROM_NICHT_JE_FUNKTION}. ⚠ Die Wärme allein genügt

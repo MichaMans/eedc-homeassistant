@@ -63,7 +63,7 @@ Feld-Attribute:
                   ([[feedback_reparatur_statt_loesch_features]]).
 """
 
-from typing import Final, Optional
+from typing import Callable, Final, Literal, Optional
 
 from backend.core.investition_parameter import (
     ist_brauchwasser_waermepumpe,
@@ -2819,14 +2819,174 @@ def get_sonstiges_verbrauch_kwh(data: dict) -> float:
     return 0.0
 
 
+#: Die zwei **Summanden**-Achsen des Wärmepumpen-Stroms (Gegenstück zu den
+#: Betriebsart-Teilmengen). Nur die Namen — welche davon ein konkretes Gerät
+#: hat, beantwortet `feine_strom_achsen` an der Registry.
+FEINE_STROM_FELDER: Final[tuple[str, ...]] = (
+    "strom_heizen_kwh", "strom_warmwasser_kwh",
+)
+
+
+def feine_strom_achsen(parameter: dict) -> list[str]:
+    """Welche feinen Strom-Achsen **hat** dieses Gerät? (K3, SOLL §3.2)
+
+    Die Frage ist eine Eigenschaft des **Geräts**, nicht der Erfassung: Eine
+    Luft-Wasser-Wärmepumpe hat Heizen und Warmwasser, eine Split-Klimaanlage
+    nur Heizen (kein Warmwasserkreis — ``strom_warmwasser_kwh`` trägt
+    ``!luft_luft``, N-304/B5).
+
+    ⚠ **Deshalb wird die Registry mit gesetztem Kennzeichen befragt**, auch wenn
+    es an der Investition aus ist: ``getrennte_strommessung`` sagt, ob die Achsen
+    *getrennt erfasst werden*, nicht ob es sie *gibt*. Ohne diese Normalisierung
+    meldete ein Gerät mit ausgeschaltetem Kennzeichen „gar keine Achsen" — und
+    K3 könnte in dieser Richtung (Kennzeichen aus, feiner Zähler zugeordnet)
+    nicht greifen.
+
+    ⭐ **Registry statt Bauart-Abfrage** (R1): ``ist_luft_luft_waermepumpe`` hier
+    aufzurufen wäre die zweite Stelle, die dieselbe Frage beantwortet — genau
+    die Drift-Klasse, an der F-56 entstanden ist.
+
+    ⛔ **Hier stand sie bis zum 13.09.2026 nicht, sondern in**
+    ``services/snapshot/komponenten_beitraege.py`` — mit einem *lokalen* Import
+    auf dieses Modul, weil ein Modul-Import zirkulär gewesen wäre. Sie ist
+    hierher gezogen, weil {@link wp_strom_stufe} dieselbe Frage stellt: Die
+    K3-Stufenregel steht seither an **einer** Stelle statt an zweien (F-56).
+    """
+    angeboten = {
+        f["feld"] for f in get_felder_fuer_investition(
+            "waermepumpe", {**(parameter or {}), "getrennte_strommessung": True},
+        )
+    }
+    return [f for f in FEINE_STROM_FELDER if f in angeboten]
+
+
+def wp_strom_stufe(
+    parameter: dict | None,
+    *,
+    ist_belegt: Callable[[str], bool],
+    hat_gesamtzaehler: bool,
+) -> Literal["fein", "gesamt"]:
+    """K3 in EINER Stelle — die Regel, nicht ihre Eingänge (SOLL §3.2, W-1/W-1b).
+
+    Die dreistufige Vorrangkette für *„welche Menge ist der Stromverbrauch
+    dieses Geräts?"*:
+
+    1. Die feine Aufteilung ist **vollständig** (jede Achse, die das Gerät laut
+       Registry überhaupt hat, ist belegt) ⇒ ``"fein"``. Sie IST die Gesamtmenge;
+       ein zusätzlicher Gesamtzähler wird verworfen, sonst zählte derselbe Strom
+       zweimal.
+    2. Sonst gilt **K1** — *„die Gesamtmenge ist immer die Wahrheit"* ⇒
+       ``"gesamt"``, sobald ein Gesamtzähler da ist.
+    3. Sonst trägt, was gemessen ist ⇒ ``"fein"``: eine unvollständige
+       Aufteilung ohne Gesamtzähler ist die einzige Messung, die es gibt. Sie zu
+       verwerfen hieße den Block verschwinden zu lassen — genau der Befund, den
+       Etappe 3 am 26.08.2026 im Tagespfad repariert hat (#263, OB73-gif).
+
+    ⚠ **Tag und Monat beantworten „belegt?" verschieden — und sie MÜSSEN das.**
+    Der Tag fragt *„ist ein Zähler zugeordnet?"* (``ist_verfuegbar``), der Monat
+    *„steht ein Wert in der Zeile?"* (``data.get(feld) is not None``); eine
+    Monatszeile darf ohne jeden Zähler von Hand gepflegt sein. Was beide teilen,
+    ist die **Vorrangkette** — sie steht deshalb hier und nicht zweimal (F-56).
+
+    ⛔ **Das Kennzeichen gilt nur für Stufe 1 — K3 gilt in BEIDE Richtungen.**
+    ``getrennte_strommessung`` entscheidet, ob die feinen Achsen als *Summanden*
+    einer vollständigen Aufteilung gelten dürfen; es entscheidet **nicht**, ob
+    ein feiner Zähler überhaupt zählt. Kennzeichen **aus**, kein Gesamtzähler,
+    aber ein feiner Zähler zugeordnet ⇒ Stufe 3, er trägt. *„Wer feine Zähler
+    hat, bekommt die feine Aufteilung; wer sie nicht hat, behält die grobe
+    Wahrheit"* — der Satz hat keine Richtung.
+
+    Args:
+        parameter: die ``Investition.parameter`` dieses Geräts.
+        ist_belegt: Prädikat ``feldname -> bool``. Der Aufrufer sagt, was
+            „belegt" in seiner Ebene heißt.
+        hat_gesamtzaehler: trägt dieses Gerät ``stromverbrauch_kwh`` — in
+            derselben Ebene wie ``ist_belegt``.
+
+    Returns:
+        ``"fein"`` (die feinen Achsen tragen den Wert) oder ``"gesamt"``
+        (``stromverbrauch_kwh`` trägt ihn).
+    """
+    params = parameter or {}
+    moeglich = feine_strom_achsen(params)
+    belegt = [f for f in moeglich if ist_belegt(f)]
+    if (
+        params.get("getrennte_strommessung")
+        and len(moeglich) >= 2
+        and len(belegt) == len(moeglich)
+    ):
+        return "fein"
+    if hat_gesamtzaehler:
+        return "gesamt"
+    return "fein"
+
+
+def nenner_ist_feine_summe(data: dict | None, params: dict | None) -> bool:
+    """Ist der WP-Strom **dieser Monatszeile** die Summe der feinen Achsen?
+
+    Die Frage, die {@link
+    backend.core.berechnungen.betriebsart_gemessen.funktionsfremd_abzug_kwh}
+    als ``hat_split`` stellt — *„steht der funktionsfremde Anteil überhaupt im
+    Nenner?"*. Sie hängt an der **Stufe**, die {@link get_wp_strom_kwh} für
+    diese Zeile gewählt hat, nicht am Kennzeichen ``getrennte_strommessung``.
+
+    ⛔ **Der Unterschied ist gemessen und kostet 20 %** (N-462, 13.09.2026):
+    Fällt die Zeile auf den Gesamtzähler zurück, steckt der Kühlstrom darin —
+    wie im Nicht-getrennt-Zweig — und muss abgezogen werden. Am Kennzeichen
+    festgemacht, zeigte dasselbe Gerät mit denselben Zählern **3,0 statt 3,75**,
+    allein weil ein Schalter gesetzt war, der in dieser Lage nichts misst. Das
+    ist die S1-Verletzung, gegen die E7 gebaut wurde, mit umgekehrtem Vorzeichen
+    (Klasse N-450: *„denselben Layer zu rufen genügt nicht, es müssen dieselben
+    EINGÄNGE sein"*).
+    """
+    d = data or {}
+    if not (params or {}).get("getrennte_strommessung"):
+        # ⚠ **Der Monat hat für Geräte ohne Kennzeichen keine Stufe 3.**
+        # {@link get_wp_strom_kwh} liest dort ausschließlich
+        # ``stromverbrauch_kwh``/``strom_kwh``/``verbrauch_kwh`` — die feinen
+        # Felder einer Monatszeile sind ohne Kennzeichen keine Summanden. Der
+        # Nenner ist also nie die feine Summe. (Der **Tag** kennt Stufe 3 auch
+        # ohne Kennzeichen, weil dort ein *zugeordneter* feiner Zähler die
+        # einzige Messung sein kann — die zwei Ebenen sind hier verschieden,
+        # und jede Antwort ist für ihre Ebene exakt.)
+        return False
+    return wp_strom_stufe(
+        params,
+        ist_belegt=lambda f: d.get(f) is not None,
+        hat_gesamtzaehler=d.get("stromverbrauch_kwh") is not None,
+    ) == "fein"
+
+
 def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
     """Wärmepumpen-Stromverbrauch in kWh — single source of truth.
 
-    Bei `getrennte_strommessung=True` werden ausschließlich die getrennten
-    Sensoren (`strom_heizen_kwh + strom_warmwasser_kwh`) summiert; das alte
-    `stromverbrauch_kwh`-Feld wird ignoriert, auch wenn ein parallel laufender
-    Sensor noch hineinschreibt. Sonst wird der Gesamt-Sensor genutzt
+    Bei `getrennte_strommessung=True` entscheidet die dreistufige Vorrangkette
+    aus {@link wp_strom_stufe}: sind **alle** feinen Achsen dieses Geräts belegt,
+    ist ihre Summe die Menge und ein Gesamtzähler wird verworfen (sonst zählte
+    derselbe Strom zweimal); sonst zählt der Gesamtzähler; sonst, was gemessen
+    ist. Ohne das Kennzeichen wird der Gesamt-Sensor genutzt
     (`stromverbrauch_kwh`/`strom_kwh`/`verbrauch_kwh`-Legacy-Fallbacks).
+
+    ⛔ **Hier stand bis zum 13.09.2026: „das alte `stromverbrauch_kwh`-Feld wird
+    ignoriert, auch wenn ein parallel laufender Sensor noch hineinschreibt."**
+    Das war der Vorrang der **Absicht** vor der **Messung** und damit K3 verletzt
+    (SOLL §3.2, W-1/W-1b): Wer den Schalter umlegte, verlor rückwirkend jede
+    Monatszahl, für die er einen Gesamtzähler gepflegt hatte — in Cockpit
+    Monat/Jahr, Komponenten-Hub, Kosten, CO₂, PDF, Community und den
+    HA-Sensoren. Der Tagespfad hat diesen Vorrang am 26.08.2026 abgelegt
+    (`komponenten_beitraege`), der Monatspfad erst jetzt; dazwischen lagen
+    18 Tage, in denen Tag und Monat für dasselbe Gerät verschiedene Zahlen
+    nannten (gemessen: Arbeitszahl 5,0 statt 3,0).
+    **#183 bleibt ausgeschlossen:** Der Gesamtzähler zählt ausschließlich,
+    solange die feine Achse unvollständig ist — dann gibt es höchstens **eine**
+    Funktions-Arbeitszahl, und die Drift dreier JAZ, gegen die #183 gebaut
+    wurde, kann nicht entstehen.
+    **`is not None`, nicht truthy:** ein Warmwasser-Strom von 0,0 im Sommer ist
+    eine Messung, keine Leerstelle.
+    ⚠ **Die Grenze:** Der Monat entscheidet an der **Zeile**, der Tag an der
+    **Zuordnung**. Steht ein feiner Zähler zugeordnet, hat aber in einem Monat
+    keinen Wert in der Zeile, fällt der Monat auf den Gesamtzähler und der Tag
+    nicht — der Daten-Checker nennt genau diesen Monat (N-443).
 
     Hintergrund #183: Mit beiden Pfaden parallel driften die drei JAZ-Werte
     (Gesamt vs. Heizen vs. Warmwasser) gegeneinander, weil der Gesamt-JAZ
@@ -2883,6 +3043,14 @@ def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
     if not data:
         return 0.0
     if params and params.get("getrennte_strommessung"):
+        if wp_strom_stufe(
+            params,
+            ist_belegt=lambda f: data.get(f) is not None,
+            hat_gesamtzaehler=data.get("stromverbrauch_kwh") is not None,
+        ) == "gesamt":
+            # K1 — der Gesamtzähler, und **nichts** addiert: er ist der
+            # Zählerstand des ganzen Geräts, wie im Nicht-getrennt-Zweig unten.
+            return float(data["stromverbrauch_kwh"])
         basis = float(
             (data.get("strom_heizen_kwh") or 0) +
             (data.get("strom_warmwasser_kwh") or 0)

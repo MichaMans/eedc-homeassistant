@@ -69,6 +69,7 @@ from backend.core.field_definitions import (
     get_emob_pv_netz_kwh,
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
+    nenner_ist_feine_summe,
 )
 from backend.core.berechnungen.phev_anteil import teile_fahrleistung
 from backend.core.berechnungen.kapitalrechnung import (
@@ -1648,11 +1649,12 @@ async def calculate_investition_sensors(
         kuehl_je_monat: dict[tuple[int, int], float] = {}
         # B5/X-1: der Kühlstrom je Monat — für E-B in der Ersparnis unten.
         kuehl_je_monat: dict[tuple[int, int], float] = {}
-        #: SOLL-§9-E7/Option A — die Lage DIESES Geräts. Der Block faltet genau
-        #: eine Investition (P10-Restschuld), deshalb einmal vor der Schleife.
-        _wp_hat_split = bool(
-            (investition.parameter or {}).get("getrennte_strommessung")
-        )
+        #: ⛔ **N-462 (13.09.2026): je Monatszeile, nicht einmal vor der
+        #: Schleife.** SOLL-§9-E7/Option A fragt „steckt der funktionsfremde
+        #: Anteil im Nenner?" — das entscheidet die **Stufe** dieser Zeile (K3),
+        #: nicht das Kennzeichen des Geräts. Der Nachtrag-Block weiter unten
+        #: sieht seine Zeile nicht mehr und liest die Stufe deshalb hier mit.
+        _nenner_fein_je_monat: dict[tuple[int, int], bool] = {}
         for md in monatsdaten:
             d = md.verbrauch_daten or {}
             # F-56: **gemessen schlägt abgeleitet**, über den Layer-SoT —
@@ -1666,8 +1668,11 @@ async def calculate_investition_sensors(
             gesamt_modus_kuehlen += _zeile.kuehlen_kwh
             gesamt_modus_warmwasser += _zeile.warmwasser_kwh
             # SOLL-§9-E7/Option A — die Regel wird gerufen, nicht nachgebaut.
+            _nenner_fein_je_monat[(md.jahr, md.monat)] = nenner_ist_feine_summe(
+                d, investition.parameter,
+            )
             gesamt_modus_funktionsfremd_abzug += funktionsfremd_abzug_kwh(
-                _zeile, hat_split=_wp_hat_split,
+                _zeile, hat_split=_nenner_fein_je_monat[(md.jahr, md.monat)],
             )
             gesamt_modus_abdeckung_h += _zeile.abdeckung_h
             gesamt_modus_gemessen = gesamt_modus_gemessen or _zeile.gemessen
@@ -1728,7 +1733,15 @@ async def calculate_investition_sensors(
                         gemessen=False,
                         abdeckung_h=_split.abdeckung_h,
                     ),
-                    hat_split=_wp_hat_split,
+                    # N-462: die Stufe DIESES Monats. Trägt er gar keine
+                    # Zeile, gibt es auch keinen Gesamtzähler, auf den er
+                    # zurückfallen könnte — dann bleibt es bei der Lage des
+                    # Kennzeichens, und die ist hier „feine Summe".
+                    hat_split=_nenner_fein_je_monat.get(
+                        _schluessel,
+                        bool((investition.parameter or {})
+                             .get("getrennte_strommessung")),
+                    ),
                 )
                 gesamt_modus_abdeckung_h += _split.abdeckung_h
 

@@ -24,7 +24,9 @@ from typing import Any, Callable, Iterable, Optional
 
 from backend.core.field_definitions import (
     SONSTIGES_KATEGORIE_UNGEPFLEGT,
+    feine_strom_achsen,
     sonstiges_feld_reihenfolge,
+    wp_strom_stufe,
 )
 from backend.services.snapshot.keys import BASIS_ZAEHLER_FELDER, _categorize_counter
 
@@ -73,41 +75,6 @@ def _is_sensor_mapping(cfg) -> bool:
         and cfg.get("strategie") == "sensor"
         and bool(cfg.get("sensor_id"))
     )
-
-
-#: Die zwei **Summanden**-Achsen des WP-Stroms (Gegenstück zu den Betriebsart-
-#: Teilmengen). Nur die Namen — welche davon ein konkretes Gerät hat, beantwortet
-#: `_feine_strom_achsen` an der Registry.
-_FEINE_STROM_FELDER: tuple[str, ...] = ("strom_heizen_kwh", "strom_warmwasser_kwh")
-
-
-def _feine_strom_achsen(parameter: dict) -> list[str]:
-    """Welche feinen Strom-Achsen **hat** dieses Gerät? (K3, SOLL §3.2)
-
-    Die Frage ist eine Eigenschaft des **Geräts**, nicht der Erfassung: Eine
-    Luft-Wasser-Wärmepumpe hat Heizen und Warmwasser, eine Split-Klimaanlage
-    nur Heizen (kein Warmwasserkreis — `strom_warmwasser_kwh` trägt
-    `!luft_luft`, N-304/B5).
-
-    ⚠ **Deshalb wird die Registry mit gesetztem Kennzeichen befragt**, auch wenn
-    es an der Investition aus ist: `getrennte_strommessung` sagt, ob die Achsen
-    *getrennt erfasst werden*, nicht ob es sie *gibt*. Ohne diese Normalisierung
-    meldete ein Gerät mit ausgeschaltetem Kennzeichen „gar keine Achsen" — und
-    K3 könnte in dieser Richtung (Kennzeichen aus, feiner Zähler zugeordnet)
-    nicht greifen.
-
-    ⭐ **Registry statt Bauart-Abfrage** (R1): `ist_luft_luft_waermepumpe` hier
-    aufzurufen wäre die zweite Stelle, die dieselbe Frage beantwortet — genau
-    die Drift-Klasse, an der F-56 entstanden ist.
-    """
-    from backend.core.field_definitions import get_felder_fuer_investition
-
-    angeboten = {
-        f["feld"] for f in get_felder_fuer_investition(
-            "waermepumpe", {**parameter, "getrennte_strommessung": True},
-        )
-    }
-    return [f for f in _FEINE_STROM_FELDER if f in angeboten]
 
 
 def pv_je_investition_belegt_in_map(
@@ -401,20 +368,21 @@ def investition_beitraege(
         # `aggregator.get_tagesdetail_kwh` trägt `strom_heizen_kwh`/
         # `strom_warmwasser_kwh` als eigene Ausgabe-Keys. „Aufteilung daneben,
         # nie an ihrer Stelle" (K1) heißt Detail-Pfad, nicht Bilanz-Pfad.
+        # ⭐ **Die Stufenregel steht seit dem 13.09.2026 in `field_definitions`**
+        # ({@link wp_strom_stufe}) und nicht mehr hier: Der Monatspfad
+        # (`get_wp_strom_kwh`) stellt dieselbe Frage, und zwei Fassungen
+        # nebeneinander wären die F-56-Klasse. Was hier bleibt, sind die
+        # **Eingänge** dieser Ebene — der Tag fragt „ist ein Zähler zugeordnet?",
+        # der Monat „steht ein Wert in der Zeile?".
         params = getattr(inv, "parameter", None) or {}
         if not isinstance(params, dict):
             params = {}
-        fein_moeglich = _feine_strom_achsen(params)
-        fein_belegt = [f for f in fein_moeglich if ist_verfuegbar(f)]
-        aufteilung_vollstaendig = (
-            bool(params.get("getrennte_strommessung"))
-            and len(fein_moeglich) >= 2
-            and len(fein_belegt) == len(fein_moeglich)
-        )
-        if aufteilung_vollstaendig:
-            for feld in fein_belegt:
-                _add(feld)
-        elif ist_verfuegbar("stromverbrauch_kwh"):
+        fein_belegt = [f for f in feine_strom_achsen(params) if ist_verfuegbar(f)]
+        if wp_strom_stufe(
+            params,
+            ist_belegt=ist_verfuegbar,
+            hat_gesamtzaehler=ist_verfuegbar("stromverbrauch_kwh"),
+        ) == "gesamt":
             _add("stromverbrauch_kwh")
         else:
             for feld in fein_belegt:

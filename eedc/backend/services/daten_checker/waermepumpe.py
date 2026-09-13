@@ -33,6 +33,7 @@ from backend.core.field_definitions import (
     get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
+    nenner_ist_feine_summe,
 )
 from backend.models.anlage import Anlage
 
@@ -126,7 +127,11 @@ class WaermepumpeChecks:
                     waerme, strom,
                     strom_funktionsfremd_kwh=funktionsfremd_abzug_kwh(
                         modus_strom_zeile(daten),
-                        hat_split=bool(params.get("getrennte_strommessung")),
+                        # N-462: die **Stufe** dieser Zeile, nicht das
+                        # Kennzeichen — sonst prüft der Prüfer eine andere Zahl
+                        # als die Anzeige (er ist genau dafür da, dass beide
+                        # dieselbe nennen).
+                        hat_split=nenner_ist_feine_summe(daten, params),
                     ),
                 )
                 if az.wert is None:

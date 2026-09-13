@@ -55,6 +55,7 @@ from backend.core.field_definitions import (
     get_speicher_netzladung_kwh,
     get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
+    nenner_ist_feine_summe,
 )
 from backend.core.investition_parameter import abgrenzung_stoerung
 
@@ -93,7 +94,12 @@ class ImdTypBeitrag:
     wp_waerme: float = 0.0
     wp_strom_heizen: float = 0.0
     wp_strom_warmwasser: float = 0.0
-    wp_hat_split: bool = False            # getrennte_strommessung aktiv
+    #: ⛔ **Das Kennzeichen ``getrennte_strommessung``, und das bleibt es**
+    #: (N-462): Die Frage hier lautet *liegt der Strom getrennt je Funktion
+    #: vor?* (Konsumenten: Jahreskennzahlen, ``/aggregiert``, PDF) — nicht
+    #: *ist der Nenner die feine Summe?*, wie bei
+    #: {@link funktionsfremd_abzug_kwh}. Ein Wort, zwei Fragen.
+    wp_hat_split: bool = False
     # #263 K-2 (S3): der Modus-Split. NICHT mit `wp_strom_heizen` verwechseln —
     # das ist der SUMMAND bei getrennter Strommessung (zwei physische Zähler),
     # dies hier sind TEILMENGEN von `wp_strom` (ein Zähler, Modus mitgeschrieben).
@@ -315,11 +321,20 @@ def imd_typ_beitrag(
             wp_modus_strom_lueften=_modus.lueften_kwh,
             wp_modus_strom_entfeuchten=_modus.entfeuchten_kwh,
             # SOLL-§9-E7/Option A: **abgezogen wird nur, was im Nenner steht.**
-            # Die Regel liegt im Layer, nicht hier — `hat_split` ist die Lage
-            # DIESES Geräts, und genau deshalb fällt die Entscheidung in dieser
-            # Zeile und nicht in der Anlagen-Summe (Mischanlagen).
+            # Die Regel liegt im Layer, nicht hier — sie gilt für DIESES Gerät,
+            # und genau deshalb fällt die Entscheidung in dieser Zeile und nicht
+            # in der Anlagen-Summe (Mischanlagen).
+            # ⛔ **`nenner_ist_feine_summe`, nicht `hat_split`** (N-462,
+            # 13.09.2026): Das Kennzeichen sagt nichts darüber, WELCHE Menge
+            # `get_wp_strom_kwh` für diese Zeile gewählt hat. Fällt sie auf den
+            # Gesamtzähler zurück (feine Achse unvollständig, K3), steckt der
+            # Kühlstrom darin und muss abgezogen werden — sonst zeigt dasselbe
+            # Gerät mit denselben Zählern 3,0 statt 3,75, allein weil ein
+            # Schalter gesetzt ist. `wp_hat_split` unten bleibt das Kennzeichen:
+            # es beantwortet die ANDERE Frage („liegt der Strom getrennt je
+            # Funktion vor?").
             wp_modus_strom_funktionsfremd_abzug=funktionsfremd_abzug_kwh(
-                _modus, hat_split=hat_split,
+                _modus, hat_split=nenner_ist_feine_summe(data, params),
             ),
             wp_nutzenergie_kuehlen=(
                 betriebsart_nutzenergie_kwh(data, _KUEHLEN) or 0.0

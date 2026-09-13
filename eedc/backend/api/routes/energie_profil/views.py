@@ -391,6 +391,7 @@ async def get_waerme_verlauf_stunden(
         WAERME_AUSGABE_KEYS,
         get_betriebsart_strom_tageswerte,
         get_tagesdetail_kwh,
+        get_wp_strom_stufe_je_investition,
     )
     from backend.services.snapshot.boundary_range import tageszeile_ist_rueckwaerts
     from backend.services.snapshot.keys import extract_quellen_energy, feld_hat_zaehler
@@ -420,6 +421,11 @@ async def get_waerme_verlauf_stunden(
         gemessen_je_inv, wp_kwh_je_inv,
         await lade_modus_split_tag(db, anlage_id, datum),
         investitionen_by_id, datum,
+        # N-462: dieselbe Stufe wie im Tag-Detail — sonst nennt derselbe Tag
+        # zwei verschiedene Abzüge.
+        stufe_je_inv=await get_wp_strom_stufe_je_investition(
+            db, anlage, investitionen_by_id,
+        ),
     )
     detail = await get_tagesdetail_kwh(
         db, anlage, investitionen_by_id, datum,
@@ -768,7 +774,10 @@ async def get_tag_detail(
         tageswert_grund_kurz, tageswert_grund_text,
     )
     from backend.services.energie_profil import lade_modus_split_tag
-    from backend.services.snapshot.aggregator import get_betriebsart_strom_tageswerte
+    from backend.services.snapshot.aggregator import (
+        get_betriebsart_strom_tageswerte,
+        get_wp_strom_stufe_je_investition,
+    )
 
     # ── Zweig 1 laden: gemessene Betriebsart-Zähler (#263) ────────────────
     #
@@ -805,8 +814,15 @@ async def get_tag_detail(
     # bringen (R2 beidseitig, s. u.). `falte_tages_stapel` ist genau
     # `_falte(beitraege_des_tages(…))`; beides aus denselben Eingängen ⇒ bitgleich.
     _splits_tag = await lade_modus_split_tag(db, anlage_id, datum)
+    # N-462: SOLL-§9-E7/Option A fragt „steckt der funktionsfremde Anteil im
+    # Nenner?" — und das entscheidet die K3-Stufe des Bezugs, nicht das
+    # Kennzeichen. Gemessen: 3,00 statt 3,75 an derselben Anlage.
+    _stufe_je_inv = await get_wp_strom_stufe_je_investition(
+        db, anlage, investitionen_by_id,
+    )
     beitraege_tag = beitraege_des_tages(
         gemessen_je_inv, wp_kwh_je_inv, _splits_tag, investitionen_by_id, datum,
+        stufe_je_inv=_stufe_je_inv,
     )
     stapel = falte_tages_stapel(
         gemessen_je_inv,
@@ -814,6 +830,7 @@ async def get_tag_detail(
         _splits_tag,
         investitionen_by_id,
         datum,
+        stufe_je_inv=_stufe_je_inv,
     )
     heizen_tag = stapel.heizen_kwh
     kuehlen_tag = stapel.kuehlen_kwh

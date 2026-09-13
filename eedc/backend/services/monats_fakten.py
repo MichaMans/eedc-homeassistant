@@ -102,7 +102,11 @@ from backend.core.wirtschaftlichkeit_defaults import (
     EINSPEISEVERGUETUNG_DEFAULT_CENT,
     NETZBEZUG_DEFAULT_CENT,
 )
-from backend.core.field_definitions import get_emob_pv_netz_kwh, get_wp_strom_kwh
+from backend.core.field_definitions import (
+    get_emob_pv_netz_kwh,
+    get_wp_strom_kwh,
+    nenner_ist_feine_summe,
+)
 from backend.models.investition import Investition, InvestitionMonatsdaten
 from backend.models.monatsdaten import Monatsdaten
 from backend.services.eauto_wirtschaftlichkeit import (
@@ -1085,6 +1089,9 @@ async def lade_monats_fakten(
     #: entscheiden kann, statt je Monat: eine Anlage mit zwei Wärmepumpen kann
     #: für die eine einen Abschluss haben und für die andere nicht.
     wp_je_monat: dict[MonatsSchluessel, dict[str, tuple[bool, float]]] = {}
+    #: (jahr, monat) → {investition_id_als_string: „der Nenner dieser Zeile ist
+    #: die feine Summe"} — dieselbe Buchführung, andere Frage (N-462).
+    wp_nenner_fein: dict[MonatsSchluessel, dict[str, bool]] = {}
     for imd in imd_rows:
         inv = inv_by_id.get(imd.investition_id)
         # #153/#155/#236/#308: vor Anschaffung / nach Stilllegung / deaktiviert
@@ -1107,6 +1114,12 @@ async def lade_monats_fakten(
                 float(daten.get(MODUS_ABDECKUNG_FELD) or 0) > 0
                 or hat_gemessene_betriebsart(daten),
                 get_wp_strom_kwh(daten, inv.parameter),
+            )
+            # N-462: Welche **Stufe** trägt der Strom dieser Zeile (K3)? Der
+            # Nachtrag-Block unten sieht die Zeile nicht mehr, braucht die
+            # Antwort aber für SOLL-§9-E7/Option A.
+            wp_nenner_fein.setdefault((imd.jahr, imd.monat), {})[str(inv.id)] = (
+                nenner_ist_feine_summe(daten, inv.parameter)
             )
 
     # ── Modus-Split für Monate ohne Abschluss (F-52) ─────────────────────────
@@ -1135,7 +1148,8 @@ async def lade_monats_fakten(
     # dass es überhaupt eine Wärmepumpe gibt.
     if any(i.typ == "waermepumpe" for i in investitionen):
         await _ergaenze_modus_split_ohne_abschluss(
-            db, anlage_id, roh, wp_je_monat, inv_by_id, von=von, bis=bis
+            db, anlage_id, roh, wp_je_monat, inv_by_id,
+            wp_nenner_fein=wp_nenner_fein, von=von, bis=bis,
         )
 
     # Die lokale Tagesebene als **zusätzliche** Grundgesamtheit (N-121). Ohne
@@ -1210,6 +1224,7 @@ async def _ergaenze_modus_split_ohne_abschluss(
     wp_je_monat: dict[MonatsSchluessel, dict[str, tuple[bool, float]]],
     inv_by_id: dict[int, Investition],
     *,
+    wp_nenner_fein: dict[MonatsSchluessel, dict[str, bool]],
     von: Optional[MonatsSchluessel],
     bis: Optional[MonatsSchluessel],
 ) -> None:
@@ -1269,9 +1284,19 @@ async def _ergaenze_modus_split_ohne_abschluss(
                     gemessen=False,
                     abdeckung_h=split.abdeckung_h,
                 ),
-                hat_split=bool(
-                    (getattr(_inv_nach, "parameter", None) or {})
-                    .get("getrennte_strommessung")
+                # ⛔ **N-462: die STUFE dieser Zeile, nicht das Kennzeichen.**
+                # `lade_modus_split_ohne_abschluss` nimmt als Bezug den
+                # *gepflegten* Strom der Monatszeile, sobald es einen gibt —
+                # also genau die Menge, die `get_wp_strom_kwh` gewählt hat. Ist
+                # das der Gesamtzähler (feine Achse unvollständig, K3), steckt
+                # der Kühlstrom darin und muss abgezogen werden.
+                # Ein Monat **ohne** jede Zeile hat auch keinen Gesamtzähler,
+                # auf den er zurückfallen könnte — dort bleibt es beim
+                # Kennzeichen, und das heißt „feine Summe".
+                hat_split=wp_nenner_fein.get(schluessel, {}).get(
+                    inv_id,
+                    bool((getattr(_inv_nach, "parameter", None) or {})
+                         .get("getrennte_strommessung")),
                 ),
             )
             # W-17: Stunden werden ueber GERAETE nicht addiert (SoT-Helfer).

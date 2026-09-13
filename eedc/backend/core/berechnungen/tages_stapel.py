@@ -160,14 +160,19 @@ class GeraeteBeitrag:
     inv_id: str
     gemessen: bool
     bezug_kwh: float
-    #: **Führt dieses Gerät getrennte Strommessung?** (``getrennte_strommessung``,
-    #: F5) — dieselbe Bedeutung wie ``ImdTypBeitrag.wp_hat_split`` im
-    #: Monatspfad, und **nicht** die von ``TagesStapel.hat_split`` darüber.
+    #: **Ist der Bezug dieses Beitrags die feine Summe?** — ``bezug_kwh`` ist
+    #: die K3-Stufe „fein" (``strom_heizen + strom_warmwasser``) und nicht der
+    #: Gesamtzähler. **Nicht** die Bedeutung von ``TagesStapel.hat_split``
+    #: darüber, und seit N-462 auch nicht mehr die von
+    #: ``ImdTypBeitrag.wp_hat_split`` (dort ist es weiterhin das Kennzeichen und
+    #: beantwortet die andere Frage: „liegt der Strom getrennt je Funktion vor?").
     #:
-    #: Gebraucht für **SOLL-§9-E7/Option A**: Bei F5 + abgeleiteter Aufteilung
-    #: darf der funktionsfremde Anteil den Nenner nicht kürzen — er verteilt
-    #: ihn nur. Die Regel steht im Layer ({@link funktionsfremd_abzug_kwh}),
-    #: dieses Feld trägt bloß die Lage des Geräts dorthin.
+    #: Gebraucht für **SOLL-§9-E7/Option A**: Bei abgeleiteter Aufteilung darf
+    #: der funktionsfremde Anteil einen **feinen** Nenner nicht kürzen — er
+    #: verteilt ihn nur. Steht dort der **Gesamtzähler**, steckt der Kühlstrom
+    #: darin und muss abgezogen werden, wie im Nicht-getrennt-Zweig. Die Regel
+    #: steht im Layer ({@link funktionsfremd_abzug_kwh}), dieses Feld trägt bloß
+    #: die Lage des Beitrags dorthin.
     hat_split: bool = False
     heizen_kwh: float = 0.0
     warmwasser_kwh: float = 0.0
@@ -181,15 +186,31 @@ class GeraeteBeitrag:
     felder: dict[str, float] = field(default_factory=dict)
 
 
-def _hat_getrennte_strommessung(inv) -> bool:
-    """Führt dieses Gerät getrennte Strommessung (F5)? — für SOLL-§9-E7/Option A.
+def _nenner_ist_feine_summe(
+    inv, inv_id_str: str, stufe_je_inv: Optional[dict[str, str]],
+) -> bool:
+    """Ist der Bezug dieses Geräts die feine Summe? — für SOLL-§9-E7/Option A.
+
+    ⭐ **Die Stufe kommt vom Aufrufer** ({@link
+    backend.services.snapshot.aggregator.get_wp_strom_stufe_je_investition}),
+    denn sie hängt an der **Zuordnung** und die steht im ``sensor_mapping`` —
+    das diese Faltung bewusst nicht sieht (sie faltet, sie lädt nicht). Dieselbe
+    Bauform wie ``ist_verfuegbar`` in der Beitragsschicht: die Regel hier, die
+    Eingänge beim Aufrufer.
+
+    ⚠ **Ohne Angabe bleibt es beim Kennzeichen**, und das ist die vorsichtige
+    Antwort: An einem F5-Gerät heißt sie „feine Summe" ⇒ kein Abzug ⇒ der Nenner
+    bleibt so groß, wie er ohne diese Regel war (ADR-002/P4 — lieber keine
+    Kürzung als eine erfundene). Sie ist zugleich das **alte** Verhalten, sodass
+    ein Aufrufer, der die Stufe nicht liefert, nichts verschlechtert.
 
     ⚠ Bewusst ``getattr``: Die Faltung bekommt echte ``Investition``-Objekte
     ebenso wie die schlanken Doubles der Layer-Proben, und ein fehlendes
-    ``parameter`` ist kein Grund für einen Absturz — die Lage heißt dann
-    „keine getrennte Strommessung", und das ist die vorsichtige Antwort
-    (der Abzug bleibt, wie er ohne diese Regel war).
+    ``parameter`` ist kein Grund für einen Absturz.
     """
+    stufe = (stufe_je_inv or {}).get(inv_id_str)
+    if stufe is not None:
+        return stufe == "fein"
     return bool((getattr(inv, "parameter", None) or {}).get("getrennte_strommessung"))
 
 
@@ -199,6 +220,8 @@ def beitraege_des_tages(
     splits_je_inv: dict[str, ModusSplit],
     investitionen_by_id: dict,
     datum: date,
+    *,
+    stufe_je_inv: Optional[dict[str, str]] = None,
 ) -> list[GeraeteBeitrag]:
     """Welches Gerät mit welchem Zweig beiträgt — die eine Auswahl (K2, Zeitfilter, Invariante).
 
@@ -216,6 +239,11 @@ def beitraege_des_tages(
             bzw. dem Bereichs-Leser (Zweig 2).
         investitionen_by_id: für die Zeitfilterung (``ist_aktiv_an``).
         datum: der Tag — entscheidet, welches Gerät überhaupt zählt.
+        stufe_je_inv: ``{inv_id: "fein"|"gesamt"}`` — welche K3-Stufe der Bezug
+            dieses Geräts trägt (N-462). Kommt aus
+            ``aggregator.get_wp_strom_stufe_je_investition``, weil sie am
+            ``sensor_mapping`` hängt. Fehlt sie, gilt das Kennzeichen — das
+            bisherige Verhalten (s. {@link _nenner_ist_feine_summe}).
 
     Returns:
         Die Beiträge, Zweig 1 vor Zweig 2 — dieselbe Reihenfolge, in der die
@@ -246,7 +274,7 @@ def beitraege_des_tages(
             inv_id=inv_id_str,
             gemessen=True,
             bezug_kwh=float(geraet_bezug),
-            hat_split=_hat_getrennte_strommessung(inv),
+            hat_split=_nenner_ist_feine_summe(inv, inv_id_str, stufe_je_inv),
             heizen_kwh=zeile.heizen_kwh,
             kuehlen_kwh=zeile.kuehlen_kwh,
             # E4 (Konzept §2.3): Lüften und Entfeuchten sind erfassbar und
@@ -277,7 +305,7 @@ def beitraege_des_tages(
             inv_id=inv_id_str,
             gemessen=False,
             bezug_kwh=geraet_bezug,
-            hat_split=_hat_getrennte_strommessung(inv),
+            hat_split=_nenner_ist_feine_summe(inv, inv_id_str, stufe_je_inv),
             heizen_kwh=split.teilmenge_kwh(HEIZEN),
             kuehlen_kwh=split.teilmenge_kwh(KUEHLEN),
             # N-336: nur der abgeleitete Zweig füllt Warmwasser — s. `ModusStromZeile`.
@@ -349,6 +377,8 @@ def falte_tages_stapel(
     splits_je_inv: dict[str, ModusSplit],
     investitionen_by_id: dict,
     datum: date,
+    *,
+    stufe_je_inv: Optional[dict[str, str]] = None,
 ) -> TagesStapel:
     """Faltet beide Zweige eines Tages zu **einem** Stapel.
 
@@ -360,7 +390,7 @@ def falte_tages_stapel(
     """
     return _falte(beitraege_des_tages(
         gemessen_je_inv, zaehler_strom_je_inv, splits_je_inv,
-        investitionen_by_id, datum,
+        investitionen_by_id, datum, stufe_je_inv=stufe_je_inv,
     ))
 
 

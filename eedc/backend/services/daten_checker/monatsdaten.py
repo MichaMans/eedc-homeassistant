@@ -19,6 +19,7 @@ from backend.core.field_definitions import (
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     groesse_gibt_es_am_geraet,
+    wp_strom_stufe,
 )
 from backend.core.berechnungen.erzeuger_traeger import erzeuger_traeger
 from backend.core.investition_kennwerte import get_erzeuger_kwp
@@ -1045,17 +1046,37 @@ class MonatsdatenChecks:
         heiz_erwartet = get_feld_bedarf("waermepumpe", "heizenergie_kwh", param)[0] == "pflicht"
         ww_strom_gibt_es = groesse_gibt_es_am_geraet("waermepumpe", "strom_warmwasser_kwh", param)
 
-        # #183: bei getrennter Strommessung wird der alte stromverbrauch_kwh-
-        # Sensor in der Aggregation ignoriert. Wenn er trotzdem im Sensor-
-        # Mapping steht, ist das überflüssig (und schreibt parallel Werte
-        # in die JSON, die niemand mehr liest). INFO-Hinweis zum Entfernen.
+        # #183: Steht die feine Achse **vollständig**, ist der alte
+        # `stromverbrauch_kwh`-Sensor überflüssig — die Aggregation verwirft ihn
+        # dann (sonst zählte derselbe Strom zweimal), und er schreibt bloß
+        # parallel Werte in die JSON, die niemand mehr liest. INFO zum Entfernen.
+        #
+        # ⛔ **Bis zum 13.09.2026 hing diese Meldung allein am Kennzeichen, und
+        # seit N-451 wäre sie damit ein Rat ins Verderben** (gemessen an drei
+        # Lagen): Ist die feine Achse **unvollständig**, trägt genau dieser
+        # Sensor den Stromverbrauch des Geräts (K3) — ihn zu entfernen setzte
+        # jede Monats-Sicht wieder auf 0. Die Bedingung fragt deshalb dieselbe
+        # Stufenregel wie die Aggregation ({@link
+        # backend.core.field_definitions.wp_strom_stufe}), auf der Ebene der
+        # **Zuordnung** — genau der Ebene, über die die Meldung spricht.
         if getrennte_strommessung:
             anlage = getattr(inv, "anlage", None)
             sensor_mapping = (anlage.sensor_mapping if anlage else None) or {}
             inv_map = (sensor_mapping.get("investitionen") or {}).get(str(inv.id)) or {}
             felder = inv_map.get("felder") or {}
             alter_sensor = felder.get("stromverbrauch_kwh")
-            if isinstance(alter_sensor, dict) and alter_sensor.get("strategie") == "sensor":
+
+            def _zugeordnet(feld: str) -> bool:
+                cfg = felder.get(feld)
+                return isinstance(cfg, dict) and cfg.get("strategie") == "sensor"
+
+            if (
+                isinstance(alter_sensor, dict)
+                and alter_sensor.get("strategie") == "sensor"
+                and wp_strom_stufe(
+                    param, ist_belegt=_zugeordnet, hat_gesamtzaehler=True,
+                ) == "fein"
+            ):
                 ergebnisse.append(CheckErgebnis(
                     kategorie=kat, schwere=CheckSeverity.INFO,
                     meldung=(

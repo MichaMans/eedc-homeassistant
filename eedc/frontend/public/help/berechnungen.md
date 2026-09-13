@@ -1289,7 +1289,8 @@ sieben Formeln).
 > | --- | --- | --- |
 > | **ohne** getrennte Strommessung | ja — `stromverbrauch_kwh` ist der Zählerstand des ganzen Geräts | ganz (**W-14**) |
 > | F5 **mit gemessenem** Betriebsart-Zähler | ja — `get_wp_strom_kwh` addiert ihn (**W-16**) | ganz (**W-16b**) |
-> | F5 mit **abgeleitetem** Modus-Split | **nein** — der Split *verteilt* `strom_heizen_kwh + strom_warmwasser_kwh` | **0** |
+> | F5 mit **abgeleitetem** Modus-Split **und vollständiger feiner Achse** | **nein** — der Split *verteilt* `strom_heizen_kwh + strom_warmwasser_kwh` | **0** |
+> | F5 mit **abgeleitetem** Modus-Split, feine Achse **unvollständig** | ja — der Nenner ist dann der **Gesamtzähler** (K3), und der trägt den Kühlstrom wie in Zeile 1 | **ganz** |
 >
 > **Warum das keine Ausnahme, sondern derselbe Grundsatz ist:** SOLL-§9-**E7** begründet an der
 > Kategorie, dass eine *Verteilung* kein Nenner sein darf — *„eine Verteilung erbt jede Unschärfe

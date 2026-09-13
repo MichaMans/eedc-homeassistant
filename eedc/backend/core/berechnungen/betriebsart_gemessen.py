@@ -304,7 +304,8 @@ def funktionsfremd_abzug_kwh(zeile: ModusStromZeile, *, hat_split: bool) -> floa
     | --- | --- | --- |
     | **ohne** getrennte Strommessung | ja — ``stromverbrauch_kwh`` ist der Zählerstand des ganzen Geräts | ganz (**W-14**) |
     | F5 **mit gemessenem** Betriebsart-Zähler | ja — ``get_wp_strom_kwh`` addiert ihn (**W-16**) | ganz (**W-16b**) |
-    | F5 mit **abgeleitetem** Split | **nein** — der Split *verteilt* ``strom_heizen_kwh + strom_warmwasser_kwh``, er stellt nichts daneben | **0** |
+    | F5 mit **abgeleitetem** Split **und vollständiger feiner Achse** | **nein** — der Split *verteilt* ``strom_heizen_kwh + strom_warmwasser_kwh``, er stellt nichts daneben | **0** |
+    | F5 mit **abgeleitetem** Split, feine Achse **unvollständig** | ja — der Nenner ist dann der **Gesamtzähler** (K3), und der trägt den Kühlstrom wie in Zeile 1 | **ganz** |
 
     ⭐ **Warum der dritte Fall keine Ausnahme, sondern derselbe Grundsatz ist**
     (SOLL §4.1, *„Ergänzung zu E7"*, Entscheid Gernot 12.09.2026 — Option A):
@@ -326,13 +327,36 @@ def funktionsfremd_abzug_kwh(zeile: ModusStromZeile, *, hat_split: bool) -> floa
     der gemessene F5-Zähler, und dort wird ohnehin nichts abgezogen
     ({@link waermepumpe_kennzahl.arbeitszahl_je_funktion}).
 
+    ⛔ **Die vierte Zeile ist seit dem 13.09.2026 da, und sie hat die Bedeutung
+    des Arguments korrigiert (N-462).** ``hat_split`` hieß bis dahin faktisch
+    „das Kennzeichen ``getrennte_strommessung`` ist gesetzt". Seit Etappe 3
+    (26.08.2026) trägt der Bezug in der F5-Lücke aber den **Gesamtzähler** — und
+    mit dem Kennzeichen als Kriterium zeigte dasselbe Gerät mit denselben
+    Zählern **3,0 statt 3,75**, 20 % schlechter, allein weil ein Schalter
+    gesetzt war, der in dieser Lage nichts misst. Genau die S1-Verletzung, gegen
+    die E7 gebaut wurde, mit umgekehrtem Vorzeichen. **Die Tabelle oben ist an
+    der Additionsseite abgelesen** — ändert sich die, muss die Abzugsseite
+    mitziehen (Klasse **N-450**: dieselben *Eingänge*, nicht nur derselbe Layer).
+
+    ⛔ **Dasselbe Wort, zwei Fragen — nicht verwechseln.** ``hat_split`` an
+    {@link waermepumpe_kennzahl.arbeitszahl_je_funktion} und
+    ``ImdTypBeitrag.wp_hat_split`` bleiben das **Kennzeichen**: Dort lautet die
+    Frage *liegt der Strom getrennt je Funktion vor?*, und deren Antwort ist
+    unverändert nein, sobald ein feiner Zähler fehlt. Hier lautet sie *ist der
+    Nenner die feine Summe?*. Zwei Bedeutungen unter einem Namen sind die
+    F-56-Falle; deshalb steht sie ausgeschrieben hier.
+
     Args:
         zeile: die aufgelöste Betriebsart-Zeile dieses Geräts.
-        hat_split: führt **dieses Gerät** getrennte Strommessung
-            (``getrennte_strommessung``)? ⛔ **Je Gerät, nie anlagenweit** —
-            eine Anlage darf ein F5-Gerät neben einem nicht-F5-Gerät haben, und
-            die Regel entscheidet für jedes einzeln (K2: *„je Gerät, ganz oder
-            gar nicht"*).
+        hat_split: **ist der Nenner dieser Zeile die feine Summe?** Also die
+            Stufe, die {@link
+            backend.core.field_definitions.get_wp_strom_kwh} gewählt hat —
+            nicht das Kennzeichen. Die Aufrufer holen sie aus
+            ``field_definitions.nenner_ist_feine_summe`` (Monatszeile) bzw. aus
+            ``aggregator.get_wp_strom_stufe_je_investition`` (Tag).
+            ⛔ **Je Gerät, nie anlagenweit** — eine Anlage darf ein F5-Gerät
+            neben einem nicht-F5-Gerät haben, und die Regel entscheidet für
+            jedes einzeln (K2: *„je Gerät, ganz oder gar nicht"*).
 
     Returns:
         Die kWh, die vom Nenner abgezogen werden dürfen.
