@@ -11,6 +11,49 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Die Ø Temperatur im Monatsabschluss füllt sich wieder — aus deinen eigenen Messwerten**
+
+**Betrifft dich das?** Jeden, der einen Monat im **Monatsabschluss** erfasst und
+dort den Knopf **Auto-Fill** im Abschnitt *Wetterdaten* benutzt.
+
+**Was war:** Unter dem Feld *Ø Temperatur* stand wörtlich *„Wird automatisch von
+Open-Meteo geholt"* — der Knopf füllte aber nur *Globalstrahlung* und
+*Sonnenstunden*. Das Feld blieb leer, und weil der Hinweis das Gegenteil
+versprach, hatte kaum jemand Anlass, die Zahl selbst zu suchen. Seit v4.0.0 ist
+sie deshalb in praktisch jedem Monat leer.
+
+**Was jetzt gilt:** Der Auto-Fill setzt die Ø Temperatur wieder — und er nimmt
+sie **zuerst aus deinen eigenen gemessenen Außentemperaturen** des Monats
+(stündliche Werte, ersatzweise das Tages-Minimum/Maximum). Erst wenn davon
+nichts vorliegt, kommt sie aus dem Archiv von Open-Meteo bzw. Bright Sky. Unter
+dem Knopf steht, welche der beiden Quellen es war.
+
+**Warum die eigene Messung zuerst:** Sie wurde an deinem Standort gemessen, nicht
+an der nächstgelegenen Wetterstation. Und für den **laufenden** Monat ist sie die
+einzige Quelle — das Archiv liefert dafür grundsätzlich nichts.
+
+**Und alle drei Wetterfelder halten sich jetzt an dieselbe Regel:** Der
+Auto-Fill füllt **nur leere Felder**. *Globalstrahlung* und *Sonnenstunden*
+ersetzten bisher auch eine Zahl, die du selbst eingetragen hattest — obwohl der
+Hinweis unter der Globalstrahlung schon immer *„…, wenn nicht manuell gepflegt"*
+versprach. Unter dem Knopf steht danach in einem Satz, was übernommen wurde und
+was stehen blieb: *„Globalstrahlung und Sonnenstunden übernommen, Ø Temperatur
+unverändert — der eingetragene Wert bleibt stehen."* Willst du einen Wert doch
+ersetzen, **leerst du das Feld und klickst erneut**.
+
+**Kleinigkeit am Rande, die viele betrifft:** Wer in Deutschland Auto-Fill
+drückt, bekommt die Daten meist vom **DWD** (über Bright Sky) — darunter stand
+bisher trotzdem *„Geschätzte Durchschnittswerte"*. Jetzt steht dort, was es ist:
+*„Messwerte des DWD (Bright Sky)"*.
+
+**Was du tun musst:** Nichts. ⛔ **Bereits erfasste Monate füllt eedc nicht
+nachträglich**; wer sie mitnehmen will, öffnet den Monat und drückt Auto-Fill.
+⚠ Am **wetternormierten Vergleich** (kWh/Kd im Wärme/Klima-Hub) ändert sich
+nichts — der liest die Tagesreihe direkt und nimmt dieses Feld weiterhin nicht
+als Quelle.
+
+---
+
 **Fehlt eine Stromseite, sagt es der Daten-Checker jetzt — je Seite einzeln**
 
 **Betrifft dich das?** Nur, wenn du an einer Wärmepumpe die **getrennte

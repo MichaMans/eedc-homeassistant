@@ -55,9 +55,9 @@
 |------|-------|---------|-----------|-------------|
 | `einspeisung_kwh` | Einspeisung `*` | kWh | Kumulativ oder Tagessensor | Ins Netz eingespeiste Energie. Muss immer ≥ 0 sein. Bei Zweirichtungszähler: nur der Einspeiseanteil. |
 | `netzbezug_kwh` | Netzbezug `*` | kWh | Kumulativ oder Tagessensor | Aus dem Netz bezogene Energie. Muss immer ≥ 0 sein. Bei Zweirichtungszähler: nur der Bezugsanteil. |
-| `globalstrahlung_kwh_m2` | Globalstrahlung | kWh/m² | Kumulativ | Globalstrahlung im Monat. Wird automatisch von Open-Meteo geholt wenn nicht manuell gepflegt. |
-| `sonnenstunden` | Sonnenstunden | h | Kumulativ | Sonnenstunden im Monat. Wird automatisch von Open-Meteo geholt. |
-| `durchschnittstemperatur` | Ø Temperatur | °C | — | Monatsdurchschnitt. Wird automatisch von Open-Meteo geholt. |
+| `globalstrahlung_kwh_m2` | Globalstrahlung | kWh/m² | Kumulativ | Globalstrahlung im Monat. Der Auto-Fill im Monatsabschluss holt sie von Open-Meteo bzw. Bright Sky — **nur in ein leeres Feld**. |
+| `sonnenstunden` | Sonnenstunden | h | Kumulativ | Sonnenstunden im Monat. Der Auto-Fill im Monatsabschluss holt sie von Open-Meteo bzw. Bright Sky — **nur in ein leeres Feld**. |
+| `durchschnittstemperatur` | Ø Temperatur | °C | — | Monatsdurchschnitt. Der Auto-Fill im Monatsabschluss holt ihn zuerst aus den **gemessenen Außentemperaturen** des Monats (Stundenwerte, sonst Tages-Min/Max), sonst von Open-Meteo — und nur in ein leeres Feld. |
 
 ### Live-Dashboard (W)
 

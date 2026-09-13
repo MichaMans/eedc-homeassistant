@@ -83,10 +83,17 @@ BASIS_FELDER = [
      "hinweis": "Kumulativer kWh-Zähler (oder Tagessensor mit 0:00-Reset) der aus dem Netz bezogenen Energie. Immer ≥ 0; bei Zweirichtungszähler nur den Bezugs-Anteil."},
     {"feld": "globalstrahlung_kwh_m2", "label": "Globalstrahlung", "einheit": "kWh/m²", "mapping_key": "globalstrahlung","gruppe": "wetter",
      "hinweis": "Globalstrahlung im Monat (kWh/m²). Wird automatisch von Open-Meteo geholt, wenn nicht manuell gepflegt."},
+    # N-426 (Nachbesserung): derselbe Halbsatz wie bei der Globalstrahlung
+    # darüber. Seit alle drei Wetterfelder nur noch LÜCKEN füllen, ist er für
+    # beide wahr — vorher versprach ihn nur das eine Feld, und keines hielt ihn.
     {"feld": "sonnenstunden",          "label": "Sonnenstunden",   "einheit": "h",      "mapping_key": "sonnenstunden",  "gruppe": "wetter",
-     "hinweis": "Sonnenstunden im Monat (h). Wird automatisch von Open-Meteo geholt."},
+     "hinweis": "Sonnenstunden im Monat (h). Wird automatisch von Open-Meteo geholt, wenn nicht manuell gepflegt."},
+    # N-426: Bis v4.0.44 stand hier „Wird automatisch von Open-Meteo geholt" —
+    # eine Zusage, die der V4-Auto-Fill nicht mehr einlöste (er füllte nur die
+    # zwei Felder darüber). Der Hinweis sagt jetzt, was der Knopf wirklich tut,
+    # UND woher der Wert kommt: die eigene Messreihe schlägt das Archiv.
     {"feld": "durchschnittstemperatur","label": "Ø Temperatur",    "einheit": "°C",     "mapping_key": "temperatur",     "gruppe": "wetter",
-     "hinweis": "Monatsdurchschnittstemperatur (°C). Wird automatisch von Open-Meteo geholt."},
+     "hinweis": "Monatsdurchschnittstemperatur (°C). „Auto-Fill\" holt sie aus den gemessenen Außentemperaturen des Monats, sonst von Open-Meteo — ein selbst eingetragener Wert bleibt stehen und lässt sich jederzeit überschreiben."},
 ]
 
 # =============================================================================

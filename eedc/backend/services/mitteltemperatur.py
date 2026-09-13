@@ -105,8 +105,10 @@ async def lade_monatsmittel_temperatur(
     db: AsyncSession,
     anlage_id: int,
     gepflegt_je_monat: Optional[dict[tuple[int, int], Optional[float]]] = None,
+    von: "object" = None,
+    bis: "object" = None,
 ) -> dict[tuple[int, int], float]:
-    """Monatsmittel je ``(jahr, monat)`` über die ganze Historie der Anlage.
+    """Monatsmittel je ``(jahr, monat)`` — über die ganze Historie oder ein Fenster.
 
     ⚠ **Gemittelt wird über die TAGE, nicht über die Stunden des Monats.** Ein
     Monat, von dem nur wenige Tage Stundenwerte tragen, bekäme sonst das Gewicht
@@ -117,8 +119,18 @@ async def lade_monatsmittel_temperatur(
         gepflegt_je_monat: von Hand gepflegte Monatswerte
             (``Monatsdaten.durchschnittstemperatur``). Sie füllen **nur Lücken** —
             Stufe 3 der Vorrangkette.
+        von/bis: ``date``-Grenzen (einschließlich); ``None`` heißt „unbegrenzt".
+            ⭐ Das Fenster gilt für **beide** Eingänge — die Tagesreihe *und* die
+            gepflegten Monatswerte. Ein Fenster, das nur die halbe Funktion
+            beträfe, wäre eine Falle: der Aufrufer, der einen Monat anfragt,
+            bekäme fremde Monate zurück, sobald er Stufe 3 mitgibt.
+
+    ⭐ **Wozu das Fenster (N-426, 13.09.2026).** Die Wetter-Route beantwortet
+    „welche Ø-Temperatur hatte DIESER eine Monat?" für das Auto-Fill des
+    Monatsformulars. Ohne Fenster läse sie dafür die komplette Historie der
+    Anlage — dieselbe Antwort, nur teurer.
     """
-    je_tag = await lade_tagesmittel_temperatur(db, anlage_id)
+    je_tag = await lade_tagesmittel_temperatur(db, anlage_id, von=von, bis=bis)
     summe: dict[tuple[int, int], float] = defaultdict(float)
     tage: dict[tuple[int, int], int] = defaultdict(int)
     for datum, temp in je_tag.items():
@@ -128,9 +140,29 @@ async def lade_monatsmittel_temperatur(
     ergebnis = {k: round(summe[k] / tage[k], 1) for k in summe if tage[k] > 0}
 
     for schluessel, wert in (gepflegt_je_monat or {}).items():
-        if wert is not None and schluessel not in ergebnis:
-            ergebnis[schluessel] = round(float(wert), 1)
+        if wert is None or schluessel in ergebnis:
+            continue
+        if not _monat_im_fenster(schluessel, von, bis):
+            continue
+        ergebnis[schluessel] = round(float(wert), 1)
     return ergebnis
+
+
+def _monat_im_fenster(
+    schluessel: tuple[int, int], von: "object", bis: "object"
+) -> bool:
+    """Überlappt der Monat ``(jahr, monat)`` das ``von``/``bis``-Fenster?
+
+    Ein Monat zählt, sobald **ein** Tag von ihm im Fenster liegt — dieselbe
+    Großzügigkeit, mit der die Tagesreihe gefiltert wird (dort fällt der
+    Randmonat ja auch nicht ganz weg, sondern nur seine Tage außerhalb).
+    """
+    jahr, monat = schluessel
+    if von is not None and (jahr, monat) < (von.year, von.month):
+        return False
+    if bis is not None and (jahr, monat) > (bis.year, bis.month):
+        return False
+    return True
 
 
 async def lade_heizgradtage_je_monat(
