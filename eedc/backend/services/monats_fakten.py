@@ -79,6 +79,7 @@ from backend.services.strompreis_aggregator import (
     wirksamer_arbeitspreis_cent,
 )
 from backend.core.berechnungen import (
+    ModusStromZeile,
     PvModulWert,
     VerbrauchsKennzahlen,
     abdeckung_ueber_geraete,
@@ -87,6 +88,7 @@ from backend.core.berechnungen import (
     bkw_finanz_beitrag,
     erzeugung_hinter_zaehler_kwh,
     ersetzt_keine_heizung,
+    funktionsfremd_abzug_kwh,
     hat_gemessene_betriebsart,
     imd_typ_beitrag,
 )
@@ -397,6 +399,22 @@ class WpFakten:
     #: die Felder anbietet.
     modus_strom_lueften_kwh: float = 0.0
     modus_strom_entfeuchten_kwh: float = 0.0
+    #: **SOLL-§9-E7 / Ergänzung (Option A, 12.09.2026): der Teil des
+    #: funktionsfremden Stroms, der vom Nenner abgezogen werden DARF.**
+    #:
+    #: ⛔ **Bewusst ein Feld und keine Property neben**
+    #: {@link modus_strom_funktionsfremd_kwh}. Die Regel *„abgezogen wird nur,
+    #: was im Nenner steht"* hängt an ``getrennte_strommessung`` — also an
+    #: **einem Gerät**. Hier oben ist ``hat_split`` bereits ein ``any(...)``
+    #: über alle Wärmepumpen der Anlage; eine Property könnte die Frage für
+    #: eine Mischanlage (F5-Gerät neben nicht-F5-Gerät) nicht mehr richtig
+    #: beantworten. Die Entscheidung fällt deshalb je Zeile in
+    #: {@link imd_monatsaggregat.imd_typ_beitrag} und wird hierher **summiert**.
+    #:
+    #: ⚠ {@link modus_strom_funktionsfremd_kwh} bleibt daneben stehen und
+    #: bleibt die **Menge** — für Anzeige, Balken und Restmenge (K1). Wer einen
+    #: **Nenner** bildet, liest dieses Feld.
+    modus_strom_funktionsfremd_abzug_kwh: float = 0.0
     #: W-5 (SOLL §4.1): abgegebene **Kälte**menge im Kühlbetrieb — der Zähler
     #: der Arbeitszahl Kühlen. **Nur gemessen**: einen Weg, sie abzuleiten, gibt
     #: es nicht, und eine geschätzte Kältemenge wäre eine Zahl, die genauer
@@ -1212,11 +1230,50 @@ async def _ergaenze_modus_split_ohne_abschluss(
         von=von, bis=bis,
     )
     for schluessel, je_inv in angewandt.items():
-        for split in je_inv.values():
+        for inv_id, split in je_inv.items():
             r = roh.setdefault(schluessel, _RohMonat())
             r.wp_modus_strom_heizen += split.heizen_kwh
             r.wp_modus_strom_kuehlen += split.kuehlen_kwh
             r.wp_modus_strom_warmwasser += split.warmwasser_kwh
+            # ⭐ **SOLL-§9-E7/Option A — auch hier, und hier ist es immer der
+            # abgeleitete Zweig.** `lade_modus_split_ohne_abschluss` trägt
+            # genau die Monate nach, für die es *keinen* Abschluss und damit
+            # keine gemessene Betriebsart-Zeile gibt: Dieser Split ist per
+            # Konstruktion eine **Verteilung** des Gesamtstroms. Bei getrennter
+            # Strommessung verteilt er `strom_heizen + strom_warmwasser` und
+            # darf diesen Nenner deshalb nicht kürzen.
+            #
+            # ⛔ **Die Regel wird GERUFEN, nicht nachgebaut** (F-56). Der
+            # Umweg über eine `ModusStromZeile` sieht nach Umstand aus und ist
+            # der Kern: So gilt hier **dieselbe** Definition von
+            # „funktionsfremd" und **dieselbe** Abzugsbedingung wie im
+            # IMD-Zweig. Ein `if hat_split: 0 else kuehlen_kwh` daneben wäre
+            # die zweite Codestelle, an der F-56 schon einmal entstanden ist.
+            #
+            # ⚠ `gemessen=False` ist keine Annahme, sondern die Definition
+            # dieses Pfads: `lade_modus_split_ohne_abschluss` trägt genau die
+            # Monate nach, für die es keine gemessene Betriebsart-Zeile gibt.
+            # Lüften/Entfeuchten bleiben 0 — der abgeleitete Weg kann sie
+            # nicht (E4/D11).
+            #
+            # ⚠ **`int(inv_id)`** — `angewandt` ist nach Investitions-ID als
+            # **Zeichenkette** gekeyt, `inv_by_id` nach `int`. Ohne die
+            # Umwandlung liefe der Nachschlag still ins Leere und der Abzug
+            # würde für JEDE Anlage gezogen.
+            _inv_nach = inv_by_id.get(int(inv_id))
+            r.wp_modus_strom_funktionsfremd_abzug += funktionsfremd_abzug_kwh(
+                ModusStromZeile(
+                    heizen_kwh=split.heizen_kwh,
+                    kuehlen_kwh=split.kuehlen_kwh,
+                    warmwasser_kwh=split.warmwasser_kwh,
+                    gemessen=False,
+                    abdeckung_h=split.abdeckung_h,
+                ),
+                hat_split=bool(
+                    (getattr(_inv_nach, "parameter", None) or {})
+                    .get("getrennte_strommessung")
+                ),
+            )
             # W-17: Stunden werden ueber GERAETE nicht addiert (SoT-Helfer).
             # Die Schleife laeuft ueber `je_inv` — jeder Durchlauf ist ein
             # weiteres Geraet DESSELBEN Monats. Mengen ja, Zeitraum nein.
@@ -1495,6 +1552,8 @@ class _RohMonat:
         #: E4 — nur aus gemessenen Zaehlern; der abgeleitete Split kann sie nicht.
         self.wp_modus_strom_lueften = 0.0
         self.wp_modus_strom_entfeuchten = 0.0
+        #: SOLL-§9-E7/Option A — je Zeile entschieden, hier nur summiert.
+        self.wp_modus_strom_funktionsfremd_abzug = 0.0
         #: W-5 — die Kältemenge, nur gemessen.
         self.wp_nutzenergie_kuehlen = 0.0
         self.wp_modus_abdeckung_h = 0.0
@@ -1711,6 +1770,12 @@ class _RohMonat:
             self.wp_modus_strom_warmwasser += b.wp_modus_strom_warmwasser
             self.wp_modus_strom_lueften += b.wp_modus_strom_lueften
             self.wp_modus_strom_entfeuchten += b.wp_modus_strom_entfeuchten
+            # SOLL-§9-E7/Option A: die Entscheidung ist in `b` schon gefallen
+            # (je Gerät). Hier wird nur addiert — anlagenweit wäre sie falsch,
+            # sobald ein F5-Gerät neben einem nicht-F5-Gerät steht.
+            self.wp_modus_strom_funktionsfremd_abzug += (
+                b.wp_modus_strom_funktionsfremd_abzug
+            )
             self.wp_nutzenergie_kuehlen += b.wp_nutzenergie_kuehlen
             # W-17: derselbe Grund wie im abgeleiteten Zweig oben — `b` ist der
             # Beitrag EINES Geraets zu diesem Monat. Beide Zweige schreiben in
@@ -2046,6 +2111,9 @@ async def _baue_fakt(
             modus_strom_warmwasser_kwh=roh.wp_modus_strom_warmwasser,
             modus_strom_lueften_kwh=roh.wp_modus_strom_lueften,
             modus_strom_entfeuchten_kwh=roh.wp_modus_strom_entfeuchten,
+            modus_strom_funktionsfremd_abzug_kwh=(
+                roh.wp_modus_strom_funktionsfremd_abzug
+            ),
             nutzenergie_kuehlen_kwh=roh.wp_nutzenergie_kuehlen,
             modus_abdeckung_h=roh.wp_modus_abdeckung_h,
             modus_gemessen=roh.wp_modus_gemessen,

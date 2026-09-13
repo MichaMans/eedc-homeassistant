@@ -1254,11 +1254,46 @@ sieben Formeln).
 > Aufzählung war die Bauform, an der W-14 entstanden ist.* **Abgezogen, nicht gesperrt:** die
 > Mengen bleiben in jeder Bilanz, es ändert sich allein der Nenner.
 >
+> ⭐ **Und abgezogen wird nur, was im Nenner steht — SOLL §4.1, „Ergänzung zu E7"
+> (Option A, Entscheid Gernot 12.09.2026).** Ein Abzug ist nur dann eine *Abgrenzung*, wenn die
+> abgezogene Menge im Nenner **enthalten** ist. Die Bedingung steht als eigene Layer-Regel in
+> `core/berechnungen/betriebsart_gemessen.py::funktionsfremd_abzug_kwh`:
+>
+> | Zweig | im Nenner enthalten? | Abzug |
+> | --- | --- | --- |
+> | **ohne** getrennte Strommessung | ja — `stromverbrauch_kwh` ist der Zählerstand des ganzen Geräts | ganz (**W-14**) |
+> | F5 **mit gemessenem** Betriebsart-Zähler | ja — `get_wp_strom_kwh` addiert ihn (**W-16**) | ganz (**W-16b**) |
+> | F5 mit **abgeleitetem** Modus-Split | **nein** — der Split *verteilt* `strom_heizen_kwh + strom_warmwasser_kwh` | **0** |
+>
+> **Warum das keine Ausnahme, sondern derselbe Grundsatz ist:** SOLL-§9-**E7** begründet an der
+> Kategorie, dass eine *Verteilung* kein Nenner sein darf — *„eine Verteilung erbt jede Unschärfe
+> ihres Schlüssels, eine Messung nicht."* Das gilt genauso, wenn eine Verteilung einen gemessenen
+> Nenner **kürzt**: Aus `Messung − Verteilung` wird keine Messung. eedc trifft die Unterscheidung
+> auf der **Additionsseite** bereits (`get_wp_strom_kwh` addiert nur den *gemessenen* Anteil) —
+> Option A stellt die Symmetrie her, die dort schon stand.
+>
+> ⚠ **Zwei Namen für zwei Fragen.** `ModusStromZeile.funktionsfremd_kwh` bleibt die **Definition**
+> („welche Betriebsarten haben keine bewertete Nutzenergie?") und trägt weiter Aufteilung, Balken
+> und Restmenge (**K1**: die Mengen ändern sich nicht). `funktionsfremd_abzug_kwh` ist die
+> **Abzugsregel**. Der Nenner liest `WpFakten.modus_strom_funktionsfremd_abzug_kwh` bzw.
+> `TagesStapel.funktionsfremd_abzug_kwh`.
+>
+> ⛔ **Die Entscheidung fällt je GERÄT, nie anlagenweit** (K2). Eine Anlage darf ein F5-Gerät neben
+> einem nicht-F5-Gerät haben; `WpFakten.hat_split` ist dort schon `any(...)`. Deshalb ist der Abzug
+> ein aufsummiertes **Feld** und keine Property über den Anlagen-Summen.
+>
+> ⚠ **Die Funktions-Arbeitszahlen sind unberührt** (E7): Ihr Nenner ist der gemessene F5-Zähler,
+> dort wird nichts abgezogen.
+>
 > ⬜ **Offen und bewusst nicht mitgebaut:** Der **Community-Server** kennt nur den Kühlstrom
 > (Feld `wp_strom_kuehlen_kwh`). Wer Lüften oder Entfeuchten getrennt misst *und* am Vergleich
 > teilnimmt, sieht dort eine etwas niedrigere Arbeitszahl als im eigenen Cockpit. Es braucht ein
 > neues Feld samt Migration im zweiten Repo; der Vermerk steht an der Stelle in
-> `services/community_service.py`.
+> `services/community_service.py`. ⚠ **Seit Option A kommt eine zweite Abweichung dazu:** Der
+> Server bildet seinen JAZ-Nenner selbst als `Stromverbrauch − wp_strom_kuehlen_kwh` und kennt die
+> Bedingung oben nicht. Eine F5-Anlage mit abgeleitetem Split sieht dort weiter die höhere Zahl.
+> Auch das braucht das zweite Repo — `wp_strom_kuehlen_kwh` ist als **Menge** vertraglich
+> festgelegt und darf nicht zum Abzug umgedeutet werden.
 
 
 
@@ -1301,7 +1336,7 @@ gegen den Code hält, produziert beides — vergessene Arbeit und erfundene Arbe
 und das ist der Punkt: Was für eine gilt, gilt für alle.
 
 ```text
-Arbeitszahl gesamt     = waerme_kwh              ÷ (strom_kwh − funktionsfremd_kwh)
+Arbeitszahl gesamt     = waerme_kwh              ÷ (strom_kwh − funktionsfremd_ABZUG_kwh)
 Arbeitszahl Heizen     = heizenergie_kwh         ÷ strom_heizen_kwh
 Arbeitszahl Warmwasser = warmwasser_kwh          ÷ strom_warmwasser_kwh
 Arbeitszahl Kühlen     = nutzenergie_kuehlen_kwh ÷ betriebsart_strom_kuehlen_kwh

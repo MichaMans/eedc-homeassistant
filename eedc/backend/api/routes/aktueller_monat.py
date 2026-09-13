@@ -1969,8 +1969,16 @@ async def get_aktueller_monat(
     # nicht dadurch, dass eine Menge über HA-Statistik statt aus der Datenbank
     # kam. Eine Größe statt drei Summanden: die Aufzählung an vier Aufrufern war
     # die Bauform, an der W-14 entstanden ist.
+    #
+    # ⭐ **SOLL-§9-E7/Option A (12.09.2026): der ABZUG, nicht die Menge.** Hier
+    # stand bis dahin `modus_strom_funktionsfremd_kwh`. Bei getrennter
+    # Strommessung mit nur **abgeleiteter** Aufteilung kürzte das den Nenner um
+    # eine Menge, die er nie enthielt — der Split verteilt
+    # `strom_heizen + strom_warmwasser`, er stellt nichts daneben. Die
+    # Mengen-Größe bleibt daneben stehen und trägt weiter die Aufteilung (K1).
     wp_strom_funktionsfremd_kwh = (
-        monats_fakt.wp.modus_strom_funktionsfremd_kwh if monats_fakt is not None else 0.0
+        monats_fakt.wp.modus_strom_funktionsfremd_abzug_kwh
+        if monats_fakt is not None else 0.0
     )
     wp_arbeitszahl = arbeitszahl(
         wp_waerme, wp_strom,

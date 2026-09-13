@@ -2843,13 +2843,32 @@ def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
 
     ⚠ **Nur der GEMESSENE Split wird addiert, und das ist der Kern.** Ein
     **abgeleiteter** Split (aus dem Stunden-Signal) verteilt den *vorhandenen*
-    Gesamtstrom auf Betriebsarten — sein Kühlanteil ist bereits Teil von
-    ``strom_heizen_kwh``. Ihn zu addieren wäre genau die Doppelzählung, die
-    W-16b beseitigt, nur andersherum. ``ModusStromZeile.gemessen`` trennt die
-    beiden Fälle; ``funktionsfremd_kwh`` ist die **eine Stelle**, die sagt,
-    welche Betriebsarten keine bewertete Nutzenergie haben (Kühlen · Lüften ·
-    Entfeuchten, **E4**) — sie hier aufzuzählen wäre die Bauform, an der W-14
-    entstanden ist.
+    Gesamtstrom auf Betriebsarten — sein Kühlanteil ist bereits Teil der
+    **Summe** ``strom_heizen_kwh + strom_warmwasser_kwh``. Ihn zu addieren wäre
+    genau die Doppelzählung, die W-16b beseitigt, nur andersherum.
+    ``ModusStromZeile.gemessen`` trennt die beiden Fälle; ``funktionsfremd_kwh``
+    ist die **eine Stelle**, die sagt, welche Betriebsarten keine bewertete
+    Nutzenergie haben (Kühlen · Lüften · Entfeuchten, **E4**) — sie hier
+    aufzuzählen wäre die Bauform, an der W-14 entstanden ist.
+
+    ⛔ **Hier stand bis zum 12.09.2026 „Teil von ``strom_heizen_kwh``", und die
+    Begründung war eine Aussage über die Physik.** Beides war zu eng bzw.
+    falsch begründet. Der tragende Grund ist **arithmetisch**: Der abgeleitete
+    Split wird tagesweise auf ``TagesZusammenfassung.komponenten_kwh
+    [waermepumpe_<id>]`` normiert (``modus_split.py``), und dieser Topf ist bei
+    belegter feiner Achse **genau** ``strom_heizen_kwh + strom_warmwasser_kwh``
+    — die Beitragsschicht legt für eine Wärmepumpe **einen** Ziel-Key an und
+    addiert beide Felder hinein (``snapshot/komponenten_beitraege.py``). Sein
+    Kühlanteil ist damit per Konstruktion ein **Ausschnitt aus dieser Summe**,
+    unabhängig davon, was der Zähler physisch misst.
+
+    ⛔ **In welchem der zwei Felder er sitzt, ist nicht gespeichert.** Der Monat
+    hält nur ``modus_strom_<modus>_kwh`` je Betriebsart, ohne Zuordnung zu einer
+    der beiden Summanden-Achsen. Deshalb gibt es **keine** Korrektur je Funktion
+    (SOLL-§9-**E7**: der Nenner einer Funktions-Arbeitszahl ist der *gemessene*
+    Strom dieser Funktion) — und deshalb kürzt ein abgeleiteter Anteil auch die
+    **Gesamt**-Arbeitszahl nicht (*Ergänzung zu E7*, Option A; die Regel steht
+    in ``berechnungen/betriebsart_gemessen.funktionsfremd_abzug_kwh``).
 
     ⚠ **Im Nicht-getrennt-Zweig wird NICHTS addiert:** ``stromverbrauch_kwh``
     ist der Zählerstand des ganzen Geräts und enthält den Kühlbetrieb bereits.

@@ -415,7 +415,9 @@ Es gibt **zwei Wege**, und **gemessen schlägt abgeleitet**:
 
 *Leistung gesamt*, *Leistung Heizen*, *Leistung Warmwasser*, *Leistung Kühlen* (alle in W), *Warmwasser-Temperatur*, *Betriebsmodus*, *Soll-* und *Raumtemperatur*.
 
-> ⚑ **„Leistung gesamt" und die Aufteilung schließen sich im Verlauf aus.** Ordnest du *Leistung gesamt* zu, wertet eedc *Leistung Heizen* und *Leistung Warmwasser* im Live-Tagesverlauf **nicht** aus — dort erscheint dann eine Fläche für die ganze Wärmepumpe. Die Zuordnungs-Fläche sagt es dir an den betroffenen Feldern. Beides ist richtig, es ist eine Wahl: Die Gesamtleistung ist der vollständige Anlagenwert (und die einzige Quelle des Wärmepumpen-Anteils in der Verbrauchsprognose, solange noch keine Tagesprofile aggregiert sind), die getrennten Felder sind die feinere Auskunft. **Auf die Mengen, Kennzahlen und den Block *Wärme/Klima* hat das keinen Einfluss** — die kommen aus den kWh-Zählern.
+> ⚑ **„Leistung gesamt" und die Aufteilung schließen sich im Verlauf aus.** Ordnest du *Leistung gesamt* zu, wertet eedc *Leistung Heizen* und *Leistung Warmwasser* im Live-Tagesverlauf **nicht** aus — dort erscheint dann eine Fläche für die ganze Wärmepumpe. Die Zuordnungs-Fläche sagt es dir an den betroffenen Feldern. Beides ist richtig, es ist eine Wahl: Die Gesamtleistung ist der vollständige Anlagenwert (und die einzige Quelle des Wärmepumpen-Anteils in der Verbrauchsprognose, solange noch keine Tagesprofile aggregiert sind), die getrennten Felder sind die feinere Auskunft.
+
+> ⚑ **Was diese Wahl berührt — und was nicht.** Deine **Mengen** kommen aus den kWh-Zählern und bleiben unberührt: Stromverbrauch, Wärme, Kosten, CO₂, Ersparnis und die **Arbeitszahlen für Heizen, Warmwasser und gesamt**. Die **Aufteilung nach Betriebsart** entsteht dagegen aus dem Leistungspfad — eedc liest dort die *Form* der Stunden ab und legt die Zählermenge darauf. Welchen Leistungssensor du zuordnest, kann deshalb verschieben, wie viel Strom dem Heizen, Kühlen oder Warmwasser zugerechnet wird, und damit auch die **Arbeitszahl Kühlen** (ihr Nenner ist genau dieser Anteil). Wenn dein Gerät im Kühlbetrieb läuft und du nur *Leistung Heizen* und *Leistung Warmwasser* zugeordnet hast, tragen die Kühlstunden im Leistungspfad nichts — ordne dann **Leistung gesamt** zu.
 
 > ⛔ **Watt ist keine Kilowattstunde.** Ein Leistungssensor gehört **nie** in ein kWh-Feld. Die Stundenwerte eines Leistungssensors ergeben zwar eine plausible Zahl — sie speist aber nicht die Zählerpfade, aus denen der Block *Wärme/Klima* entsteht. Liefert dein Gerät **nur** Leistung, baue in Home Assistant unter *Helfer → Integral-Sensor* (Riemannsche Summe) einen kWh-Zähler daraus.
 
@@ -456,6 +458,27 @@ Heizen 3000 kWh Wärme auf 750 kWh Strom · Warmwasser 600 auf 200 · Kühlen 10
 | Arbeitszahl · Kühlen | „—", *kein Kältemengenzähler zugeordnet* |
 
 ⭐ **Der Kühlstrom steht in keinem der Nenner.** Er gehört zu einer Nutzenergie, die hier nicht gemessen wird. Stünde er drin, sähe die Anlage im Sommer aus wie eine schlechte Heizung.
+
+### B2 — Getrennte Zähler für Heizung und Warmwasser, Betriebsmodus-Sensor, **kein** Kühlzähler
+
+Dieselbe Anlage wie B, nur ohne den dritten Zähler: Heizen 3000 kWh Wärme auf 750 kWh Strom · Warmwasser 600 auf 200. Gesamtstrom **950 kWh** — mehr misst diese Anlage nicht. Dazu ein Betriebsmodus-Sensor, aus dem eedc stündlich mitschreibt, was das Gerät gerade tat.
+
+| Kennzahl | Wert |
+|----------|------|
+| Arbeitszahl · Heizen | **4,00** |
+| Arbeitszahl · Warmwasser | **3,00** |
+| Arbeitszahl gesamt | **3,79** — 3600 ÷ 950 |
+| Aufteilung nach Betriebsart | Heizen 700 · Warmwasser 150 · **Kühlen 100** |
+
+**Was eedc hier rechnet:** Es verteilt die **vorhandenen** 950 kWh nach dem Betriebsmodus. Die 100 kWh „Kühlen" sind kein vierter Zähler, sondern ein Ausschnitt aus den beiden vorhandenen.
+
+**Was eedc dafür voraussetzt:** dass diese beiden Zähler den Kühlbetrieb **nicht** getrennt führen — sie sind alles, was das Gerät an Strommessung hat.
+
+⭐ **Deshalb kürzt der Kühlanteil hier keinen Nenner.** In Fall B ist er ein eigener Zähler *neben* den anderen beiden, dort wird er abgezogen. Hier ist er eine **Verteilung** derselben 950 kWh — ihn abzuziehen hieße, um eine Menge zu kürzen, die nie hinzukam. Beide Anlagen zeigen deshalb dieselbe Zahl **3,79**, obwohl die eine einen Zähler mehr hat.
+
+**Der Handgriff, wenn du es genauer willst:** Ordne *Strom Kühlbetrieb* zu (*Einstellungen → Datenquellen*, beim Gerät). Dann liest eedc ab, statt zu verteilen — und du bist in Fall B. Der Daten-Checker weist dich unter *Einstellungen → Daten* darauf hin.
+
+> **Ohne Betriebsmodus-Sensor** gibt es gar keine Aufteilung — das ist Fall C.
 
 ### C — Eine Wärmepumpe, die kühlt, aber ohne getrennte Messung
 
@@ -516,6 +539,9 @@ Meistens nicht. *Nicht aufgeteilt* ist Standby, alles, was weder Heizen noch Kü
 
 **„Meine Arbeitszahl ist plötzlich niedriger geworden."**
 Wenn du getrennte Zähler samt Kühlmessung führst: Ja, und das war eine Korrektur. Bis v4.0.28 fehlte der Kühlstrom im Verbrauch der Wärmepumpe und wurde zugleich ein zweites Mal aus dem Nenner gezogen — die Arbeitszahl fiel rund 12 % zu gut aus. Der Verbrauch steigt jetzt um den Kühlanteil, die Zahl sinkt auf ihren richtigen Wert.
+
+**„Warum ist meine Arbeitszahl kleiner geworden?"**
+Wenn du Heizung und Warmwasser getrennt misst **und** einen Betriebsmodus-Sensor zugeordnet hast, aber **keinen** eigenen Zähler für den Kühlbetrieb: Ja, und das war eine Korrektur. eedc hatte den geschätzten Kühlanteil aus dem Nenner gezogen, obwohl er darin gar nicht enthalten war — deine zwei Zähler messen ihn nicht getrennt, die Aufteilung verteilt sie nur. Im Beispiel von [Fall B2](#b2--getrennte-zähler-für-heizung-und-warmwasser-betriebsmodus-sensor-kein-kühlzähler) stand dort **4,24** statt **3,79**, also rund **12 %** zu gut. **Deine Mengen ändern sich dadurch nicht** — Verbrauch, Wärme, Kosten und CO₂ bleiben gleich; es ändert sich allein der Nenner dieser einen Kennzahl. Der Vorteil: Deine Zahl ist jetzt mit der einer baugleichen Anlage vergleichbar, die einen Kühlzähler hat — vorher war sie es nicht.
 
 **„Meine Arbeitszahl ist plötzlich höher geworden."**
 Wenn du Lüften oder Entfeuchten getrennt misst: Ja. Ihr Strom fällt seit v4.0.29 aus dem Nenner, weil sie keine messbare Nutzenergie erzeugen. **Deine Mengen ändern sich dadurch nicht.**

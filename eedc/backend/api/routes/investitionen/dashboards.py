@@ -97,7 +97,11 @@ from backend.core.field_definitions import (
     ist_gepflegte_sonstiges_kategorie,
     ist_zaehler_kategorie,
 )
-from backend.core.berechnungen import betriebsart_nutzenergie_kwh, modus_strom_zeile
+from backend.core.berechnungen import (
+    betriebsart_nutzenergie_kwh,
+    funktionsfremd_abzug_kwh,
+    modus_strom_zeile,
+)
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_JE_ABGRENZUNG,
     abgrenzungs_grund,
@@ -951,6 +955,11 @@ async def get_waermepumpe_dashboard(
         # kann sie nicht und lässt sie bei 0.
         gesamt_modus_lueften = 0.0
         gesamt_modus_entfeuchten = 0.0
+        # ⭐ **SOLL-§9-E7/Option A: der Nenner-Abzug ist NICHT die Summe der
+        # drei Mengen darüber.** Bei getrennter Strommessung mit nur
+        # abgeleiteter Aufteilung ist er 0 — die Verteilung kürzt keinen
+        # gemessenen Nenner. Entschieden wird je Zeile über den Layer.
+        gesamt_modus_funktionsfremd_abzug = 0.0
         gesamt_kaelte = 0.0
         gesamt_modus_abdeckung_h = 0.0
         gesamt_modus_bezug = 0.0
@@ -969,6 +978,9 @@ async def get_waermepumpe_dashboard(
         # der **Gesamt**zahl unten. Sie entsteht erst ÜBER die Zeilen und ist an
         # einer einzelnen nicht sichtbar.
         _hub_zeilen: list[tuple[float, float]] = []
+        #: SOLL-§9-E7/Option A — die Lage DIESES Geräts (der Block faltet
+        #: genau eine Investition, deshalb steht sie außerhalb der Schleife).
+        _wp_hat_split = bool((wp.parameter or {}).get("getrennte_strommessung"))
         for md in monatsdaten:
             d = md.verbrauch_daten or {}
             # **Gemessen schlägt abgeleitet** (ADR-002/P8), je Monatszeile.
@@ -990,6 +1002,10 @@ async def get_waermepumpe_dashboard(
             gesamt_modus_warmwasser += _zeile.warmwasser_kwh
             gesamt_modus_lueften += _zeile.lueften_kwh
             gesamt_modus_entfeuchten += _zeile.entfeuchten_kwh
+            _zeile_abzug = funktionsfremd_abzug_kwh(
+                _zeile, hat_split=_wp_hat_split,
+            )
+            gesamt_modus_funktionsfremd_abzug += _zeile_abzug
             # W-5: die Kältemenge — nur gemessen, nie abgeleitet.
             gesamt_kaelte += betriebsart_nutzenergie_kwh(d, BM_KUEHLEN_W5) or 0.0
             _m_abdeckung = d.get(MODUS_ABDECKUNG_FELD, 0) or 0
@@ -1040,7 +1056,8 @@ async def get_waermepumpe_dashboard(
                 waerme_abgeleitet_kwh=(
                     1.0 if heizwaerme_ist_abgeleitet(md.source_provenance) else 0.0
                 ),
-                strom_funktionsfremd_kwh=_zeile.funktionsfremd_kwh,
+                # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge.
+                strom_funktionsfremd_kwh=_zeile_abzug,
                 abgrenzung_verletzt=GRUND_JE_ABGRENZUNG.get(
                     abgrenzung_stoerung(wp) or ""
                 ),
@@ -1122,10 +1139,23 @@ async def get_waermepumpe_dashboard(
         # `cop_heizen`/`cop_warmwasser` auf den Layer gehoben hat. Diese
         # Kennzahl blieb daneben stehen.
         #
-        # ⚠ Der Abzug greift in **beiden** Split-Zweigen richtig: Der
-        # abgeleitete verteilt den vorhandenen Gesamtstrom, der gemessene ist
-        # seit W-16 in `get_wp_strom_kwh` enthalten — die Menge steckt also so
-        # oder so im Nenner, bevor sie abgezogen wird.
+        # ⚠ **Der Abzug greift nur, wo die Menge auch im Nenner steht**
+        # (SOLL-§9-E7/Option A, 12.09.2026).
+        #
+        # ⛔ **Hier stand bis dahin: „Der Abzug greift in *beiden*
+        # Split-Zweigen richtig … die Menge steckt also so oder so im
+        # Nenner."** Das gilt für den **nicht**-getrennten Zweig: dort ist der
+        # Nenner `stromverbrauch_kwh`, der Zählerstand des ganzen Geräts, und
+        # der Kühlbetrieb steckt darin — egal, ob seine Aufteilung gemessen
+        # oder abgeleitet ist. **Für den F5-Zweig war es zu weit gefasst:**
+        # `get_wp_strom_kwh` addiert nur den **gemessenen** funktionsfremden
+        # Strom (W-16); ein **abgeleiteter** Anteil ist eine Verteilung von
+        # `strom_heizen + strom_warmwasser` und wurde nie addiert. Ihn
+        # abzuziehen kürzte den Nenner um eine nie hinzugekommene Menge —
+        # gemessen 4,24 statt 3,79 an derselben Anlage, die mit Kühlzähler
+        # 3,79 zeigt.
+        #
+        # Die Unterscheidung trifft jetzt `funktionsfremd_abzug_kwh` je Zeile.
         # ⭐ **N-441: die Perioden-Lage erreicht die Hub-Gesamtzahl.** Ein Monat
         # trägt Wärme ohne Strom, ein anderer trägt Strom — die Summe nimmt
         # beide Seiten mit. Gemessen an EINEM Gerät (März 1800 kWh Wärme ohne
@@ -1152,10 +1182,7 @@ async def get_waermepumpe_dashboard(
         _az_gesamt = arbeitszahl(
             gesamt_waerme, gesamt_strom,
             waerme_abgeleitet_kwh=1.0 if waerme_abgeleitet else 0.0,
-            strom_funktionsfremd_kwh=(
-                gesamt_modus_kuehlen + gesamt_modus_lueften
-                + gesamt_modus_entfeuchten
-            ),
+            strom_funktionsfremd_kwh=gesamt_modus_funktionsfremd_abzug,
             abgrenzung_verletzt=_wp_abgrenzung_gesamt,
         )
         durchschnitt_cop = _az_gesamt.wert

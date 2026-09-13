@@ -129,6 +129,7 @@ from backend.core.berechnungen.betriebsart_gemessen import (
     ModusStromZeile,
     betriebsart_nutzenergie_kwh,
     betriebsart_strom_kwh,
+    funktionsfremd_abzug_kwh,
     hat_gemessene_betriebsart,
     modus_strom_zeile,
 )
@@ -375,6 +376,7 @@ __all__ = [
     "ModusSplit",
     "betriebsart_nutzenergie_kwh",
     "betriebsart_strom_kwh",
+    "funktionsfremd_abzug_kwh",
     "hat_gemessene_betriebsart",
     "ModusStromZeile",
     "modus_strom_zeile",

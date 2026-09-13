@@ -990,12 +990,19 @@ async def get_tag_detail(
     )
     wp_jaz_tag = arbeitszahl(
         wp_waerme_tag, wp_strom_tag,
-        # W-14 + E4: Strom in Funktionen ohne bewertete Nutzenergie. `kuehlen_tag`
-        # ist oben aus beiden Zweigen gefüllt (gemessene Zähler und abgeleiteter
-        # Modus-Split), Lüften/Entfeuchten nur aus dem gemessenen — der
-        # abgeleitete Split kann sie nicht. Am Tag wiegt der Effekt am
-        # schwersten: ein Sommertag kann fast reiner Kühlbetrieb sein.
-        strom_funktionsfremd_kwh=kuehlen_tag + lueften_tag + entfeuchten_tag,
+        # W-14 + E4: Strom in Funktionen ohne bewertete Nutzenergie. Am Tag
+        # wiegt der Effekt am schwersten: ein Sommertag kann fast reiner
+        # Kühlbetrieb sein.
+        #
+        # ⭐ **SOLL-§9-E7/Option A (12.09.2026): abgezogen wird nur, was im
+        # Nenner steht.** Hier stand bis dahin `kuehlen_tag + lueften_tag +
+        # entfeuchten_tag` — die Mengen. Ein Gerät mit getrennter
+        # Strommessung, dessen Aufteilung nur **abgeleitet** ist, kürzte damit
+        # einen Nenner um eine Menge, die er nie enthielt (der Split verteilt
+        # `strom_heizen + strom_warmwasser`, er stellt nichts daneben). Der
+        # Stapel entscheidet das **je Gerät**; die drei Summanden daneben
+        # bleiben unverändert und tragen weiter die Balken (K1).
+        strom_funktionsfremd_kwh=stapel.funktionsfremd_abzug_kwh,
         abgrenzung_verletzt=wp_abgrenzung_tag,
         # W-18: Die Sperre „kein Wärmemengenzähler zugeordnet" ist im Tag
         # regelmäßig falsch — der Zähler kann zugeordnet und für DIESEN Tag

@@ -60,7 +60,11 @@ from backend.api.routes.strompreise import (
 from backend.core.betriebsmodus import HEIZEN as BM_HEIZEN
 from backend.core.betriebsmodus import KUEHLEN as BM_KUEHLEN
 from backend.core.betriebsmodus import MODUS_ABDECKUNG_FELD, MODUS_STROM_FELD
-from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+from backend.core.berechnungen.betriebsart_gemessen import (
+    ModusStromZeile,
+    funktionsfremd_abzug_kwh,
+    modus_strom_zeile,
+)
 from backend.core.field_definitions import (
     get_emob_pv_netz_kwh,
     get_wp_strom_kwh,
@@ -1619,7 +1623,16 @@ async def calculate_investition_sensors(
         gesamt_modus_heizen = 0.0
         gesamt_modus_kuehlen = 0.0
         gesamt_modus_warmwasser = 0.0
-        gesamt_modus_funktionsfremd = 0.0
+        #: ⭐ **SOLL-§9-E7/Option A: was vom Nenner abgezogen werden DARF.**
+        #: ⛔ **Nicht die Summe der funktionsfremden Mengen** — hier stand bis
+        #: zum 12.09.2026 `gesamt_modus_funktionsfremd`, das jede solche Menge
+        #: aufaddierte. Bei getrennter Strommessung mit nur **abgeleiteter**
+        #: Aufteilung ist der Abzug 0: Die Verteilung darf
+        #: `strom_heizen + strom_warmwasser` nicht um eine Menge kürzen, die nie
+        #: dazukam (W-16 addiert nur den **gemessenen** Anteil). Die Mengen
+        #: selbst tragen unverändert die Betriebsart-Sensoren weiter unten (K1)
+        #: — sie stehen in `gesamt_modus_kuehlen` und seinen Nachbarn.
+        gesamt_modus_funktionsfremd_abzug = 0.0
         gesamt_modus_abdeckung_h = 0.0
         #: F-56 — trägt irgendeine Zeile GEMESSENE Betriebsart-Zähler? Dann
         #: dürfen die beiden Sensoren erscheinen, auch ohne Modus-Abdeckung:
@@ -1636,6 +1649,11 @@ async def calculate_investition_sensors(
         kuehl_je_monat: dict[tuple[int, int], float] = {}
         # B5/X-1: der Kühlstrom je Monat — für E-B in der Ersparnis unten.
         kuehl_je_monat: dict[tuple[int, int], float] = {}
+        #: SOLL-§9-E7/Option A — die Lage DIESES Geräts. Der Block faltet genau
+        #: eine Investition (P10-Restschuld), deshalb einmal vor der Schleife.
+        _wp_hat_split = bool(
+            (investition.parameter or {}).get("getrennte_strommessung")
+        )
         for md in monatsdaten:
             d = md.verbrauch_daten or {}
             # F-56: **gemessen schlägt abgeleitet**, über den Layer-SoT —
@@ -1648,7 +1666,10 @@ async def calculate_investition_sensors(
             gesamt_modus_heizen += _zeile.heizen_kwh
             gesamt_modus_kuehlen += _zeile.kuehlen_kwh
             gesamt_modus_warmwasser += _zeile.warmwasser_kwh
-            gesamt_modus_funktionsfremd += _zeile.funktionsfremd_kwh
+            # SOLL-§9-E7/Option A — die Regel wird gerufen, nicht nachgebaut.
+            gesamt_modus_funktionsfremd_abzug += funktionsfremd_abzug_kwh(
+                _zeile, hat_split=_wp_hat_split,
+            )
             gesamt_modus_abdeckung_h += _zeile.abdeckung_h
             gesamt_modus_gemessen = gesamt_modus_gemessen or _zeile.gemessen
             gesamt_strom += get_wp_strom_kwh(d, investition.parameter)
@@ -1690,15 +1711,26 @@ async def calculate_investition_sensors(
                 gesamt_modus_heizen += _split.heizen_kwh
                 gesamt_modus_kuehlen += _split.kuehlen_kwh
                 gesamt_modus_warmwasser += _split.warmwasser_kwh
-                # ⚠ Hier steht `kuehlen_kwh` und NICHT `funktionsfremd_kwh` —
-                # `AngewandterSplit` hat die Eigenschaft nicht, und das ist
-                # richtig so: Der **abgeleitete** Modus-Split kennt nur Heizen,
-                # Kühlen und Warmwasser (er leitet aus dem Betriebsmodus ab,
-                # und Lüften/Entfeuchten liefern dort keine eigene Menge).
-                # Die funktionsfremde Menge dieses Zweigs IST damit der
-                # Kühlstrom; der gemessene Zweig darüber nimmt die volle
-                # Definition aus `ModusStromZeile.funktionsfremd_kwh`.
-                gesamt_modus_funktionsfremd += _split.kuehlen_kwh
+                # ⚠ Hier zählt `kuehlen_kwh` und nicht die volle Definition —
+                # `AngewandterSplit` hat sie nicht, und das ist richtig so: Der
+                # **abgeleitete** Modus-Split kennt nur Heizen, Kühlen und
+                # Warmwasser (er leitet aus dem Betriebsmodus ab, und
+                # Lüften/Entfeuchten liefern dort keine eigene Menge).
+                # ⭐ **SOLL-§9-E7/Option A, und hier ist der Zweig immer der
+                # abgeleitete** — `lade_modus_split_ohne_abschluss` trägt genau
+                # die Monate ohne gemessene Betriebsart-Zeile nach. Die Regel
+                # wird gerufen, nicht nachgebaut (F-56); `ModusStromZeile` ist
+                # bloß die Übergabeform.
+                gesamt_modus_funktionsfremd_abzug += funktionsfremd_abzug_kwh(
+                    ModusStromZeile(
+                        heizen_kwh=_split.heizen_kwh,
+                        kuehlen_kwh=_split.kuehlen_kwh,
+                        warmwasser_kwh=_split.warmwasser_kwh,
+                        gemessen=False,
+                        abdeckung_h=_split.abdeckung_h,
+                    ),
+                    hat_split=_wp_hat_split,
+                )
                 gesamt_modus_abdeckung_h += _split.abdeckung_h
 
         gesamt_waerme = gesamt_heizung + gesamt_warmwasser
@@ -1755,7 +1787,8 @@ async def calculate_investition_sensors(
                 _az = arbeitszahl(
                     gesamt_waerme, gesamt_strom,
                     waerme_abgeleitet_kwh=1.0 if waerme_abgeleitet else 0.0,
-                    strom_funktionsfremd_kwh=gesamt_modus_funktionsfremd,
+                    # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge.
+                    strom_funktionsfremd_kwh=gesamt_modus_funktionsfremd_abzug,
                     abgrenzung_verletzt=abgrenzungs_grund(
                         abgrenzung_stoerung=abgrenzung_stoerung(investition),
                     ),

@@ -835,10 +835,22 @@ def arbeitszahl_je_funktion(
     nachgebaut wird, driftet* —, und sie ist in dieser Datei bereits einmal
     teuer geworden (W-3: die JAZ stand an drei Orten).
 
-    ⚠ **Kein ``strom_funktionsfremd_kwh``-Abzug, und das ist kein Vergessen.**
-    ``strom_heizen_kwh`` ist bereits nur der Heizbetrieb; Kühlen, Lüften und
-    Entfeuchten sind darin gar nicht enthalten. Ihn hier abzuziehen zöge
-    dieselbe Menge zweimal ab.
+    ⚠ **Kein ``strom_funktionsfremd_kwh``-Abzug, und das ist kein Vergessen —
+    es ist SOLL-§9-E7.** Der Nenner einer Funktions-Arbeitszahl ist der getrennt
+    **gemessene** Strom dieser Funktion (F5). Ein aus dem Betriebsmodus
+    abgeleiteter Anteil ist eine **Verteilung** und darf ihn weder stellen noch
+    kürzen: *eine Verteilung erbt jede Unschärfe ihres Schlüssels, eine Messung
+    nicht.* Zöge man ihn hier ab, stünde im Nenner **Messung − Verteilung**, und
+    das ist keine Messung mehr.
+
+    ⛔ **Hier stand bis zum 12.09.2026: „``strom_heizen_kwh`` ist bereits nur
+    der Heizbetrieb; Kühlen, Lüften und Entfeuchten sind darin gar nicht
+    enthalten. Ihn hier abzuziehen zöge dieselbe Menge zweimal ab."** Der erste
+    Satz ist der **Feld-Vertrag** (Registry ``field_definitions.py``, Handbuch
+    Fall B) und keine Messung — ob ein Zähler *Strom Heizen* den Verdichter im
+    Kühlbetrieb mitmisst, weiß eedc nicht. Der zweite Satz war schlicht falsch:
+    In diesem Pfad wird **nichts** abgezogen, ein Abzug wäre der erste. Die
+    Regel hält trotzdem — nur trägt sie jetzt ihren tragenden Grund.
 
     Args:
         hat_split: liegt der Strom **getrennt je Funktion** vor

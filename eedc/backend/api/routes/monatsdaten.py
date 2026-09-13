@@ -707,7 +707,8 @@ async def list_monatsdaten_aggregiert(
         _wp_az = arbeitszahl(
             f.wp.waerme_kwh, f.wp.strom_kwh,
             waerme_abgeleitet_kwh=f.wp.waerme_abgeleitet_kwh,
-            strom_funktionsfremd_kwh=f.wp.modus_strom_funktionsfremd_kwh,
+            # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge.
+            strom_funktionsfremd_kwh=f.wp.modus_strom_funktionsfremd_abzug_kwh,
             abgrenzung_verletzt=abgrenzungs_grund(
                 abgrenzung_stoerung=f.wp.abgrenzung_stoerung,
                 bauarten_gemischt=f.wp.bauarten_gemischt,

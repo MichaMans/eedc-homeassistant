@@ -34,6 +34,7 @@ from typing import Optional
 
 from backend.core.berechnungen.betriebsart_gemessen import (
     betriebsart_nutzenergie_kwh,
+    funktionsfremd_abzug_kwh,
     modus_strom_zeile,
 )
 from backend.core.berechnungen.modus_split import (
@@ -108,6 +109,21 @@ class ImdTypBeitrag:
     #: ``ModusStromZeile.funktionsfremd_kwh`` aus dem Nenner der Arbeitszahl.
     wp_modus_strom_lueften: float = 0.0
     wp_modus_strom_entfeuchten: float = 0.0
+    #: **SOLL-§9-E7 / Ergänzung (Option A):** der Teil des funktionsfremden
+    #: Stroms, der vom Nenner einer Arbeitszahl abgezogen werden **darf** —
+    #: aufgelöst von {@link funktionsfremd_abzug_kwh}.
+    #:
+    #: ⛔ **Nicht dasselbe wie die Summe der drei Felder darüber, und deshalb
+    #: ein eigenes Feld statt einer Property.** Die Entscheidung hängt an
+    #: ``getrennte_strommessung`` — also an **diesem Gerät**. Eine Anlage darf
+    #: ein F5-Gerät neben einem nicht-F5-Gerät haben; auf der Aggregat-Ebene
+    #: wäre sie nicht mehr zu treffen, weil ``wp_hat_split`` dort schon zu
+    #: ``any(...)`` gefaltet ist. Sie fällt deshalb hier, je Zeile.
+    #:
+    #: ⚠ Die drei Mengen-Felder darüber bleiben **unverändert** — sie tragen
+    #: die Aufteilung, die Balken und die Restmenge (K1). Nur der Nenner der
+    #: Kennzahl liest dieses Feld.
+    wp_modus_strom_funktionsfremd_abzug: float = 0.0
     #: W-5 (SOLL §4.1): die **Kältemenge** — abgegebene Nutzenergie im
     #: Kühlbetrieb. Bewusst nicht „waerme": im Kühlbetrieb ist die Nutzenergie
     #: Kälte, und ein Feldname, der etwas anderes behauptet als er trägt, ist
@@ -298,6 +314,13 @@ def imd_typ_beitrag(
             wp_modus_strom_warmwasser=_modus.warmwasser_kwh,
             wp_modus_strom_lueften=_modus.lueften_kwh,
             wp_modus_strom_entfeuchten=_modus.entfeuchten_kwh,
+            # SOLL-§9-E7/Option A: **abgezogen wird nur, was im Nenner steht.**
+            # Die Regel liegt im Layer, nicht hier — `hat_split` ist die Lage
+            # DIESES Geräts, und genau deshalb fällt die Entscheidung in dieser
+            # Zeile und nicht in der Anlagen-Summe (Mischanlagen).
+            wp_modus_strom_funktionsfremd_abzug=funktionsfremd_abzug_kwh(
+                _modus, hat_split=hat_split,
+            ),
             wp_nutzenergie_kuehlen=(
                 betriebsart_nutzenergie_kwh(data, _KUEHLEN) or 0.0
             ),

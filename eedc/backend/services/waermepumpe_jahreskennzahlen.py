@@ -219,7 +219,11 @@ def waermepumpe_jahreskennzahlen(
     az = arbeitszahl(
         waerme, strom,
         waerme_abgeleitet_kwh=waerme_abgeleitet,
-        strom_funktionsfremd_kwh=sum(f.wp.modus_strom_funktionsfremd_kwh for f in fakten),
+        # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge — die Monats-Fakten
+        # haben ihn je Gerät entschieden (F5 + abgeleiteter Split ⇒ 0).
+        strom_funktionsfremd_kwh=sum(
+            f.wp.modus_strom_funktionsfremd_abzug_kwh for f in fakten
+        ),
         abgrenzung_verletzt=abgrenzung,
     )
     hat_split = any(f.wp.hat_split for f in fakten)

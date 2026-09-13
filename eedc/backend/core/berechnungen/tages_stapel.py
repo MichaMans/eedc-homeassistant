@@ -73,6 +73,8 @@ from backend.core.berechnungen.modus_split import (
     teilmengen_passen,
 )
 from backend.core.berechnungen.betriebsart_gemessen import (
+    ModusStromZeile,
+    funktionsfremd_abzug_kwh,
     geraetefeld_oder_innengeraete,
     modus_strom_zeile,
 )
@@ -115,9 +117,31 @@ class TagesStapel:
     #: je 18 Stunden ergeben nicht 36 Stunden Erkenntnis (W-17, dietmar1968).
     abdeckung_h: float = 0.0
     #: Hat überhaupt ein Gerät beigetragen?
+    #: ⚠ **Nicht zu verwechseln mit** {@link GeraeteBeitrag.hat_split} — dort
+    #: heißt es *„dieses Gerät misst Heizen und Warmwasser getrennt"* (F5,
+    #: ``getrennte_strommessung``), wie überall sonst im Baum
+    #: (``ImdTypBeitrag.wp_hat_split``, ``WpFakten.hat_split``). Hier heißt es
+    #: *„der Stapel ist nicht leer"*. Die Doppelbelegung ist Altbestand dieser
+    #: Datei; sie steht hier benannt, damit niemand das eine für das andere
+    #: liest.
     hat_split: bool = False
     #: Kam mindestens ein Beitrag aus **gemessenen** Betriebsart-Zählern?
     hat_gemessen: bool = False
+    #: **SOLL-§9-E7 / Ergänzung (Option A):** Was vom Nenner einer Arbeitszahl
+    #: abgezogen werden **darf** — die Tages-Entsprechung zu
+    #: ``WpFakten.modus_strom_funktionsfremd_abzug_kwh``.
+    #:
+    #: ⛔ **Nicht** ``kuehlen + lueften + entfeuchten``. Ein Gerät mit
+    #: getrennter Strommessung, dessen Aufteilung nur **abgeleitet** ist,
+    #: steuert 0 bei: sein Kühlanteil ist eine Verteilung von
+    #: ``strom_heizen + strom_warmwasser`` und steht nicht *neben* diesem
+    #: Nenner, sondern **darin**. Entschieden wird je Gerät
+    #: ({@link funktionsfremd_abzug_kwh}), hier nur summiert — eine Anlage darf
+    #: ein F5-Gerät neben einem nicht-F5-Gerät haben.
+    #:
+    #: ⚠ Die Segment-Mengen darüber bleiben davon **unberührt** (K1): Balken,
+    #: Restmenge und Stundenverteilung rechnen weiter mit dem vollen Kühlstrom.
+    funktionsfremd_abzug_kwh: float = 0.0
 
     @property
     def ist_leer(self) -> bool:
@@ -136,6 +160,15 @@ class GeraeteBeitrag:
     inv_id: str
     gemessen: bool
     bezug_kwh: float
+    #: **Führt dieses Gerät getrennte Strommessung?** (``getrennte_strommessung``,
+    #: F5) — dieselbe Bedeutung wie ``ImdTypBeitrag.wp_hat_split`` im
+    #: Monatspfad, und **nicht** die von ``TagesStapel.hat_split`` darüber.
+    #:
+    #: Gebraucht für **SOLL-§9-E7/Option A**: Bei F5 + abgeleiteter Aufteilung
+    #: darf der funktionsfremde Anteil den Nenner nicht kürzen — er verteilt
+    #: ihn nur. Die Regel steht im Layer ({@link funktionsfremd_abzug_kwh}),
+    #: dieses Feld trägt bloß die Lage des Geräts dorthin.
+    hat_split: bool = False
     heizen_kwh: float = 0.0
     warmwasser_kwh: float = 0.0
     kuehlen_kwh: float = 0.0
@@ -146,6 +179,18 @@ class GeraeteBeitrag:
     #: Zweig 1: die Tageswerte je Feld, **unverändert samt Innengerät-Suffix** —
     #: die Stunde verteilt sie einzeln und löst danach je Stunde auf.
     felder: dict[str, float] = field(default_factory=dict)
+
+
+def _hat_getrennte_strommessung(inv) -> bool:
+    """Führt dieses Gerät getrennte Strommessung (F5)? — für SOLL-§9-E7/Option A.
+
+    ⚠ Bewusst ``getattr``: Die Faltung bekommt echte ``Investition``-Objekte
+    ebenso wie die schlanken Doubles der Layer-Proben, und ein fehlendes
+    ``parameter`` ist kein Grund für einen Absturz — die Lage heißt dann
+    „keine getrennte Strommessung", und das ist die vorsichtige Antwort
+    (der Abzug bleibt, wie er ohne diese Regel war).
+    """
+    return bool((getattr(inv, "parameter", None) or {}).get("getrennte_strommessung"))
 
 
 def beitraege_des_tages(
@@ -201,6 +246,7 @@ def beitraege_des_tages(
             inv_id=inv_id_str,
             gemessen=True,
             bezug_kwh=float(geraet_bezug),
+            hat_split=_hat_getrennte_strommessung(inv),
             heizen_kwh=zeile.heizen_kwh,
             kuehlen_kwh=zeile.kuehlen_kwh,
             # E4 (Konzept §2.3): Lüften und Entfeuchten sind erfassbar und
@@ -231,6 +277,7 @@ def beitraege_des_tages(
             inv_id=inv_id_str,
             gemessen=False,
             bezug_kwh=geraet_bezug,
+            hat_split=_hat_getrennte_strommessung(inv),
             heizen_kwh=split.teilmenge_kwh(HEIZEN),
             kuehlen_kwh=split.teilmenge_kwh(KUEHLEN),
             # N-336: nur der abgeleitete Zweig füllt Warmwasser — s. `ModusStromZeile`.
@@ -249,7 +296,7 @@ def beitraege_des_tages(
 def _falte(beitraege: Sequence[GeraeteBeitrag]) -> TagesStapel:
     """Summiert die Beiträge — in ihrer Reihenfolge, damit die Zahlen bitgleich bleiben."""
     heizen = warmwasser = kuehlen = lueften = entfeuchten = 0.0
-    rest = bezug = abdeckung = 0.0
+    rest = bezug = abdeckung = abzug = 0.0
     for b in beitraege:
         bezug += b.bezug_kwh
         heizen += b.heizen_kwh
@@ -258,6 +305,23 @@ def _falte(beitraege: Sequence[GeraeteBeitrag]) -> TagesStapel:
         lueften += b.lueften_kwh
         entfeuchten += b.entfeuchten_kwh
         rest += b.nicht_aufgeteilt_kwh
+        # ⭐ **SOLL-§9-E7/Option A: abgezogen wird nur, was im Nenner steht.**
+        # Die Regel wird GERUFEN, nicht nachgebaut — dieselbe Stelle, die der
+        # Monatspfad ruft (F-56: eine Regel, zwei Codestellen, eine Drift).
+        # ``ModusStromZeile`` ist hier bloß die Übergabeform; ihre Zahlen sind
+        # die des Beitrags, ihr ``gemessen`` seine Herkunft.
+        abzug += funktionsfremd_abzug_kwh(
+            ModusStromZeile(
+                heizen_kwh=b.heizen_kwh,
+                kuehlen_kwh=b.kuehlen_kwh,
+                warmwasser_kwh=b.warmwasser_kwh,
+                lueften_kwh=b.lueften_kwh,
+                entfeuchten_kwh=b.entfeuchten_kwh,
+                gemessen=b.gemessen,
+                abdeckung_h=b.abdeckung_h,
+            ),
+            hat_split=b.hat_split,
+        )
         if not b.gemessen:
             # W-17: Die Schleife läuft über die GERÄTE des Tages. Zwei Wärmepumpen
             # mit je 18 erfassten Stunden ergeben nicht 36 Stunden Erkenntnis,
@@ -275,6 +339,7 @@ def _falte(beitraege: Sequence[GeraeteBeitrag]) -> TagesStapel:
         abdeckung_h=abdeckung,
         hat_split=bool(beitraege),
         hat_gemessen=any(b.gemessen for b in beitraege),
+        funktionsfremd_abzug_kwh=abzug,
     )
 
 
@@ -494,6 +559,11 @@ def verteile_tages_stapel_auf_stunden(
             abdeckung_h=tag.abdeckung_h,
             hat_split=tag.hat_split,
             hat_gemessen=tag.hat_gemessen,
+            # ⚠ `funktionsfremd_abzug_kwh` bleibt hier bewusst 0: Die Stunde
+            # verteilt **Mengen**, und ein Nenner-Abzug ist keine Menge, die
+            # man auf 24 Slots legt. Wer eine Stunden-Arbeitszahl bauen will,
+            # holt ihn je Stunde aus denselben Beiträgen — nicht aus diesem
+            # Feld, das dort nichts behauptet.
         )
         for h in range(STUNDEN)
     ]

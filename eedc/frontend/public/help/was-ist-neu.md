@@ -11,6 +11,51 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Deine Arbeitszahl kann kleiner werden — und das ist eine Korrektur**
+
+**Betrifft dich das?** Nur, wenn alle drei Punkte auf dich zutreffen:
+
+- Du misst **Heizung und Warmwasser getrennt** (zwei eigene Stromzähler).
+- Du hast einen **Betriebsmodus-Sensor** zugeordnet, aus dem eedc mitschreibt,
+  ob das Gerät gerade heizt, kühlt oder Warmwasser macht.
+- Du hast **keinen** eigenen Stromzähler für den Kühlbetrieb.
+
+Trifft einer der Punkte nicht zu, ändert sich für dich **nichts**. Wer einen
+Kühlzähler hat, wer keine getrennte Strommessung führt oder wer gar nicht kühlt,
+sieht dieselben Zahlen wie bisher.
+
+**Was war:** In dieser Ausstattung teilt eedc den gemessenen Strom nach dem
+Betriebsmodus auf. Der Kühlanteil, der dabei herauskommt, ist ein **Ausschnitt**
+aus deinen zwei Zählern — kein dritter Zähler daneben. eedc hat ihn trotzdem aus
+dem Nenner der Arbeitszahl herausgerechnet, also um etwas gekürzt, das nie
+dazugekommen war. Die Zahl fiel dadurch zu gut aus.
+
+**Was jetzt gilt: abgezogen wird nur, was auch drinsteht.** An der
+Beispielanlage aus dem Handbuch stand dort **4,24**; richtig sind **3,79** —
+rund 12 % weniger. Auf dem Papier ist das eine Verschlechterung, in der Sache
+eine Korrektur: Genau diese 3,79 zeigt dieselbe Anlage, wenn sie statt des
+Betriebsmodus-Sensors einen **Kühlzähler** hätte. Bis hierher war deine Zahl
+mit der einer baugleichen Anlage nicht vergleichbar — jetzt ist sie es.
+
+**Im Sommer bekommst du eine Zahl zurück.** Steht deine Wärmepumpe den Monat
+über auf *Kühlen*, fiel bisher der ganze Strom aus dem Nenner, und im Block
+*Wärme/Klima* stand **„nur Kühlbetrieb in diesem Zeitraum"** — direkt neben
+einer *Arbeitszahl Warmwasser* aus demselben Monat. Beides konnte nicht stimmen.
+Jetzt steht dort wieder eine Zahl.
+
+**Deine Mengen ändern sich nicht.** Stromverbrauch, Wärme, Kosten, CO₂ und die
+Betriebsart-Balken bleiben, wie sie sind — auch der Kühlanteil wird unverändert
+angezeigt. Es ändert sich allein der Nenner **einer** Kennzahl. Die
+Arbeitszahlen für **Heizen** und **Warmwasser** bleiben ebenfalls gleich; sie
+stehen auf deinen gemessenen Zählern.
+
+**Wenn du es genauer willst:** Ordne *Strom Kühlbetrieb* zu — *Einstellungen →
+Datenquellen*, beim Gerät. Dann liest eedc ab, statt zu verteilen. Der
+Daten-Checker weist dich unter *Einstellungen → Daten* jetzt auch von sich aus
+darauf hin.
+
+---
+
 **Ein Winter-Vergleich, der das Wetter herausrechnet**
 
 Ein milder Winter sieht in jeder Statistik nach einer besseren Anlage aus. Damit

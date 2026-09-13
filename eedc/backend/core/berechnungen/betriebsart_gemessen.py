@@ -47,6 +47,7 @@ from backend.core.field_definitions import basis_feld_key
 __all__ = [
     "betriebsart_strom_kwh",
     "betriebsart_nutzenergie_kwh",
+    "funktionsfremd_abzug_kwh",
     "geraetefeld_oder_innengeraete",
     "hat_gemessene_betriebsart",
     "ModusStromZeile",
@@ -274,3 +275,68 @@ def _zahl(wert) -> float:
         return float(wert or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def funktionsfremd_abzug_kwh(zeile: ModusStromZeile, *, hat_split: bool) -> float:
+    """Was vom Nenner einer Arbeitszahl abgezogen werden **darf** — SOLL-§9-E7.
+
+    ⭐ **Die Regel in einem Satz: abgezogen wird nur, was im Nenner steht.**
+    Ein Abzug ist nur dann eine *Abgrenzung*, wenn die abgezogene Menge im
+    Nenner **enthalten** ist. Steht sie nicht darin, ist er keine Präzisierung,
+    sondern eine **Kürzung** — dieselbe Kategorie wie ADR-002/P4 („keine
+    erfundene Menge"), nur mit umgekehrtem Vorzeichen.
+
+    ⛔ **Zwei Fragen, zwei Namen — deshalb steht das hier und nicht in**
+    {@link ModusStromZeile.funktionsfremd_kwh}. Jene Eigenschaft ist die
+    *Definition* (*„welche Betriebsarten haben keine bewertete Nutzenergie?"* —
+    Kühlen · Lüften · Entfeuchten, W-14/E4); diese Funktion ist die
+    *Abzugsregel* (*„welcher Teil davon steckt überhaupt im Nenner?"*). Beide
+    in eine Zahl zu falten hieße, eine Mengen-Aussage von einer
+    Kennzahl-Entscheidung abhängig zu machen — die Aufteilung, die Restmenge
+    und die Betriebsart-Balken lesen weiterhin die Definition und dürfen sich
+    nicht mitverändern (K1: die Mengen bleiben unberührt).
+
+    **Die drei Lagen, an der Additionsseite abgelesen** (`get_wp_strom_kwh`,
+    `field_definitions.py` — sie trifft dieselbe Unterscheidung bereits, und
+    Option A stellt nur die Symmetrie her, die dort schon steht):
+
+    | Zweig | im Nenner enthalten? | Abzug |
+    | --- | --- | --- |
+    | **ohne** getrennte Strommessung | ja — ``stromverbrauch_kwh`` ist der Zählerstand des ganzen Geräts | ganz (**W-14**) |
+    | F5 **mit gemessenem** Betriebsart-Zähler | ja — ``get_wp_strom_kwh`` addiert ihn (**W-16**) | ganz (**W-16b**) |
+    | F5 mit **abgeleitetem** Split | **nein** — der Split *verteilt* ``strom_heizen_kwh + strom_warmwasser_kwh``, er stellt nichts daneben | **0** |
+
+    ⭐ **Warum der dritte Fall keine Ausnahme, sondern derselbe Grundsatz ist**
+    (SOLL §4.1, *„Ergänzung zu E7"*, Entscheid Gernot 12.09.2026 — Option A):
+    E7 begründet an der **Kategorie**, dass eine *Verteilung* kein Nenner sein
+    darf — *„eine Verteilung erbt jede Unschärfe ihres Schlüssels, eine Messung
+    nicht."* Diese Begründung sagt nichts darüber, dass sie nur auf der
+    Divisionsseite gälte: Ein Abzug nach der alten Bauform machte aus dem
+    Nenner **Messung − Verteilung**, und das ist keine Messung mehr.
+
+    ⚠ **Gemessen (Fixture ``test_n445_kuehlstrom_im_f5_heizstrom.py``,
+    12.09.2026):** Dieselbe Anlage — Heizen 750 kWh Strom auf 3000 kWh Wärme,
+    Warmwasser 200 auf 600, Kühlanteil 100 — zeigte **3,79** mit Kühlzähler
+    (Handbuch Fall B) und **4,24** mit Betriebsmodus-Sensor. Ein Erfassungsweg
+    *verbesserte* die Kennzahl um 12 %; das ist SOLL §3.3/**S1** in seiner
+    Kern-Verletzung. Im Sommer stand *„nur Kühlbetrieb in diesem Zeitraum"*
+    neben einer *Arbeitszahl Warmwasser 3,0* aus derselben Zeile.
+
+    ⛔ **Die Funktions-Arbeitszahlen bleiben unberührt** (E7): Ihr Nenner ist
+    der gemessene F5-Zähler, und dort wird ohnehin nichts abgezogen
+    ({@link waermepumpe_kennzahl.arbeitszahl_je_funktion}).
+
+    Args:
+        zeile: die aufgelöste Betriebsart-Zeile dieses Geräts.
+        hat_split: führt **dieses Gerät** getrennte Strommessung
+            (``getrennte_strommessung``)? ⛔ **Je Gerät, nie anlagenweit** —
+            eine Anlage darf ein F5-Gerät neben einem nicht-F5-Gerät haben, und
+            die Regel entscheidet für jedes einzeln (K2: *„je Gerät, ganz oder
+            gar nicht"*).
+
+    Returns:
+        Die kWh, die vom Nenner abgezogen werden dürfen.
+    """
+    if hat_split and not zeile.gemessen:
+        return 0.0
+    return zeile.funktionsfremd_kwh
