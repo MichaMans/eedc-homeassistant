@@ -159,8 +159,14 @@ export function pvSplitKw(
 
 /** Suffixe, mit denen der Leistungspfad **eine** Wärmepumpe je Funktion führt.
  *  Spiegel: `backend/services/live_sensor_config.py::baue_investitions_serien`
- *  (`waermepumpe_<id>_heizen` / `_warmwasser`, nur ohne „Leistung gesamt"). */
-const WP_SPLIT_SUFFIX = /_(heizen|warmwasser)$/
+ *  (`waermepumpe_<id>_heizen` / `_warmwasser` / `_kuehlen`, nur ohne
+ *  „Leistung gesamt").
+ *
+ *  ⭐ `kuehlen` kam am 13.09.2026 dazu (N-439). Ohne den Eintrag fiele die
+ *  Kühl-Fläche aus {@link wpSplitSerien} heraus und läge damit **zusätzlich**
+ *  zur Wärmepumpen-Fläche im Stapel — dieselbe Energie zweimal, genau der
+ *  Grund, aus dem diese Liste existiert. */
+const WP_SPLIT_SUFFIX = /_(heizen|warmwasser|kuehlen)$/
 
 /**
  * Die Funktions-Serien einer Wärmepumpe aus der Serienliste eines Tages.

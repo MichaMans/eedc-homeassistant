@@ -455,32 +455,35 @@ Es gibt **zwei Wege**, und **gemessen schlägt abgeleitet**:
 
 *Leistung gesamt*, *Leistung Heizen*, *Leistung Warmwasser*, *Leistung Kühlen* (alle in W), *Warmwasser-Temperatur*, *Betriebsmodus*, *Soll-* und *Raumtemperatur*.
 
-> ⚑ **„Leistung gesamt" und die Aufteilung schließen sich im Verlauf aus.** Ordnest du *Leistung gesamt* zu, wertet eedc *Leistung Heizen* und *Leistung Warmwasser* im Live-Tagesverlauf **nicht** aus — dort erscheint dann eine Fläche für die ganze Wärmepumpe. Die Zuordnungs-Fläche sagt es dir an den betroffenen Feldern. Beides ist richtig, es ist eine Wahl: Die Gesamtleistung ist der vollständige Anlagenwert (und die einzige Quelle des Wärmepumpen-Anteils in der Verbrauchsprognose, solange noch keine Tagesprofile aggregiert sind), die getrennten Felder sind die feinere Auskunft.
+Die Leistungsfelder erscheinen in *Cockpit → Live*: Unter dem Gerät steht *Leistung gesamt*, und wo du sie nicht misst, die Summe der Betriebsarten — das Symbol wechselt dann mit der stärksten von ihnen. Im Tagesverlauf bekommt jede gemessene Betriebsart ihre eigene Fläche. **Mengen entstehen daraus nicht** — Stromverbrauch, Wärme, Kälte und alle Arbeitszahlen kommen aus den kWh-Zählern.
 
-> ### ⭐ Zwei Flächen statt einer — was der Stundenverlauf dafür voraussetzt
+> ⚑ **„Leistung gesamt" und die Aufteilung schließen sich im Verlauf aus.** Ordnest du *Leistung gesamt* zu, wertet eedc *Leistung Heizen*, *Leistung Warmwasser* und *Leistung Kühlen* im Live-Tagesverlauf **nicht** aus — dort erscheint dann eine Fläche für die ganze Wärmepumpe. Die Zuordnungs-Fläche sagt es dir an den betroffenen Feldern. Beides ist richtig, es ist eine Wahl: Die Gesamtleistung ist der vollständige Anlagenwert (und die einzige Quelle des Wärmepumpen-Anteils in der Verbrauchsprognose, solange noch keine Tagesprofile aggregiert sind), die getrennten Felder sind die feinere Auskunft.
+
+> ### ⭐ Eine Fläche je Betriebsart — was der Stundenverlauf dafür voraussetzt
 >
 > Damit deine Wärmepumpe im **Stundenverlauf** des Tages (dem Butterfly-Chart über dem Block
-> *Wärme/Klima*) getrennt nach *Heizen* und *Warmwasser* erscheint, müssen **beide** Bedingungen
-> erfüllt sein:
+> *Wärme/Klima*) getrennt nach *Heizen*, *Warmwasser* und *Kühlen* erscheint, müssen **beide**
+> Bedingungen erfüllt sein:
 >
-> 1. *Leistung Heizen* **und** *Leistung Warmwasser* sind zugeordnet — **beide**. Mit nur einer
->    davon wäre die Funktionsfläche die Wärmepumpen-Fläche unter anderem Namen, und eedc lässt sie
->    dann zusammen.
+> 1. **Mindestens zwei** der drei Felder *Leistung Heizen*, *Leistung Warmwasser* und
+>    *Leistung Kühlen* sind zugeordnet. Mit nur einem davon wäre die Funktionsfläche die
+>    Wärmepumpen-Fläche unter anderem Namen, und eedc lässt sie dann zusammen.
 > 2. *Leistung gesamt* bleibt **leer**. Ist es zugeordnet, gilt der Kasten darüber: die
->    Gesamtleistung verdrängt die beiden Einzelfelder.
+>    Gesamtleistung verdrängt die Einzelfelder.
 >
-> Dieselben zwei Bedingungen gelten für *Cockpit → Live* — was du dort siehst, siehst du auch im
-> Stundenverlauf des Tages, in denselben zwei Farben und unter denselben Namen.
+> In *Cockpit → Live* genügt sogar **ein** zugeordnetes Feld: Dort bekommt jede Betriebsart, die du
+> misst, ihre eigene Fläche mit eigenem Namen. Was du dort siehst, siehst du ab zwei Feldern auch
+> im Stundenverlauf des Tages — in denselben Farben und unter denselben Namen.
 >
 > ⚑ **Liegt am selben Gerät zusätzlich ein kWh-Zähler, hat er das letzte Wort über die Menge.** Die
-> beiden Leistungsreihen sagen dann nicht mehr, *wie viel* verbraucht wurde, sondern nur noch, *wie
-> es sich verteilt*. Ist der Zähler **größer** als beide Reihen zusammen, steht die Differenz als
+> Leistungsreihen sagen dann nicht mehr, *wie viel* verbraucht wurde, sondern nur noch, *wie
+> es sich verteilt*. Ist der Zähler **größer** als alle Reihen zusammen, steht die Differenz als
 > eigene Fläche **„Wärmepumpe (übrige)"** daneben, statt still zu verschwinden. Ist er **kleiner**,
-> rechnet eedc die beiden Flächen im selben Verhältnis auf den Zähler herunter — die Stapelhöhe
+> rechnet eedc die Flächen im selben Verhältnis auf den Zähler herunter — die Stapelhöhe
 > bleibt die gemessene Menge, statt über sie hinauszuwachsen. **Ohne getrennte Leistungssensoren —
 > der Normalfall — ändert sich für dich nichts.**
 
-> ⚑ **Was diese Wahl berührt — und was nicht.** Deine **Mengen** kommen aus den kWh-Zählern und bleiben unberührt: Stromverbrauch, Wärme, Kosten, CO₂, Ersparnis und die **Arbeitszahlen für Heizen, Warmwasser und gesamt**. Die **Aufteilung nach Betriebsart** entsteht dagegen aus dem Leistungspfad — eedc liest dort die *Form* der Stunden ab und legt die Zählermenge darauf. Welchen Leistungssensor du zuordnest, kann deshalb verschieben, wie viel Strom dem Heizen, Kühlen oder Warmwasser zugerechnet wird, und damit auch die **Arbeitszahl Kühlen** (ihr Nenner ist genau dieser Anteil). Wenn dein Gerät im Kühlbetrieb läuft und du nur *Leistung Heizen* und *Leistung Warmwasser* zugeordnet hast, tragen die Kühlstunden im Leistungspfad nichts — ordne dann **Leistung gesamt** zu.
+> ⚑ **Was diese Wahl berührt — und was nicht.** Deine **Mengen** kommen aus den kWh-Zählern und bleiben unberührt: Stromverbrauch, Wärme, Kosten, CO₂, Ersparnis und die **Arbeitszahlen für Heizen, Warmwasser und gesamt**. Die **Aufteilung nach Betriebsart** entsteht dagegen aus dem Leistungspfad — eedc liest dort die *Form* der Stunden ab und legt die Zählermenge darauf. Welchen Leistungssensor du zuordnest, kann deshalb verschieben, wie viel Strom dem Heizen, Kühlen oder Warmwasser zugerechnet wird, und damit auch die **Arbeitszahl Kühlen** (ihr Nenner ist genau dieser Anteil). Wenn dein Gerät im Kühlbetrieb läuft und du nur *Leistung Heizen* und *Leistung Warmwasser* zugeordnet hast, tragen die Kühlstunden im Leistungspfad nichts — ordne dann **Leistung Kühlen** dazu (oder statt der Aufteilung **Leistung gesamt**).
 
 > ⛔ **Watt ist keine Kilowattstunde.** Ein Leistungssensor gehört **nie** in ein kWh-Feld. Die Stundenwerte eines Leistungssensors ergeben zwar eine plausible Zahl — sie speist aber nicht die Zählerpfade, aus denen der Block *Wärme/Klima* entsteht. Liefert dein Gerät **nur** Leistung, baue in Home Assistant unter *Helfer → Integral-Sensor* (Riemannsche Summe) einen kWh-Zähler daraus.
 

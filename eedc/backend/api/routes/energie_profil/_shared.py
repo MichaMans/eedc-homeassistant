@@ -43,8 +43,12 @@ _VIRTUAL_SERIEN: dict[str, dict] = {
     "pv_gesamt":   {"label": "PV Gesamt",   "typ": "virtual", "kategorie": "pv",       "seite": "quelle"},
 }
 
-# Optionale Suffixe bei WP-Serien (waermepumpe_{id}_heizen)
-_SUFFIX_LABELS = {"heizen": " Heizen", "warmwasser": " Warmwasser"}
+# Optionale Suffixe bei WP-Serien (waermepumpe_{id}_heizen).
+# ⚠ Die Menge ist der **Rückweg** zu `live_sensor_config.baue_investitions_serien`
+# — wer dort ein Suffix ergänzt und hier nicht, bekommt im Tag-Stundenverlauf
+# zwei Flächen mit demselben blanken Gerätenamen (Wächter:
+# `test_serien_aufbau_symmetrie_m1.py::test_split_keys_loesen_zurueck_*`).
+_SUFFIX_LABELS = {"heizen": " Heizen", "warmwasser": " Warmwasser", "kuehlen": " Kühlen"}
 
 # Kategorien die bereits in dedizierten Spalten landen (kein Extra-Tracking nötig)
 _DEDIZIERTE_KATEGORIEN = {"pv", "batterie", "netz", "haushalt", "waermepumpe", "wallbox", "eauto"}

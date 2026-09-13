@@ -40,6 +40,33 @@ from backend.services.live_history_service import (
 logger = logging.getLogger(__name__)
 
 
+#: Wie eine **Funktions-Serie** einer Wärmepumpe heißt und aussieht — Label-Zusatz
+#: und Rollenfarbe je Suffix aus ``baue_investitions_serien``.
+#:
+#: ⭐ **Eine Tabelle für beide Pfade** (N-439, 13.09.2026). Bis dahin standen der
+#: Label-Zusatz (``_SUFFIX_LABEL``) und die Warmwasser-Farbe im HA-Pfad und noch
+#: einmal ausgeschrieben im MQTT-Pfad — zwei Wahrheiten für dieselbe Frage. Mit
+#: der dritten Betriebsart wären es sechs Stellen geworden.
+#:
+#: ``None`` als Farbe heißt „die Typfarbe der Wärmepumpe" (rot, ``TV_SERIE_CONFIG``)
+#: — das ist zugleich ``ROLLEN_BG.heizung``, die Rollenfarbe des Heizens.
+#: Die beiden anderen Werte sind die Rollenfarben aus dem Frontend-Farb-SoT
+#: (``lib/colors.ts``): ``CHART_COLORS.wpWarmwasser`` blau und
+#: ``CHART_COLORS.modusKuehlen`` sky-500 (= ``ROLLEN_BG.kuehlung``, seit
+#: Bauschnitt 6b). Damit tragen die drei Flächen genau die drei Rollenfarben,
+#: die die Wärme/Klima-Balken schon benutzen (Regel 0a).
+#:
+#: ⛔ **Nicht ``kaelteGemessen`` (teal)** — das ist die Kälte-**Menge** (N-437),
+#: nicht der Kühl-**Strom**. Wächter: ``tests/test_live_tagesverlauf_farben_kanon.py``.
+WP_SPLIT_ANZEIGE: dict[str, tuple[str, Optional[str]]] = {
+    "heizen": (" Heizen", None),
+    # WP-Warmwasser: blau (= CHART_COLORS.wpWarmwasser; Gernot 2026-06-25 nach detLAN „Wasser=blau")
+    "warmwasser": (" Warmwasser", "#3b82f6"),
+    # WP-Kühlen: sky-500 (= CHART_COLORS.modusKuehlen = ROLLEN_BG.kuehlung)
+    "kuehlen": (" Kühlen", "#0ea5e9"),
+}
+
+
 def _resolve_counter_eid(
     typ: str, suffix: Optional[str], felder: dict,
     parameter: Optional[dict] = None,
@@ -315,16 +342,15 @@ async def get_tagesverlauf(
         ),
     )
     serien: list[dict] = []
-    _SUFFIX_LABEL = {"heizen": " Heizen", "warmwasser": " Warmwasser"}
     for spec in serien_core:
         inv = investitionen[spec.inv_id]
         config = TV_SERIE_CONFIG.get(inv.typ, {})
-        if spec.suffix:  # WP-Split: eigene Farbe für Warmwasser, kein max_w
-            # WP-Warmwasser: blau (= CHART_COLORS.wpWarmwasser; Gernot 2026-06-25 nach detLAN „Wasser=blau")
-            farbe = "#3b82f6" if spec.suffix == "warmwasser" else config.get("farbe")
+        if spec.suffix:  # WP-Split: eigene Rollenfarbe je Betriebsart, kein max_w
+            label_zusatz, roll_farbe = WP_SPLIT_ANZEIGE.get(spec.suffix, ("", None))
+            farbe = roll_farbe or config.get("farbe")
             serien.append({
                 "key": spec.key,
-                "label": f"{inv.bezeichnung}{_SUFFIX_LABEL.get(spec.suffix, '')}",
+                "label": f"{inv.bezeichnung}{label_zusatz}",
                 "kategorie": spec.kategorie,
                 "farbe": farbe,
                 "seite": spec.seite,
@@ -706,34 +732,33 @@ async def _get_tagesverlauf_mqtt(
         config = TV_SERIE_CONFIG.get("waermepumpe")
         if not config:
             continue
-        heiz_key = f"inv:{inv_id}:leistung_heizen_w"
-        ww_key = f"inv:{inv_id}:leistung_warmwasser_w"
         gesamt_key = f"inv:{inv_id}:leistung_w"
         if gesamt_key in available_keys:
             continue  # Gesamtleistung vorhanden → wird unten verarbeitet
-        if heiz_key in available_keys:
-            key_h = f"waermepumpe_{inv_id}_heizen"
+        # ⭐ Drei Betriebsarten, eine Schleife (N-439, 13.09.2026): Label und
+        # Rollenfarbe kommen aus derselben Tabelle wie im HA-Pfad darüber —
+        # die Reihenfolge Heizen → Warmwasser → Kühlen ist die des
+        # Serien-Bauers (`baue_investitions_serien`), damit beide Pfade
+        # dieselbe Legende in derselben Folge liefern.
+        for suffix, feld in (
+            ("heizen", "leistung_heizen_w"),
+            ("warmwasser", "leistung_warmwasser_w"),
+            ("kuehlen", "leistung_kuehlen_w"),
+        ):
+            comp = f"inv:{inv_id}:{feld}"
+            if comp not in available_keys:
+                continue
+            label_zusatz, roll_farbe = WP_SPLIT_ANZEIGE[suffix]
+            serie_key = f"waermepumpe_{inv_id}_{suffix}"
             serien.append({
-                "key": key_h,
-                "label": f"{inv.bezeichnung} Heizen",
+                "key": serie_key,
+                "label": f"{inv.bezeichnung}{label_zusatz}",
                 "kategorie": config["kategorie"],
-                "farbe": config["farbe"],
+                "farbe": roll_farbe or config["farbe"],
                 "seite": config["seite"],
                 "bidirektional": config["bidirektional"],
             })
-            serie_comp_keys[key_h] = [heiz_key]
-            mit_serie.add(inv_id)
-        if ww_key in available_keys:
-            key_w = f"waermepumpe_{inv_id}_warmwasser"
-            serien.append({
-                "key": key_w,
-                "label": f"{inv.bezeichnung} Warmwasser",
-                "kategorie": config["kategorie"],
-                "farbe": "#3b82f6",  # WP-Warmwasser blau (= CHART_COLORS.wpWarmwasser; Gernot 2026-06-25 nach detLAN)
-                "seite": config["seite"],
-                "bidirektional": config["bidirektional"],
-            })
-            serie_comp_keys[key_w] = [ww_key]
+            serie_comp_keys[serie_key] = [comp]
             mit_serie.add(inv_id)
 
     # Investitions-Serien (alle außer WP die bereits oben verarbeitet wurden)

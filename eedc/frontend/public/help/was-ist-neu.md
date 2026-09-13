@@ -11,6 +11,48 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**„Leistung Kühlen" wird jetzt auch angezeigt**
+
+**Betrifft dich das?** Nur, wenn dein Gerät kühlt **und** du dafür einen eigenen
+Leistungssensor (W) hast — bei einer Split-Klimaanlage mit getrennter Messung
+oder einer Wärmepumpe mit Kühlfunktion. Wer das Feld nicht zugeordnet hat, sieht
+keinen Unterschied.
+
+**Was war:** Das Feld *Leistung Kühlen* kannst du seit v4.0.44 zuordnen, und die
+Versionshinweise dort haben es als *Live-Wert* angekündigt. Angezeigt wurde es
+nie — keine Sicht hat es gelesen. Zwei Folgen hatte das: Wer **nur** diesen
+Sensor zugeordnet hatte, fand seine Wärmepumpe in *Cockpit → Live* **gar nicht**
+und darunter im Tagesverlauf den Satz, es sei kein Leistungssensor zugeordnet.
+Wer alle drei Betriebsarten misst, sah sein Gerät im Kühlbetrieb mit **0,0 kW**,
+obwohl es lief — gezählt wurden nur Heizen und Warmwasser.
+
+**Was jetzt:** Die Kühlleistung geht denselben Weg wie *Leistung Heizen* und
+*Leistung Warmwasser*.
+
+* In *Cockpit → Live* zählt sie zur Leistung, die unter dem Gerät steht, und das
+  Symbol wechselt auf die **Schneeflocke**, sobald Kühlen die stärkste
+  Betriebsart ist.
+* Im **Live-Tagesverlauf** und im **Stundenverlauf von *Cockpit → Tag*** bekommt
+  sie eine **eigene Fläche** — in derselben Farbe, die *Kühlen* im Wärme/Klima-Block
+  schon trägt, und unter dem Namen deines Geräts („Winterborn WP Kühlen").
+* Im Betrieb **ohne Home Assistant** wird sie alle 5 Minuten mitgeschrieben,
+  damit die Kurve auch dort entsteht.
+
+⛔ **Es bleibt reine Anzeige.** Aus diesem Feld entsteht **keine** Kilowattstunde
+und **keine** Arbeitszahl. Dein Stromverbrauch, die Kältemenge und die
+*Arbeitszahl Kühlen* kommen unverändert aus den kWh-Zählern — die Kühlleistung
+zeigt nur, was gerade passiert.
+
+⚠ **„Leistung gesamt" verdrängt sie wie ihre Nachbarn.** Ist die Gesamtleistung
+zugeordnet, wertet eedc auch *Leistung Kühlen* im Verlauf nicht aus — dort steht
+dann eine Fläche für die ganze Wärmepumpe. Die Datenquellen-Fläche sagt dir das
+jetzt auch an dieser Zeile.
+
+**Was du tun kannst:** Nichts, wenn du das Feld schon zugeordnet hast — die
+Fläche ist beim nächsten Aufruf da. Wenn dein Gerät kühlt und du bisher nur
+*Leistung Heizen* und *Leistung Warmwasser* zugeordnet hattest, lohnt sich jetzt
+der dritte Sensor: Die Kühlstunden trugen im Leistungspfad bisher nichts.
+
 **Dein Gesamtzähler zählt wieder — auch mit dem Schalter „Getrennte Strommessung"**
 
 **Betrifft dich das?** Nur, wenn du an einer Wärmepumpe oder Klimaanlage

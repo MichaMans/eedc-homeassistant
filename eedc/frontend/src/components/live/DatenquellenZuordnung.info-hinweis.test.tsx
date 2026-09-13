@@ -21,9 +21,14 @@ import DatenquellenZuordnung from './DatenquellenZuordnung'
 // before initialization"). `vi.hoisted` ist der vorgesehene Weg; so steht der
 // Satz trotzdem nur EINMAL, statt in Fixture und Erwartung zu driften.
 const { HINWEIS } = vi.hoisted(() => ({
+  // Spiegel von `backend/services/datenquellen_validierung._GESAMTLEISTUNG_TEXT`.
+  // ⭐ „Leistung Kühlen“ steht seit dem 13.09.2026 mit im Satz (N-439): Seit das
+  // Feld eine eigene Verlaufs-Fläche erzeugt, wird auch es von der
+  // Gesamtleistung verdrängt — ein Hinweis an zwei von drei gleich behandelten
+  // Feldern wäre die Lücke, gegen die SOLL §3.3/S3 steht.
   HINWEIS:
-    'Solange „Leistung gesamt“ zugeordnet ist, wertet eedc „Leistung Heizen“ und '
-    + '„Leistung Warmwasser“ im Verlauf nicht aus.',
+    'Solange „Leistung gesamt“ zugeordnet ist, wertet eedc „Leistung Heizen“, '
+    + '„Leistung Warmwasser“ und „Leistung Kühlen“ im Verlauf nicht aus.',
 }))
 
 vi.mock('../../api/datenquellen', () => {

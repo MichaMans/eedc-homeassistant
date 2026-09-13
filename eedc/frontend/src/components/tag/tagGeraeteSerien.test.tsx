@@ -468,3 +468,106 @@ describe('Stundenverlauf — der PV-Deckel auf der Quellenseite (N-455)', () => 
     expect(punkt.pv_9).toBeCloseTo(rein.pv_9, 10)
   })
 })
+
+// ─── N-439: die dritte Funktions-Fläche — Kühlen ────────────────────────────
+//
+// **Die Lage bis zum 13.09.2026.** `leistung_kuehlen_w` war seit W-13 (26.08.)
+// jeder Wärmepumpe zuordenbar und wurde an **keiner** Station gelesen — es gab
+// diesen Key im Leistungspfad also nie. Mit dem Anzeigepfad (Entscheid Gernot,
+// Tor G-K) liefert `baue_investitions_serien` ihn wie seine zwei Nachbarn, und
+// zwei Stellen im Client müssen ihn kennen:
+//
+// ⛔ **`WP_SPLIT_SUFFIX`** — ohne den Eintrag fiele die Kühl-Serie aus
+// {@link wpSplitSerien} heraus und läge als `extraSerien` **zusätzlich** zur
+// Wärmepumpen-Fläche im Stapel: dieselbe Energie zweimal.
+//
+// ⛔ **Die Farbe** — ohne die Zeile in `baueChartSerien` fiele ein
+// `_kuehlen`-Key in den Heizen-Zweig und die Kühlfläche stünde **rot** neben dem
+// Heizen-Segment. `modusKuehlen` (sky-500) ist die Rollenfarbe des Kühl-STROMS
+// (= `ROLLEN_BG.kuehlung`); die gemessene Kälte-MENGE trägt dagegen
+// `kaelteGemessen` (teal, N-437) — zwei Größen, zwei Töne.
+
+const WP_KUEHLEN: SerieInfo = {
+  key: 'waermepumpe_7_kuehlen', label: 'Winterborn WP Kühlen',
+  typ: 'waermepumpe', kategorie: 'waermepumpe', seite: 'senke',
+}
+const WP_DREI = [WP_HEIZEN, WP_WARMWASSER, WP_KUEHLEN]
+
+/** Ein Sommertag: das Gerät kühlt, Heizen und Warmwasser stehen still. */
+const TAG_WP_KUEHLT: StundenWert[] = [
+  stunde({
+    stunde: 11, waermepumpe_kw: 2.0,
+    komponenten: {
+      waermepumpe_7_heizen: -0.0, waermepumpe_7_warmwasser: -0.0,
+      waermepumpe_7_kuehlen: -2.0,
+    },
+  }),
+]
+
+describe('Stundenverlauf — die Kühl-Fläche (N-439)', () => {
+  it('erkennt den Kühl-Key als Funktions-Serie', () => {
+    const alle: SerieInfo[] = [
+      { key: 'waermepumpe_7', label: 'Winterborn WP', typ: 'waermepumpe', kategorie: 'waermepumpe', seite: 'senke' },
+      ...WP_DREI,
+      { key: 'pv_3', label: 'Dach Süd', typ: 'pv-module', kategorie: 'pv', seite: 'quelle' },
+    ]
+    expect(wpSplitSerien(alle).map((x) => x.key)).toEqual([
+      'waermepumpe_7_heizen', 'waermepumpe_7_warmwasser', 'waermepumpe_7_kuehlen',
+    ])
+  })
+
+  it('zeichnet sie in der Kühl-Rollenfarbe, nicht in Rot', () => {
+    const r = baueChartSerien({
+      pvAufgeschluesselt: false, zeigePvRest: false, erzeugerSerien: [],
+      extraErzeuger: [], extraVerbraucher: KEINE_EXTRA,
+      senkenErfasst: erfassteSenken(TAG_WP_KUEHLT, KEINE_EXTRA),
+      wpAufgeschluesselt: true, zeigeWpRest: false, wpSerien: WP_DREI,
+    })
+    const farbe = (k: string) => r.find((s) => s.dataKey === k)?.farbe
+
+    expect(farbe('waermepumpe_7_kuehlen')).toBe(CHART_COLORS.modusKuehlen)
+    // ⛔ Der Kern: NICHT die Heizen-Farbe — genau dorthin fiel der Key vorher.
+    expect(farbe('waermepumpe_7_kuehlen')).not.toBe(CHART_COLORS.wpWaerme)
+    // ⛔ Und nicht der Ton der gemessenen Kälte-MENGE (N-437).
+    expect(farbe('waermepumpe_7_kuehlen')).not.toBe(CHART_COLORS.kaelteGemessen)
+    // K5 — die Nachbarn behalten ihre Töne, Einzelwerte statt Menge.
+    expect(farbe('waermepumpe_7_heizen')).toBe(CHART_COLORS.wpWaerme)
+    expect(farbe('waermepumpe_7_warmwasser')).toBe(CHART_COLORS.wpWarmwasser)
+  })
+
+  it('trägt Label und Fläche in den Stapel, statt die WP-Fläche zu verdoppeln', () => {
+    const { keys, labels } = wpSerienliste(TAG_WP_KUEHLT, WP_DREI)
+    expect(keys).toContain('waermepumpe_7_kuehlen')
+    expect(keys).not.toContain('wp')
+    expect(labels).toContain('Winterborn WP Kühlen')
+  })
+
+  it('K1 — die Stapelhöhe bleibt die gemessene Gesamtmenge', () => {
+    const mit = baueChartDaten({
+      daten: TAG_WP_KUEHLT, extraErzeuger: [], extraVerbraucher: KEINE_EXTRA,
+      erzeugerSerien: [], pvAufgeschluesselt: false, zeigePvRest: false,
+      wpAufgeschluesselt: true, zeigeWpRest: false, wpSerien: WP_DREI,
+    })[11]
+    const ohne = baueChartDaten({
+      daten: TAG_WP_KUEHLT, extraErzeuger: [], extraVerbraucher: KEINE_EXTRA,
+      erzeugerSerien: [], pvAufgeschluesselt: false, zeigePvRest: false,
+    })[11]
+    // Senken stehen negativ im Butterfly (`seite: 'senke'`), deshalb −2,0.
+    expect(senkenSumme(mit, WP_DREI.map((s) => s.key))).toBeCloseTo(-2.0, 10)
+    // Und das ist bitgleich die Fläche, die ohne Aufschlüsselung dastünde.
+    expect(ohne.wp).toBeCloseTo(-2.0, 10)
+    expect(mit.wp).toBeUndefined()
+    // Einzelwerte: Kühlen trägt alles, die stillen Nachbarn nichts.
+    expect(mit['waermepumpe_7_kuehlen']).toBeCloseTo(-2.0, 10)
+    expect(mit['waermepumpe_7_heizen']).toBeCloseTo(0, 10)
+  })
+
+  it('allein reicht sie — eine Wärmepumpe, die NUR kühlt, bleibt eine Fläche', () => {
+    // Die Gegenprobe zur Mindestzahl: mit einer einzigen Funktions-Serie wäre
+    // die Kühlreihe die WP-Reihe unter anderem Namen — dieselbe Grenze wie bei
+    // Heizen allein.
+    const eine = wpSerienliste(TAG_WP_KUEHLT, [WP_KUEHLEN])
+    expect(eine.keys).toContain('wp')
+    expect(eine.keys).not.toContain('waermepumpe_7_kuehlen')
+  })
+})

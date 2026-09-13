@@ -898,10 +898,19 @@ LIVE_FELDER_INV: dict = {
         # zweier Familien, an der ein Tester schon einmal zwei Felder addiert hat
         # (#89667/62). Eine Zeile in der bestehenden Familie, ohne Bedingung wie
         # ihre beiden Nachbarn.
+        # ⭐ **Der Anzeigepfad kam am 13.09.2026 nach** (N-439, Entscheid Gernot
+        # Tor G-K). Das Feld war seit W-13 zuordenbar und wurde an keiner
+        # Station gelesen — „Live-Wert" stand als Zusage in WAS-IST-NEU, ohne
+        # dass irgendetwas ihn zeigte. Jetzt läuft er den Weg der Nachbarn:
+        # Live-Bild (Summe + Symbol), Live-Tagesverlauf und Tag-Stundenverlauf
+        # (eigene Fläche), MQTT-Snapshot. **„Reine Anzeige" bleibt wörtlich
+        # gültig:** aus diesem Feld entsteht keine kWh, keine Integration und
+        # keine Kennzahl — die Mengen kommen aus dem Zähler (E4).
         {"key": "leistung_kuehlen_w",      "label": "Leistung Kühlen",      "einheit": "W",
          "hinweis": "Elektrische Leistungsaufnahme im Kühlbetrieb in W. Nur sinnvoll, "
-                    "wenn der Kühlbetrieb getrennt gemessen wird — reine Anzeige, die "
-                    "Mengen kommen aus dem kWh-Zähler."},
+                    "wenn der Kühlbetrieb getrennt gemessen wird — reine Anzeige: "
+                    "erscheint im Live-Bild und als eigene Fläche im Tagesverlauf, "
+                    "die Mengen kommen aus dem kWh-Zähler."},
         {"key": "warmwasser_temperatur_c", "label": "Warmwasser-Temperatur","einheit": "°C",
          "hinweis": "Temperatur im Warmwasserspeicher in °C — reine Anzeige, geht in keine "
                     "Berechnung ein."},

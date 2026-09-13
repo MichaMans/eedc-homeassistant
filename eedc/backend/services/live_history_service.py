@@ -330,14 +330,20 @@ async def get_tages_kwh(
 
         entity_id = live.get("leistung_w")
 
-        # WP: getrennte Leistungssensoren → beide als Komponenten
+        # WP: getrennte Leistungssensoren → jede Betriebsart als Komponente.
+        # ⭐ Kühlen kam am 13.09.2026 dazu (N-439) — die Schwesterstellen
+        # `live_sensor_config.baue_investitions_serien` und
+        # `live_tagesverlauf_service` führen dieselben drei Suffixe.
         if not entity_id and typ == "waermepumpe":
             heiz_eid = live.get("leistung_heizen_w")
             ww_eid = live.get("leistung_warmwasser_w")
+            kuehl_eid = live.get("leistung_kuehlen_w")
             if heiz_eid:
                 component_entities[f"waermepumpe_{inv_id}_heizen"] = heiz_eid
             if ww_eid:
                 component_entities[f"waermepumpe_{inv_id}_warmwasser"] = ww_eid
+            if kuehl_eid:
+                component_entities[f"waermepumpe_{inv_id}_kuehlen"] = kuehl_eid
             continue
 
         # Speicher ohne leistung_w aber mit separaten kWh-Sensoren

@@ -89,12 +89,22 @@ export function baueChartSerien({
       // schon zeichnet — sie **ersetzen** die WP-Fläche, statt obendrauf zu
       // liegen (die `erzeugerSerien`-Regel, eine Senke statt einer Quelle).
       // Farben aus der Rolle, nicht aus der Serienreihenfolge: Heizen = rot,
-      // Warmwasser = blau, identisch mit dem Live-Chart (Regel 0a, „eine
-      // Datenrolle, eine Farbe").
+      // Warmwasser = blau, Kühlen = sky, identisch mit dem Live-Chart
+      // (Regel 0a, „eine Datenrolle, eine Farbe").
+      //
+      // ⭐ Kühlen kam am 13.09.2026 dazu (N-439). Ohne die Zeile fiele ein
+      // `_kuehlen`-Key in den Heizen-Zweig und die Kühlfläche stünde **rot**
+      // neben dem Heizen-Segment. `modusKuehlen` ist die Rollenfarbe des
+      // Kühl-STROMS (= `ROLLEN_BG.kuehlung`); die gemessene Kälte-MENGE trägt
+      // dagegen `kaelteGemessen` (teal, N-437) — zwei Größen, zwei Töne.
       wpSerien.forEach((ws) => r.push({
         dataKey: ws.key,
         label: ws.label,
-        farbe: ws.key.endsWith('_warmwasser') ? CHART_COLORS.wpWarmwasser : CHART_COLORS.wpWaerme,
+        farbe: ws.key.endsWith('_warmwasser')
+          ? CHART_COLORS.wpWarmwasser
+          : ws.key.endsWith('_kuehlen')
+            ? CHART_COLORS.modusKuehlen
+            : CHART_COLORS.wpWaerme,
         stackId: 'senken',
       }))
       // ⚠ **Nicht `KATEGORIE_FARBEN.waermepumpe`** — gemessen 12.09.2026 trägt die

@@ -128,9 +128,19 @@ def state_class_problem(feld_einheit: Optional[str], state_class: Optional[str])
 
 
 #: **Bauschnitt 7** — die feinen Leistungsfelder einer Wärmepumpe. Sie erzeugen
-#: die getrennten Verlaufs-Reihen (Heizen/Warmwasser) nur, solange am selben
-#: Gerät **keine** Gesamtleistung zugeordnet ist.
-_WP_LEISTUNG_FEIN = ("leistung_heizen_w", "leistung_warmwasser_w")
+#: die getrennten Verlaufs-Reihen (Heizen/Warmwasser/Kühlen) nur, solange am
+#: selben Gerät **keine** Gesamtleistung zugeordnet ist.
+#:
+#: ⭐ **`leistung_kuehlen_w` gehört seit dem 13.09.2026 dazu** (N-439) — nicht
+#: als Erweiterung der Regel, sondern weil es an diesem Tag überhaupt erst eine
+#: Verlaufs-Reihe erzeugt. Vorher wurde es nirgends ausgewertet und konnte
+#: deshalb auch von nichts verdrängt werden; jetzt gilt für es dieselbe
+#: Bedingung wie für seine zwei Nachbarn (`baue_investitions_serien`:
+#: `if not has_leistung`). Ein Hinweis an zwei von drei gleich behandelten
+#: Feldern wäre genau die Lücke, gegen die SOLL §3.3/**S3** steht.
+_WP_LEISTUNG_FEIN = (
+    "leistung_heizen_w", "leistung_warmwasser_w", "leistung_kuehlen_w",
+)
 _WP_LEISTUNG_GESAMT = "leistung_w"
 
 #: Was die Zuordnung bewirkt — die **Ursache**, nicht das Bild.
@@ -145,8 +155,8 @@ _WP_LEISTUNG_GESAMT = "leistung_w"
 #: viel behauptet: Bei einer zugeordneten, aber toten Entity erscheint die
 #: Wärmepumpe im Verlauf **gar nicht**.
 _GESAMTLEISTUNG_TEXT = (
-    "Solange „Leistung gesamt“ zugeordnet ist, wertet eedc „Leistung Heizen“ und "
-    "„Leistung Warmwasser“ im Verlauf nicht aus."
+    "Solange „Leistung gesamt“ zugeordnet ist, wertet eedc „Leistung Heizen“, "
+    "„Leistung Warmwasser“ und „Leistung Kühlen“ im Verlauf nicht aus."
 )
 
 

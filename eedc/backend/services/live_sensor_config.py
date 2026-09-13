@@ -161,9 +161,18 @@ def baue_investitions_serien(
         if not has_leistung and typ == "waermepumpe":
             config = TV_SERIE_CONFIG.get("waermepumpe")
             if config:
+                # ⭐ **Drei Betriebsarten, nicht zwei** (N-439, 13.09.2026).
+                # `leistung_kuehlen_w` ist seit W-13 (26.08.) jeder Wärmepumpe
+                # zuordenbar und wurde bis hierher an keiner Station gelesen —
+                # wer nur den Kühlsensor hatte, bekam gar keine Serie und stand
+                # darunter als „nicht dargestellt". Die drei Felder sind
+                # **disjunkte Momentanwerte** desselben Kältekreises
+                # (`core/betriebsmodus.py`: ein Umschaltventil, dietmar1968
+                # T89667 #225), also dieselbe Bauform wie ihre zwei Nachbarn.
                 for suffix, field in (
                     ("heizen", "leistung_heizen_w"),
                     ("warmwasser", "leistung_warmwasser_w"),
+                    ("kuehlen", "leistung_kuehlen_w"),
                 ):
                     eid = live.get(field)
                     if eid:
@@ -260,10 +269,16 @@ def baue_investitions_serien(
 
 
 #: Die Felder, aus denen der Tagesverlauf überhaupt eine Leistungskurve bauen
-#: kann. `leistung_w` ist der Regelfall; die beiden Funktions-Felder tragen die
+#: kann. `leistung_w` ist der Regelfall; die drei Funktions-Felder tragen die
 #: Wärmepumpe mit getrennter Strommessung (s. {@link baue_investitions_serien}).
+#:
+#: ⚠ **`leistung_kuehlen_w` gehört dazu, seit es eine Serie erzeugt** (N-439).
+#: Die Liste steht im Anwendersatz *„Nicht dargestellt (kein HA-Leistungssensor)"*
+#: (N-447) — ein Feld, das eine Fläche zeichnet, aber hier fehlt, macht genau
+#: die Falschaussage, gegen die dieser Satz gebaut wurde.
 LEISTUNGS_FELDER: tuple[str, ...] = (
     "leistung_w", "leistung_heizen_w", "leistung_warmwasser_w",
+    "leistung_kuehlen_w",
 )
 
 

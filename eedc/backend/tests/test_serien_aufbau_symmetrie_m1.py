@@ -345,8 +345,12 @@ def test_getrennte_leistungsfelder_zaehlen_als_leistungsquelle():
     ) == ["Winterborn WP"]
     # ⛔ Und die Feldliste selbst ist der Vertrag — sie steht im Anwendersatz
     # („kein HA-Leistungssensor"), nicht nur im Code.
+    # ⭐ `leistung_kuehlen_w` kam am 13.09.2026 dazu (N-439): Seit es eine
+    # eigene Verlaufs-Reihe erzeugt, muss es hier stehen — sonst meldete der
+    # Satz eine Wärmepumpe als „nicht dargestellt", die gezeichnet wird.
     assert set(LEISTUNGS_FELDER) == {
         "leistung_w", "leistung_heizen_w", "leistung_warmwasser_w",
+        "leistung_kuehlen_w",
     }
 
 
