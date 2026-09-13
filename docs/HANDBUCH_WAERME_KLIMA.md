@@ -87,11 +87,11 @@ Diese Tabelle ist der Kern dieses Handbuchs. Sie beantwortet die Frage, die fast
 | **Arbeitszahl Kühlen** | *Strom Kühlbetrieb* **und** *Nutzenergie Kühlbetrieb* (Kältemengenzähler) | „—" mit Grund *„kein Kältemengenzähler zugeordnet"* |
 | **Aufteilung Heizen/Kühlen/Lüften/Entfeuchten** | entweder **gemessene** Betriebsart-Zähler **oder** ein *Betriebsmodus*-Sensor, den eedc laufend mitliest | der Block fehlt ganz — und zwar bewusst, statt vier Nullen zu zeigen |
 | **Ersparnis vs. Alternative** | gemessene oder abgeleitete Wärme **und** ein Alt-Preis am Gerät | „—" |
-
-> ⚑ **Der Strom der Wärmepumpe wird immer voll gerechnet, auch der Teil aus der eigenen PV — dessen Wert steht auf der PV-Seite als Eigenverbrauch.** Sonst zählte dieselbe Kilowattstunde zweimal.
 | **CO₂-Einsparung** | Stromverbrauch und Wärme | der Wärmepumpen-Anteil fehlt in der Bilanz |
 | **Kompressor-Starts / Betriebsstunden** | ein *Total-Increasing*-Zähler dafür | die Kacheln erscheinen gar nicht |
 | **Tages**werte statt nur Monatswerte | dieselben Zähler — aber **fortlaufend mitgeschrieben** | „—" mit Grund, siehe Kasten |
+
+> ⚑ **Der Strom der Wärmepumpe wird immer voll gerechnet, auch der Teil aus der eigenen PV — dessen Wert steht auf der PV-Seite als Eigenverbrauch.** Sonst zählte dieselbe Kilowattstunde zweimal.
 
 > ### ⚠ Monat da, Tag leer — das ist der häufigste Fall und kein Fehler
 >
