@@ -11,6 +11,44 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Nachts geladen? Die Aufteilung stand im falschen Tag**
+
+**Betrifft dich das?** Nur in *Cockpit → Tag*, und nur an Tagen, an denen dein
+Speicher oder dein Auto **zwischen 23 und 24 Uhr** geladen (oder der Speicher
+entladen) hat — am Tag selbst oder am Vortag, denn genau diese Stunde wandert
+von einem Tag in den anderen. An einem Beispiel-Datensatz waren das 10 solche
+Nächte und 18 von 182 Tagen mit einer Abweichung über 5 %; an allen anderen
+bleibt jede Zahl gleich. *Monat*, *Jahr*, *Auswertungen*, der
+Monatsbericht, die Home-Assistant-Sensoren und der Community-Vergleich sind
+nicht betroffen.
+
+**Was war:** Die Tageszeile stützt sich auf die Stundenwerte, und die decken die
+Zeit von 23 Uhr des Vortags bis 23 Uhr des Tages ab. Die Zähler daneben — die
+Netzladung des Speichers und die Aufteilung der Auto-Ladung in PV und Netz —
+wurden dagegen von Mitternacht bis Mitternacht gelesen. Der Teil und das Ganze
+stammten damit aus **verschiedenen Tagen**. Sichtbar wurde das auf zwei Arten:
+Bei *„davon aus dem Netz (Arbitrage)"* stand **0,0 kWh**, obwohl der Speicher in
+der Nacht 6 kWh aus dem Netz gezogen hatte — oder es stand dort eine Menge, die
+größer war als die Ladung des ganzen Tages. Beim Auto zeigte die Kachel
+*PV-Anteil* dann 100 %, während daneben eine Netzladung ausgewiesen war.
+
+**Was jetzt gilt:** Zähler und Bezug kommen aus demselben Zeitfenster. An einem
+betroffenen Tag ändern sich dadurch die Kachel **„Batterieladung Netz"** (kWh
+und €), die Zeile **„Wirkungsverluste (Opportunitätskosten)"** — in einem
+nachgestellten Fall −0,32 € statt richtig −0,08 € — sowie **PV-Anteil** und
+**Netz-Anteil** beim Auto. Was dort steht, passt jetzt zur Kachel „Ladung
+gesamt" daneben.
+
+**Was du tun musst:** nichts. ⭐ **Eine zweite Kleinigkeit gehört dazu:** Der
+Netz-Anteil ist bei 100 % gedeckelt, und das kann auch weiterhin vorkommen — der
+Netzladungs-Zähler zählt brutto, die Tages-Ladung netto, und wenn dein Speicher
+in derselben Stunde lädt und entlädt, heben sich die beiden darin auf. Bisher
+geschah das stillschweigend; jetzt steht der Grund im Formel-Tooltip der Zeile
+*Wirkungsverluste*. ⚠ **Die Wärmepumpe ist unberührt** — ihre Tageswerte wurden
+bereits mit der vorherigen Korrektur geradegezogen.
+
+---
+
 **Deine Arbeitszahl kann kleiner werden — und das ist eine Korrektur**
 
 **Betrifft dich das?** Nur, wenn alle drei Punkte auf dich zutreffen:

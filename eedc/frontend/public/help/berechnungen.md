@@ -2721,6 +2721,40 @@ Industriestandard für Energie: HA Energy Dashboard, SolarEdge, SMA, Fronius, Ti
 - `solcast_service` (API + HA-Sensor): 30-Min-Buckets per `ceil(bucket_ende)` → richtigen Backward-Slot. Ein Bucket am Tagesübergang `[23:00, 23:30)` heute landet damit korrekt in Slot 0 des **Folgetags**, nicht in Slot 0 von heute.
 - **Nach Update auf v3.20.0 nötig:** einmal „Verlauf nachberechnen + überschreiben" auslösen, damit alle historischen Stundenwerte umverteilt werden. Tagessummen und alle abgeleiteten Kennzahlen (Autarkie, PR, Lernfaktor) sind konventionsunabhängig korrekt.
 
+#### Tageswerte: Zähler und Bezug aus einem Fenster
+
+Aus der Backward-Konvention folgt eine zweite Regel, die **Tages**sichten betrifft: Die Σ der 24 Slots
+deckt `[Vortag 23:00, Heute 23:00)` ab — ein Tagesgesamt per Zähler-Diff dagegen `[00:00, 24:00)`.
+Beide Fenster sind 24 Stunden lang und meinen **verschiedene** 24 Stunden. Wer in *einer* Zeile eine
+Teilmenge (einen Zähler) über einen Bezug stellt, muss beide im **selben** Fenster erheben, sonst ist
+der Anteil keine Messung, sondern eine Rechnung über zwei Tage.
+
+Welches Fenster gilt, entscheidet die **Herkunft des Bezugs** — nicht der Gerätetyp und nicht die
+Gewohnheit. Die Tabelle steht als Code in `services/snapshot/boundary_range.py`
+(`TAGESFENSTER_JE_TYP` / `tagesfenster_fuer`):
+
+| Gerätetyp | Bezug der Tageszeile | Fenster |
+|---|---|---|
+| Wärmepumpe | `TagesZusammenfassung.komponenten_kwh` | **bedingt**: im HA-Add-on Σ der LTS-Slots ⇒ `[Vortag 23:00, 23:00)`, im Snapshot-Pfad `[00:00, 24:00)` |
+| Speicher | Σ der Ladung aus den Stundenzeilen (`batterie_kw`) | **immer** `[Vortag 23:00, 23:00)` |
+| Wallbox / E-Auto | Σ der Ladeserien aus den Stundenzeilen (`komponenten`) | **immer** `[Vortag 23:00, 23:00)` |
+| alles Übrige | kein Tages-Bezug hinterlegt | `[00:00, 24:00)` |
+
+Betroffen sind die Detailwerte in *Cockpit → Tag*: die Netzladung des Speichers („davon aus dem Netz
+(Arbitrage)") und die PV-/Netz-Anteile der E-Mobilität. Sie standen bis dahin in `[00:00, 24:00)`,
+ihre Bezüge in den Stundenzeilen — an einem Tag mit Ladung zwischen 23 und 24 Uhr fehlte die Menge
+also im einen und tauchte im anderen Tag auf. **Gemessen** an der Demo-Datenbank (187 Tage): 18 von
+182 Tagen weichen um mehr als 5 % ab, am 25.11.2025 um +131,9 % (1,11 gegen 2,58 kWh). Der Client
+konnte dadurch einen Netz-Anteil über 100 % errechnen — er kappte ihn stillschweigend auf 100 %.
+
+Die Kappung bleibt (der Zähler ist eine **Brutto**-Menge, der Bezug eine **Netto**-Menge — eine
+Stunde mit 2,0 kWh Netzladung und 1,5 kWh Entladung ergibt netto 0,5 kWh), aber sie ist nicht mehr
+stumm: Greift sie, nennt der Formel-Tooltip der Zeile „Wirkungsverluste" den Grund
+([ADR-002/P4](ADR-002-WURZELMUSTER.md)).
+
+Monats-, Jahres- und Auswertungssichten sind **nicht** betroffen — sie rechnen aus den Monatsdaten
+bzw. den Monats-Fakten und kennen kein Tagesfenster.
+
 **Die Konvention endet nicht am Backend (v4.0.6).** Wer eine Stunde *beschriftet* oder einen Messwert
 in eine Chart-Spalte *einsortiert*, folgt derselben Regel — Client-SoT ist
 `frontend/src/lib/stundenSlot.ts` (Spiegel von `core/berechnungen/slot_konvention.py`, Regressionstest

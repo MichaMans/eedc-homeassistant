@@ -422,7 +422,8 @@ async def get_waerme_verlauf_stunden(
         investitionen_by_id, datum,
     )
     detail = await get_tagesdetail_kwh(
-        db, anlage, investitionen_by_id, datum, wp_rueckwaerts=tz_rueckwaerts,
+        db, anlage, investitionen_by_id, datum,
+        tageszeile_rueckwaerts=tz_rueckwaerts,
     )
 
     # ── Die Form: je Zähler die 24 Slots aus derselben Standreihe ───────────
@@ -704,7 +705,8 @@ async def get_tag_detail(
     tz_rueckwaerts = tageszeile_ist_rueckwaerts(tz_zeile[1] if tz_zeile else None)
 
     _tagesdetail = await get_tagesdetail_kwh(
-        db, anlage, investitionen_by_id, datum, wp_rueckwaerts=tz_rueckwaerts,
+        db, anlage, investitionen_by_id, datum,
+        tageszeile_rueckwaerts=tz_rueckwaerts,
     )
     detail = _tagesdetail.werte
     # W-18: Warum ein Tageswert fehlt. Der Grund wird **hergeleitet**, nicht

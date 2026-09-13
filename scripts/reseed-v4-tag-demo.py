@@ -93,6 +93,22 @@ print("sensor_mapping: WP4 heizenergie/warmwasser + WB5 ladung_pv/ladung_netz ge
 
 # ── 3) kumulative Boundary-Snapshots ────────────────────────────────────────
 # daily increments je Sensor; Snapshot an jedem Tag 00:00 = Stand VOR dem Tag.
+#
+# ⛔ **Zusätzlich ein Stand um 23:00 je Tag (N-444, 13.09.2026).** Seit die
+# Tagesdetail-Zähler von Speicher, Wallbox und E-Auto im Fenster ihres Bezugs
+# gelesen werden — [Vortag 23:00, Heute 23:00), weil die Stundenzeilen seit
+# N-382 rückwärts liegen —, braucht ein Tageswert Randstände um **23:00**, nicht
+# um 00:00. Dieser Seed schrieb bis dahin genau einen Stand je Tag (00:00); die
+# Demo-/Guest-Box hätte danach bei den E-Mob-Anteilen „—" mit dem Grund
+# „keine Zählerstände" gezeigt statt einer Zahl.
+#
+# Der Wert ist derselbe kumulative Stand wie 00:00 des Folgetags: Das Modell des
+# Seeds ist **ein Inkrement je Tag**, also fällt in [23:00, 24:00) nichts an.
+# Damit liefert das Rückwärtsfenster exakt dieselbe Tagesmenge wie bisher
+# [00:00, 24:00) — die Demo zeigt nach der Umstellung dieselben Zahlen.
+# ⚠ In **Produktion** braucht es das nicht: der Stunden-Job schreibt zu jeder
+# vollen Stunde (`services/scheduler.py`, Cron `minute=5`), und der Löschpfad
+# entfernt nur Sub-Stunden-Slots (`services/snapshot/writer.py`).
 def daily_increments():
     for datum, pv, wp, wb, _ in rows:
         m = int(datum[5:7])
@@ -109,11 +125,18 @@ bases = {"inv:4:heizenergie_kwh": 5000.0, "inv:4:warmwasser_kwh": 1500.0,
 cum = dict(bases)
 snap_rows = []
 incs = list(daily_increments())
+# Anfangs-Boundary im Rückwärtsfenster: Vortag des ERSTEN Tages um 23:00. Ohne
+# ihn hätte der erste Tag keinen linken Rand und bliebe ohne Wert.
+vortag_erster = datetime.fromisoformat(incs[0][0]) - timedelta(days=1)
+for key in bases:
+    snap_rows.append((ANLAGE, key, vortag_erster.strftime("%Y-%m-%d 23:00:00"),
+                      round(cum[key], 3), "ha_statistics"))
 for datum, inc in incs:
-    ts = f"{datum} 00:00:00"
     for key in bases:
-        snap_rows.append((ANLAGE, key, ts, round(cum[key], 3), "ha_statistics"))
+        snap_rows.append((ANLAGE, key, f"{datum} 00:00:00", round(cum[key], 3), "ha_statistics"))
         cum[key] += inc[key]
+        # 23:00 = Stand NACH dem Tag (ein Inkrement je Tag ⇒ [23:00, 24:00) leer).
+        snap_rows.append((ANLAGE, key, f"{datum} 23:00:00", round(cum[key], 3), "ha_statistics"))
 # Abschluss-Boundary (Folgetag des letzten Tages 00:00) für den letzten Tages-Diff.
 last = datetime.fromisoformat(incs[-1][0]) + timedelta(days=1)
 for key in bases:
@@ -125,7 +148,7 @@ cur.executemany(
     "INSERT OR REPLACE INTO sensor_snapshots (anlage_id, sensor_key, zeitpunkt, wert_kwh, quelle) VALUES (?,?,?,?,?)",
     snap_rows,
 )
-print(f"snapshots: {len(snap_rows)} Boundary-Werte ({len(bases)} Sensoren × {len(incs)+1} Grenzen)")
+print(f"snapshots: {len(snap_rows)} Boundary-Werte ({len(bases)} Sensoren × {2 * len(incs) + 2} Grenzen: je Tag 00:00 und 23:00)")
 
 con.commit()
 con.close()

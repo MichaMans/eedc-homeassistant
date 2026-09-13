@@ -159,7 +159,7 @@ class TestMonatssaeuleNenntDieWaermeDesTages:
             db, anlage, invs, DATUM, DATUM, WAERME_FELDER,
             rueckwaerts_tage={DATUM},
         )
-        einzeln = await get_tagesdetail_kwh(db, anlage, invs, DATUM, wp_rueckwaerts=True)
+        einzeln = await get_tagesdetail_kwh(db, anlage, invs, DATUM, tageszeile_rueckwaerts=True)
 
         assert bereich[DATUM]["wp_heizung_kwh"] == pytest.approx(
             einzeln.werte["wp_heizung_kwh"], abs=1e-9,

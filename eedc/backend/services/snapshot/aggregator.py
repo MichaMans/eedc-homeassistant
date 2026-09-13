@@ -36,7 +36,7 @@ from backend.core.tageswert_grund import (
     GRUND_RANG,
     GRUND_ZAEHLER_RUECKSPRUNG,
 )
-from backend.services.snapshot.boundary_range import BoundaryRange
+from backend.services.snapshot.boundary_range import BoundaryRange, tagesfenster_fuer
 from backend.services.snapshot.keys import (
     KUMULATIVE_COUNTER_FELDER,
     FLOAT_COUNTER_FELDER,
@@ -896,10 +896,11 @@ async def get_betriebsart_strom_tageswerte(
     sensor_mapping = anlage.sensor_mapping or {}
     quellen_energy = extract_quellen_energy(anlage)  # C2b-Read-Through
     mqtt_keys = await mqtt_zaehler_keys(db, anlage.id)  # N-328b
-    rng = (
-        BoundaryRange.for_day_backward(datum)
-        if rueckwaerts
-        else BoundaryRange.for_day_total(datum)
+    # Dieselbe Tabelle wie `get_tagesdetail_kwh` (N-444): das Fenster eines Typs
+    # steht EINMAL im Baum. Verhalten bitgleich zur früheren lokalen Weiche —
+    # `waermepumpe` ist dort „bedingt", und dieser Aufrufer liest nur Wärmepumpen.
+    rng = tagesfenster_fuer(
+        "waermepumpe", datum, tageszeile_rueckwaerts=rueckwaerts
     )
     start_off, end_off = rng.boundary_offsets  # (-1, 23) bzw. (0, 24)
     ts_start = rng.boundary_at(start_off)
@@ -1016,7 +1017,7 @@ async def get_tagesdetail_kwh(
     investitionen_by_id: dict,
     datum: date,
     *,
-    wp_rueckwaerts: bool = False,
+    tageszeile_rueckwaerts: bool = False,
 ) -> "TagesDetail":
     """Tages-kWh für Felder, die `get_komponenten_tageskwh` bewusst NICHT separat
     ausweist, die aber Cockpit/Tag für die Detailzeilen braucht (D1 „maximal
@@ -1027,8 +1028,9 @@ async def get_tagesdetail_kwh(
       - Speicher `ladung_netz_kwh` (Arbitrage) — in der Bilanz bewusst
         ausgeschlossen (Teilmenge von `ladung_kwh`, Doppelzähl-Schutz).
 
-    Boundary-Diff über das HA-Tagesfenster `[Tag 00:00, Folgetag 00:00)`,
-    identisch zu `get_komponenten_tageskwh` (gleiche Tagesreset-Behandlung). Summe
+    Boundary-Diff **im Fenster des jeweiligen Bezugs** — je Gerätetyp aus
+    {@link tagesfenster_fuer} (SOLL §3.3/S1a, N-444), Tagesreset-Behandlung
+    identisch zu `get_komponenten_tageskwh`. Summe
     über alle aktiven Investitionen des Typs. Liefert `{feld: Σ_kwh}` nur für
     tatsächlich als Sensor gemappte Felder mit Snapshot-Daten — fehlt das
     Mapping/der Snapshot, fehlt das Feld (Aufrufer lässt es weg, kein „—"-Clutter).
@@ -1043,33 +1045,35 @@ async def get_tagesdetail_kwh(
     sensor_mapping = anlage.sensor_mapping or {}
     quellen_energy = extract_quellen_energy(anlage)  # C2b-Read-Through
     mqtt_keys = await mqtt_zaehler_keys(db, anlage.id)  # N-328b
-    rng = BoundaryRange.for_day_total(datum)
-    start_off, end_off = rng.boundary_offsets  # (0, 24)
-    ts_start = rng.boundary_at(start_off)
-    ts_ende = rng.boundary_at(end_off)
-    # ⛔ **N-435 (11.09.2026): Die Wärmepumpen-Felder lesen im Fenster der
-    # Tageszeile.** Ihre Wärme steht in der Tages-Arbeitszahl über dem Strom
-    # aus `komponenten_kwh` — im HA-Add-on Σ der LTS-Slots [Vortag 23:00,
-    # 23:00). Über [00:00, 24:00) gelesen, war die Arbeitszahl um die
-    # Differenz zweier Randstunden verfälscht (gemessen: 2,23 und 4,04 an
-    # einer Wärmepumpe, die jede Stunde 3,0 macht). Die getrennte Strommessung
-    # zieht mit, damit die Arbeitszahlen je Funktion im selben Fenster bleiben.
+    # ⛔ **Jeder Typ liest im Fenster SEINES Bezugs (N-435 · N-444, SOLL §3.3/S1a).**
+    # Ein Tagesdetail ist eine Teilmenge, ein Anteil oder ein Quotient — Zähler
+    # und Bezug müssen denselben Zeitraum abdecken, sonst ist die Zahl eine
+    # Rechnung über zwei Tage. Welches Fenster ein Typ trägt, steht **einmal** in
+    # `boundary_range.TAGESFENSTER_JE_TYP`; hier wird es nur je Investition
+    # abgefragt (keine zusätzliche DB-Abfrage — weiterhin zwei Randstände je Feld).
     #
-    # ⚠ **Nur die Wärmepumpe.** Speicher- und E-Mob-Felder behalten [0, 24):
-    # dieselbe Klasse ist dort denkbar (Verdacht V-4), aber nicht gemessen —
-    # und ein Fenster ändert man nicht auf Verdacht.
-    rng_wp = BoundaryRange.for_day_backward(datum) if wp_rueckwaerts else rng
-    wp_start_off, wp_end_off = rng_wp.boundary_offsets
-    ts_start_wp = rng_wp.boundary_at(wp_start_off)
-    ts_ende_wp = rng_wp.boundary_at(wp_end_off)
-
+    # ⚠ **Es ist NICHT „alle rückwärts".** Die Wärmepumpe bleibt bedingt: ihr
+    # Bezug `komponenten_kwh` ist im HA-Add-on Σ der LTS-Slots [Vortag 23:00,
+    # 23:00), im Snapshot-Pfad [00:00, 24:00) — über das falsche Fenster gelesen
+    # war die Arbeitszahl um die Differenz zweier Randstunden verfälscht
+    # (gemessen: 2,23 statt 4,04 an einer Wärmepumpe, die jede Stunde 3,0 macht).
+    # Speicher, Wallbox und E-Auto hängen dagegen an den **Stundenzeilen**, und
+    # die liegen seit N-382 unbedingt rückwärts — dort ist der Versatz in JEDER
+    # Installation da.
+    #
+    # ⭐ **Hier stand bis N-444: „Speicher- und E-Mob-Felder behalten [0, 24) …
+    # Verdacht V-4, aber nicht gemessen".** Gemessen ist er seit dem 12.09.2026
+    # (Demo-DB, 187 Tage): an 18 von 182 Tagen weicht die Speicher-Ladung
+    # zwischen den Fenstern um mehr als 5 % ab, am 25.11.2025 um +131,9 %
+    # (1,11 gegen 2,58 kWh). Die Netzladung konnte dadurch größer sein als ihr
+    # eigener Bezug — im Client still auf 100 % gekappt.
     async def _diff(
-        sensor_key: str, sensor_id: Optional[str], *, wp: bool = False,
+        sensor_key: str, sensor_id: Optional[str], *, rng: BoundaryRange,
     ) -> tuple[Optional[float], Optional[str]]:
+        start_off, end_off = rng.boundary_offsets
         return await _tagesdetail_boundary_diff_mit_grund(
             db, anlage, quellen_energy, sensor_key, sensor_id,
-            ts_start_wp if wp else ts_start,
-            ts_ende_wp if wp else ts_ende,
+            rng.boundary_at(start_off), rng.boundary_at(end_off),
             datum,
         )
 
@@ -1102,6 +1106,10 @@ async def get_tagesdetail_kwh(
         # (spiegelt investition_beitraege/Live-Pfad).
         if typ == "e-auto" and getattr(inv, "parent_investition_id", None) is not None:
             continue
+        # Das Fenster hängt am Bezug DIESES Typs, nicht am Aufrufweg (S1a).
+        rng_typ = tagesfenster_fuer(
+            typ, datum, tageszeile_rueckwaerts=tageszeile_rueckwaerts
+        )
         felder = inv_data.get("felder", {}) or {}
         kandidaten = zaehler_feld_kandidaten(inv_id_str, felder, mqtt_keys)
         for (t, feld), out_key in AUSGABE.items():
@@ -1128,7 +1136,7 @@ async def get_tagesdetail_kwh(
                     continue
                 d, grund = await _diff(
                     sensor_key, cfg.get("sensor_id") if isinstance(cfg, dict) else None,
-                    wp=(typ == "waermepumpe"),
+                    rng=rng_typ,
                 )
                 if d is None:
                     _merke_grund(out_key, grund or GRUND_KEINE_ZAEHLERSTAENDE)

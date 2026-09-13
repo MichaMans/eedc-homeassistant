@@ -322,7 +322,7 @@ async def test_p5_monatssaeule_gleich_tagessicht_im_rueckwaertsfenster(db):
     _lts(db, a, [inv])
     v = await _stunden(db, a)
     zeilen = await lade_waerme_verlauf(db, a, {str(inv.id): inv}, DATUM, DATUM)
-    tag = await get_tagesdetail_kwh(db, a, {str(inv.id): inv}, DATUM, wp_rueckwaerts=True)
+    tag = await get_tagesdetail_kwh(db, a, {str(inv.id): inv}, DATUM, tageszeile_rueckwaerts=True)
 
     assert tag.werte["wp_kaelte_kwh"] == pytest.approx(5.0)
     assert zeilen[0].kaelte_kwh == pytest.approx(5.0)

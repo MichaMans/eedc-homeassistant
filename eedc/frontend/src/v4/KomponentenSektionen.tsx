@@ -196,14 +196,29 @@ function FunktionsGruppenListe({ fg }: { fg: FunktionsGruppen }) {
 }
 
 /** Speicher-Wirkungsverluste in € (Opportunitätskosten des Roundtrip-Verlusts) —
- *  verhaltensgleich `MonatsabschlussView`. Null, wenn kein Verlust oder kein Preis. */
+ *  verhaltensgleich `MonatsabschlussView`. Null, wenn kein Verlust oder kein Preis.
+ *
+ *  ⛔ **`gekappt` ist keine Kosmetik (N-444/K2, ADR-002/P4).** Der Netz-Anteil ist
+ *  auf 100 % begrenzt, weil er sonst über 1 laufen und den PV-Anteil negativ
+ *  machen könnte. Bis zum 13.09.2026 geschah das **stumm** — die Zeile zeigte
+ *  einen Betrag, der eine Messung zu sein schien, obwohl die Rechnung ihre
+ *  eigene Eingabe korrigiert hatte.
+ *
+ *  Seit N-444 stehen Zähler und Bezug im selben Fenster; **erreichbar bleibt die
+ *  Kappung trotzdem**, und zwar aus einem zweiten, unabhängigen Grund: Der Zähler
+ *  `speicher_ladung_netz_kwh` ist eine **Brutto**-Menge, der Bezug
+ *  `speicher_ladung_kwh` eine **Netto**-Menge (`Σ max(0, −batterie_kw)`). Eine
+ *  Stunde mit 2,0 kWh Netzladung und 1,5 kWh Entladung liefert netto 0,5 kWh.
+ *  Das ist **N-197** und wird dort gelöst, nicht hier — hier wird es gesagt. */
 function speicherWirkungsverluste(d: AktuellerMonatResponse) {
   if (d.speicher_ladung_kwh == null || d.speicher_entladung_kwh == null) return null
   if (d.speicher_ladung_kwh <= d.speicher_entladung_kwh) return null
   if (d.einspeise_preis_cent == null && d.netzbezug_preis_cent == null) return null
   const verlust_kwh = d.speicher_ladung_kwh - d.speicher_entladung_kwh
   const netz_kwh = d.speicher_ladung_netz_kwh ?? 0
-  const anteil_netz = d.speicher_ladung_kwh > 0 ? Math.min(1, netz_kwh / d.speicher_ladung_kwh) : 0
+  const roh_netz = d.speicher_ladung_kwh > 0 ? netz_kwh / d.speicher_ladung_kwh : 0
+  const anteil_netz = Math.min(1, roh_netz)
+  const gekappt = roh_netz > 1
   const anteil_pv = 1 - anteil_netz
   const eins_p = d.einspeise_preis_cent ?? 0
   const bez_p = d.netzbezug_durchschnittspreis_cent ?? d.netzbezug_preis_cent ?? 0
@@ -211,7 +226,10 @@ function speicherWirkungsverluste(d: AktuellerMonatResponse) {
   const teile: string[] = []
   if (anteil_pv > 0 && eins_p > 0) teile.push(`${fmt(verlust_kwh * anteil_pv, 1)} kWh × ${fmtCalc(eins_p, 2)} ct (entg. Einspeisung)`)
   if (anteil_netz > 0 && bez_p > 0) teile.push(`${fmt(verlust_kwh * anteil_netz, 1)} kWh × ${fmtCalc(bez_p, 2)} ct (Netzbezug)`)
-  return { euro, teile }
+  const grund = gekappt
+    ? `Netz-Anteil auf 100 % begrenzt — Netzladung (${fmt(netz_kwh, 1)} kWh) größer als die Netto-Ladung des Tages (${fmt(d.speicher_ladung_kwh, 1)} kWh): Ladung und Entladung in derselben Stunde`
+    : null
+  return { euro, teile, gekappt, grund }
 }
 
 /** Untertext der Wirkungsgrad-Kachel (F-22).
@@ -431,7 +449,10 @@ export function baueKomponentenBloecke(
       label: (
         <FormelTooltip
           formel="Verlust × (PV-Anteil × Einspeisepreis + Netz-Anteil × Bezugspreis)"
-          berechnung={wv.teile.join(' + ')}
+          // N-444/K2: Wurde der Netz-Anteil begrenzt, steht der Grund neben der
+          // Rechnung — eine stille Kappung ist eine Zahl, die wie eine Messung
+          // aussieht (ADR-002/P4).
+          berechnung={[wv.teile.join(' + '), wv.grund].filter(Boolean).join(' · ')}
           ergebnis={`= ${fmtCalc(wv.euro, 2)} €`}
         >
           Wirkungsverluste (Opportunitätskosten)
