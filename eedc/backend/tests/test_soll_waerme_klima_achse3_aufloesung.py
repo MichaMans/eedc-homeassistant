@@ -611,8 +611,12 @@ def test_die_263_konzepte_verweisen_auf_den_geltenden_sot_und_das_handbuch():
     if not wurzel.exists():  # eedc-Standalone-Spiegel traegt `docs/` nicht mit
         pytest.skip("docs/ liegt nur im Source-of-Truth-Repo")
 
+    # ⭐ Seit E5 (13.09.2026, WK-13) liegt das geltende Flaechen-Konzept in
+    # `docs/KONZEPT-WAERME-KLIMA.md`; `soll-waerme-klima.md` ist das Zielbild,
+    # aus dem es entstanden ist, und bleibt als Herkunft gefordert.
     pflicht = {
-        "soll-waerme-klima.md": "der geltende SoT der Flaeche",
+        "KONZEPT-WAERME-KLIMA.md": "das geltende Flaechen-Konzept (E5)",
+        "soll-waerme-klima.md": "das Zielbild, aus dem es entstand",
         "HANDBUCH_WAERME_KLIMA.md": "die Anwendersicht",
     }
     for name in ("KONZEPT-263-klima-split.md", "KONZEPT-263-INNENGERAETE.md"):

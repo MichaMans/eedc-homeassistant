@@ -1,5 +1,19 @@
 # Konzept #263 — Split-Klimaanlagen: Heizen und Kühlen trennen
 
+> ## ⭐ Dieses Dokument ist **Kapitel 8** von [`KONZEPT-WAERME-KLIMA.md`](KONZEPT-WAERME-KLIMA.md) (13.09.2026)
+>
+> **E5 ist ausgeführt.** Die Fläche *Heizen · Warmwasser · Kühlen* steht seit dem 13.09.2026 als
+> **ein** Konzept in `docs/` — Grundsatz (R1 · R2), Erfassungs-Kanon K1–K5, Kennzahlen, Sichten,
+> Grenzen und die Wächter-Tabelle. **Dort steht, was gilt.** Wer eine Regel sucht, liest zuerst
+> dort; wer wissen will, **wie** sie entstanden ist und was am Testgerät gemessen wurde, ist hier
+> richtig.
+>
+> ⛔ **Diese Datei wird nicht gelöscht und nicht eingedampft** — sie trägt die
+> Entstehungsgeschichte, und an ihren Abschnittsnummern hängen Code-Kommentare. Der Statuskopf
+> darunter stammt aus der Zeit **vor** der Zusammenführung: Wo er E5 als „noch nicht ausgeführt"
+> bezeichnet, gilt dieser Kasten.
+
+
 > ## Status (2026-08-27): **abgeschlossen · Kapitel, nicht Konzept der Fläche**
 >
 > ### Lies zuerst das hier, bevor du aus diesem Dokument etwas ableitest

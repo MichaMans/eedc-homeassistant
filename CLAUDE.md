@@ -307,6 +307,8 @@ cd website && npm run build  # Synct automatisch docs/ → website/ (prebuild: w
 > **Backend-Wächter sind pytest, keine `check:*`-Skripte** — alle `check:*` sind Frontend-Node-Skripte. **Vier** Ausnahmen mit eigener Begründung, alle bewachen die Client-Hälfte einer Backend-Regel: `check:kennwert-roh` für ADR-002/P3-a, `check:co2-roh` für ADR-001/DI-2 (der Client konstruiert keine CO₂-Menge; `CO2_FAKTOR_KG_KWH` darf nur noch *angezeigt* werden), `check:cop-roh` für ADR-002/P12 (keine Arbeitszahl im Client) und `check:bauart-roh` für ADR-002/P13 (die Bauart einer Wärmepumpe entscheidet keine Größe — SOLL Wärme/Klima R1; jede Datei, die `wp_art` liest, ist klassifiziert).
 >
 > ADR-002 trägt die Pflicht-Spalte **„gesichert durch"** mit der Unterscheidung **Wächter** (baumweit, fängt auch eine Stelle, die es heute noch nicht gibt) und **Regression** (schützt nur die namentlich aufgerufenen Stellen). Wer die Spalte fortschreibt, trägt die Art der Deckung mit ein — eine Regel ohne Code-Beleg gilt als nicht gesichert.
+>
+> **Flächen-Konzept Wärme/Klima:** [`docs/KONZEPT-WAERME-KLIMA.md`](docs/KONZEPT-WAERME-KLIMA.md) — Heizen · Warmwasser · Kühlen an einem Ort (Grundsatz R1/R2, Erfassungs-Kanon K1–K5, Kennzahlen, Sichten, #263 als Kapitel 8, Wächter-Tabelle mit derselben Spalte); es **setzt die drei Regime oben um** und ersetzt keines.
 
 ## Design-Konventionen (Regel 0a — Pflicht bei allem Neuen)
 

@@ -18,6 +18,7 @@
 > | *Wo* eine Aggregat-Formel definiert wird | [ADR-001](ADR-001-BERECHNUNGS-LAYER.md) |
 > | *Was* ein Wert behaupten darf, woher er kommt (P1–P10) | [ADR-002](ADR-002-WURZELMUSTER.md) |
 > | die Monatszeile als **eine** Schicht (P10) | [KONZEPT-MONATS-FAKTEN.md](KONZEPT-MONATS-FAKTEN.md) |
+> | die Fläche Wärme/Klima (Heizen · Warmwasser · Kühlen), #263 als Kapitel 8 | [KONZEPT-WAERME-KLIMA.md](KONZEPT-WAERME-KLIMA.md) |
 > | Formeln je Kennzahl | [BERECHNUNGEN.md](BERECHNUNGEN.md) |
 > | Einrichtung, Befehle, Gates, Dateibestand | [DEVELOPMENT.md](DEVELOPMENT.md) |
 >
