@@ -208,6 +208,15 @@ angezeigt. Es ändert sich allein der Nenner **einer** Kennzahl. Die
 Arbeitszahlen für **Heizen** und **Warmwasser** bleiben ebenfalls gleich; sie
 stehen auf deinen gemessenen Zählern.
 
+**Der Community-Vergleich zieht mit.** Er bildet seine Arbeitszahl selbst — und
+hätte dich sonst weiterhin mit **4,24** geführt, während dein eigenes Cockpit
+3,79 zeigt. eedc schickt ihm deshalb nicht mehr nur die Kühlmenge, sondern
+gleich den Abzug, der zu deiner Ausstattung gehört. **Wirksam wird das mit dem
+nächsten Update des Vergleichsservers**; für Monate, die du schon geteilt hast,
+beim nächsten vollständigen Teilen. ⭐ **Im selben Zug behoben:** Wer *Lüften*
+oder *Entfeuchten* getrennt misst, sah im Vergleich bisher eine etwas
+**niedrigere** Zahl als zu Hause — der Server kannte nur den Kühlstrom.
+
 **Wenn du es genauer willst:** Ordne *Strom Kühlbetrieb* zu — *Einstellungen →
 Datenquellen*, beim Gerät. Dann liest eedc ab, statt zu verteilen. Der
 Daten-Checker weist dich unter *Einstellungen → Daten* jetzt auch von sich aus

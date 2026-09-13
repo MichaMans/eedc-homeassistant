@@ -466,9 +466,14 @@ def _monatswert(
             monatswert_data["wp_warmwasser_kwh"] = round(wp.warmwasser_kwh, 1)
         # ⭐ **ADR-002/P12 (02.09.2026): Darf aus diesem Monat eine Arbeitszahl
         # gebildet werden?** Lokal entscheidet das seit dem 26.08. der Layer;
-        # der Server bildet seinen JAZ aber selbst — an **fünf** Stellen
-        # (`stats.py` je Region, `benchmark.py` je Monatswert, `components.py`
-        # zweimal je Anlage, `statistics.py` fürs Ranking). Er hat die Geräte
+        # der Server bildet seinen JAZ aber selbst — an **vier** Stellen
+        # (`core/wp_jaz.py::anlagen_jaz` als SoT für Benchmark-Kachel, Ranking
+        # und beide `components.py`-Sichten; dazu `stats.py` je Region,
+        # `statistics.py` global und `benchmark.py` je Monatswert).
+        # ⚠ Hier stand bis zum 13.09.2026 eine andere Aufzählung („`components.py`
+        # zweimal, `statistics.py` fürs Ranking") — die stimmte bis zum 06.09.,
+        # seit `85c75a2` hängen beide am SoT. Am 13.09. im zweiten Repo neu
+        # erhoben. Er hat die Geräte
         # nie gesehen und kann die Abgrenzung nicht prüfen; ohne dieses Flag
         # ginge eine Anlage mit Wärmepumpe **und** Split-Klimaanlage mit dem
         # Strom zweier Geräte und der Wärme von einem in **fremde**
@@ -522,13 +527,13 @@ def _monatswert(
         # **W-14 — der Server bekommt die Größe, weil er sie selbst nicht bilden kann.**
         # ⛔ **Hier stand bis zum 02.09.2026 „Der Server rechnet nichts nach, also
         # bekommt er die Größe."** Das ist falsch und war es immer: Er rechnet an
-        # fünf Stellen (s. den Block darüber) — er bekommt nur nicht die
-        # Information, ob er darf. Der Satz hat die Lücke elf Tage lang plausibel
-        # aussehen lassen.
-        # Sein JAZ ist `(Heizwärme + Warmwasser) / Stromverbrauch`; ohne diesen
-        # Wert stünde der Kühlstrom im Nenner und die Kältemenge nirgends. Eine
-        # kühlende Anlage stand damit systematisch schlechter da als eine, die
-        # es nicht tut — und zwar unabhängig davon, ob aktiv oder passiv
+        # den Stellen aus dem Block darüber — er bekam nur nicht die Information,
+        # ob er darf. Der Satz hat die Lücke elf Tage lang plausibel aussehen
+        # lassen. (Seit WK-06b bekommt er sie, s. das Abzug-Feld unten.)
+        # Sein JAZ ist `(Heizwärme + Warmwasser) / (Stromverbrauch − Abzug)`; ohne
+        # diesen Wert stünde der Kühlstrom im Nenner und die Kältemenge nirgends.
+        # Eine kühlende Anlage stand damit systematisch schlechter da als eine,
+        # die es nicht tut — und zwar unabhängig davon, ob aktiv oder passiv
         # gekühlt wird (SOLL §4.2 Fall 4).
         #
         # ⚠ **Immer mitgeschickt, auch als 0.** Ein fehlendes Feld heißt beim
@@ -536,22 +541,43 @@ def _monatswert(
         # keinen Kühlbetrieb". Das ist derselbe Unterschied, den P4 überall
         # sonst verlangt — und der Server darf ihn nicht raten.
         #
-        # ⬜ **OFFEN seit E4 (26.08.2026) — bewusst nicht mitgebaut.** Lokal
-        # zieht die Arbeitszahl seit E4 **Kühlen · Lüften · Entfeuchten** ab
-        # (`WpFakten.modus_strom_funktionsfremd_kwh`); der Server kennt nur den
-        # Kühlstrom. Wer Lüftungs- oder Entfeuchtungs-Zähler zugeordnet hat und
-        # zugleich am Community-Vergleich teilnimmt, sieht dort deshalb eine
-        # etwas niedrigere Arbeitszahl als in seinem eigenen Cockpit.
-        #
-        # **Warum trotzdem nicht jetzt:** Es braucht ein neues Feld samt
-        # Migration im **zweiten** Repo (`eedc-community`), und die
-        # Schnittmenge „misst Lüften getrennt" × „teilt mit der Community" ist
-        # sehr klein. **Wer das Feld dort anlegt, füllt es hier mit
-        # `wp.modus_strom_funktionsfremd_kwh` und nimmt diesen Vermerk weg** —
-        # der Name `wp_strom_kuehlen_kwh` darf NICHT umgedeutet werden, sein
-        # Vertrag steht im Docstring von `MonatswertInput` (Community-Repo).
+        # ⛔ **Diese Zahl bleibt die MENGE und behält ihren Vertrag** — der Name
+        # `wp_strom_kuehlen_kwh` darf NICHT umgedeutet werden (Docstring von
+        # `MonatswertInput`, Community-Repo). Der Server zieht sie nur noch dann
+        # ab, wenn das Abzug-Feld darunter fehlt (älterer Client).
         monatswert_data["wp_strom_kuehlen_kwh"] = round(
             wp.modus_strom_kuehlen_kwh, 1
+        )
+        # ⭐ **Und daneben die ENTSCHEIDUNG: wieviel davon der Server abziehen
+        # darf** (WK-06b, 13.09.2026; SOLL Wärme/Klima §4.1 „Ergänzung zu E7",
+        # Option A). Das neue Feld `wp_strom_funktionsfremd_abzug_kwh` schließt
+        # **zwei** Lücken auf einmal:
+        #
+        # 1. **Lüften und Entfeuchten** (offen seit E4, 26.08.2026): Lokal zieht
+        #    die Arbeitszahl *Kühlen · Lüften · Entfeuchten* ab, der Server kannte
+        #    nur den Kühlstrom. Wer diese Zähler getrennt führt, sah dort eine
+        #    andere Zahl als im eigenen Cockpit. ⇒ Der Abzug trägt die **volle**
+        #    Definition, deshalb heißt er nicht `…kuehlen_abzug…`.
+        # 2. **Option A** (die neuere und die größere): Ein aus dem Betriebsmodus
+        #    **abgeleiteter** Anteil kürzt einen **gemessenen** F5-Nenner nicht —
+        #    er ist eine Verteilung genau der Zähler, die den Nenner bilden. Der
+        #    Server kann diese Bedingung nicht selbst bilden; sie hängt an
+        #    `getrennte_strommessung` und daran, ob der Split gemessen ist, und
+        #    Geräte hat er nie gesehen. Ohne das Feld stand dieselbe Anlage dort
+        #    mit **4,24** und hier mit **3,79** (N-454, rund 12 %) — und die
+        #    höhere Zahl ging in **fremde** Vergleichswerte.
+        #
+        # ⚠ **`modus_strom_funktionsfremd_abzug_kwh`, nicht
+        # `modus_strom_funktionsfremd_kwh`.** Der ältere Vermerk an dieser Stelle
+        # nannte die Menge — er stammt von **vor** Option A, die die beiden
+        # Größen erst getrennt hat (K1: die Menge bleibt die Menge). Wer hier die
+        # Menge einsetzte, baute den behobenen Fehler im zweiten Repo nach.
+        #
+        # ⚠ **Immer mitgeschickt, auch als 0.0** — dieselbe P4-Regel wie oben:
+        # fehlt das Feld, liest der Server „älterer Client" und fällt auf die
+        # Menge zurück; eine 0.0 heißt „entschieden, nichts abzuziehen".
+        monatswert_data["wp_strom_funktionsfremd_abzug_kwh"] = round(
+            wp.modus_strom_funktionsfremd_abzug_kwh, 1
         )
 
     # E-Auto und Wallbox bleiben GETRENNT (der Server führt beide Felder) —

@@ -1285,15 +1285,21 @@ sieben Formeln).
 > ⚠ **Die Funktions-Arbeitszahlen sind unberührt** (E7): Ihr Nenner ist der gemessene F5-Zähler,
 > dort wird nichts abgezogen.
 >
-> ⬜ **Offen und bewusst nicht mitgebaut:** Der **Community-Server** kennt nur den Kühlstrom
-> (Feld `wp_strom_kuehlen_kwh`). Wer Lüften oder Entfeuchten getrennt misst *und* am Vergleich
-> teilnimmt, sieht dort eine etwas niedrigere Arbeitszahl als im eigenen Cockpit. Es braucht ein
-> neues Feld samt Migration im zweiten Repo; der Vermerk steht an der Stelle in
-> `services/community_service.py`. ⚠ **Seit Option A kommt eine zweite Abweichung dazu:** Der
-> Server bildet seinen JAZ-Nenner selbst als `Stromverbrauch − wp_strom_kuehlen_kwh` und kennt die
-> Bedingung oben nicht. Eine F5-Anlage mit abgeleitetem Split sieht dort weiter die höhere Zahl.
-> Auch das braucht das zweite Repo — `wp_strom_kuehlen_kwh` ist als **Menge** vertraglich
-> festgelegt und darf nicht zum Abzug umgedeutet werden.
+> ✅ **Der Community-Vergleich zieht mit — beide Lücken geschlossen** (13.09.2026). Hier stand bis
+> dahin, dass der **Community-Server** nur den Kühlstrom kennt (Feld `wp_strom_kuehlen_kwh`) und
+> deshalb zweimal abweicht: Wer *Lüften* oder *Entfeuchten* getrennt misst, sah dort eine niedrigere
+> Arbeitszahl als im eigenen Cockpit, und seit Option A sah eine F5-Anlage mit **abgeleitetem** Split
+> dort die höhere (der Server bildete seinen Nenner selbst als `Stromverbrauch −
+> wp_strom_kuehlen_kwh`). Beides löst **ein** neues Feld: `wp_strom_funktionsfremd_abzug_kwh` trägt
+> die volle Definition (Kühlen · Lüften · Entfeuchten) **und** die Bedingung, weil eedc den fertigen
+> **Abzug** schickt statt einer Menge, aus der der Server einen bilden müsste.
+>
+> ⚠ **`wp_strom_kuehlen_kwh` bleibt unverändert die Menge** und wird weiter gesendet — sie ist die
+> Auskunft über den Kühlbetrieb des Monats, und der Server wertet Mengen getrennt von Kennzahlen
+> aus. Abgezogen wird sie dort nur noch, wenn das neue Feld fehlt (ältere eedc-Version).
+>
+> ⚠ **Wirksam wird es mit dem Server-Update**, und rückwirkend erst beim nächsten vollständigen
+> Teilen: Bereits übertragene Monate tragen das Feld nicht und rechnen bis dahin wie bisher.
 
 
 
