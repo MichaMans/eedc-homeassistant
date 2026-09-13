@@ -148,15 +148,21 @@ async def test_anlagen_summen_tragen_den_phantomwert_nicht_mehr(db):
 async def test_klassische_waermepumpe_rechnet_unveraendert(db):
     """Luft-Wasser-WP: die bisherigen Zahlen bleiben exakt stehen.
 
-    Die Werte sind die des Default-Satzes (15.000 kWh / JAZ 3,5 / 30 % PV /
-    Gas 12 ct) — sie belegen, dass der Klima-Zweig die klassische WP nicht
-    streift.
+    Die Werte sind die des Default-Satzes (15.000 kWh / JAZ 3,5 / Gas 12 ct)
+    — sie belegen, dass der Klima-Zweig die klassische WP nicht streift.
+
+    ⛔ Bis 2026-09-13 lautete die CO₂-Zahl 2.210,0 kg; die Rechnung zog damals
+    30 % des WP-Stroms als PV ab. Mit SOLL Wärme/Klima S1b trägt der ganze
+    Strom: 4.285,7 kWh × 0,3 × 0,38 kg = 488,6 kg weniger Einsparung
+    ⇒ 1.721,4 kg. Damit nennt die ROI-Zeile dieselbe Regel wie der gemessene
+    Pfad `co2_wp_ersparnis_kg` (ADR-001/DI-1), der nie einen Anteil kannte.
+    Geprüft wird hier weiterhin „die klassische WP wird überhaupt gerechnet".
     """
     anlage_id = await _seed_wp(db, wp_art="luft_wasser")
     zeile = _wp_zeile(await _roi(db, anlage_id))
 
     assert zeile.jahres_einsparung > 0
-    assert zeile.co2_einsparung_kg == pytest.approx(2210.0)
+    assert zeile.co2_einsparung_kg == pytest.approx(1721.4)
     assert zeile.detail_berechnung.get("nicht_bewertet") is not True
 
 

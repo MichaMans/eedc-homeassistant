@@ -5,7 +5,7 @@
 * `:1783` — der Eigenverbrauchs-Fallback, mit N-277 (`029533d1`) auf den
   gepflegten Anteil umgestellt. **Wirksam**, hat seine eigene Probe.
 * `:2249` — `jahres_wp_verbrauch * 0.5` in den Komponenten-Beiträgen.
-* `:2458` — `jahres_wp_verbrauch * WP_PV_ANTEIL_DEFAULT` im Response-Feld
+* `:2458` — `jahres_wp_verbrauch × fester 50-%-Anteil` im Response-Feld
   `wp_pv_anteil_kwh`.
 
 Die letzten beiden hatten **keinen Leser im Baum** (am 30.08. und erneut am
@@ -15,16 +15,18 @@ Backend-Leser). Sie sind trotzdem **Felder einer öffentlichen Route** — wer s
 direkt abfragt, bekam einen festen Anteil und, bei zwei Wärmepumpen, **denselben
 vollen Betrag zweimal**.
 
-⛔ **Was NICHT geändert wurde, und warum die Probe es festhält.** Es gibt eine
-**vierte** Stelle: `wp_netz_anteil = 1.0 - WP_PV_ANTEIL_DEFAULT`. Sie ist
-dieselbe Größe — und die einzige mit einem Leser: `jahres_wp_ersparnis` speist
-`jahres_netto_ertrag`. Den gepflegten Anteil dort einzusetzen wäre eine
-**Wertänderung an einer angezeigten Zahl** (Formular-Vorgabe 30 % ⇒ Netzanteil
-70 % statt 50 % ⇒ ausgewiesene Ersparnis fällt), keine Aufräumarbeit — genau
-das, wovor der Fundtext bei `alternativkosten.py:228` warnt.
-``test_die_angezeigte_alternativ_ersparnis_bleibt_beim_festen_default`` hält das
-fest: eine bewusste Nicht-Änderung braucht eine Probe, sonst ist sie eine
-Auslassung.
+⭐ **Nachtrag 13.09.2026 (N-459, SOLL Wärme/Klima S1b).** Es gab eine **vierte**
+Stelle: `wp_netz_anteil = 1.0 - WP_PV_ANTEIL_DEFAULT` in derselben Datei. Hier
+stand bis dahin, sie bleibe bewusst beim festen Default, weil der gepflegte
+Anteil dort eine angezeigte Zahl bewegte. **Diese Nicht-Änderung ist mit S1b
+erledigt, aber in die andere Richtung:** Der PV-Abschlag ist ganz entfallen —
+der WP-Strom wird in jeder Geld- und CO₂-Rechnung voll belastet, weil sein
+PV-Anteil auf der PV-Seite schon als Eigenverbrauch gutgeschrieben ist
+(ADR-002/P9). ``test_der_gepflegte_anteil_bewegt_die_alternativ_ersparnis_nicht``
+hält die **Substanz** der alten Probe: zwei verschieden gepflegte Anlagen weisen
+dieselbe Alternativ-Ersparnis aus. Nur der Grund ist ein anderer — nicht mehr
+„ein fester Default gilt für alle", sondern „die Geldformel liest das Feld gar
+nicht mehr".
 
 ⚠ **Der Rechenweg von `:1783` ist nicht übertragbar** (Fundtext): Dort wird über
 die zwölf Kalendermonate normiert, weil eine Saisonform im Spiel ist. Hier steht
@@ -135,15 +137,20 @@ async def test_ohne_pflege_gilt_der_katalog_default_wie_bei_n277(db):
     """Ungepflegt = derselbe Default wie an der wirksamen Stelle (`:1783`).
 
     ⚠ **Hier weicht der Bau von der Auftrags-Vorgabe ab, und das ist gemessen.**
-    Der Auftrag nannte als Erwartung *„ohne Pflege ⇒ 0,5"*
-    (`WP_PV_ANTEIL_DEFAULT`) und im selben Satz *„dieselbe Lesetür"* wie
-    `:1783`. Beides zusammen geht nicht: Die Lesetür dort — und ebenso in
-    `investitionen/crud.py:2244` (ROI) und im Formular
-    (`investitionFormHelpers.ts:280`) — trägt `PARAM_WAERMEPUMPE_DEFAULTS
-    ["pv_anteil_prozent"]` = **30**. Mit 0,5 stünden in **einer** Antwort
-    weiterhin zwei Vorgabewerte für dieselbe Größe — also genau der Defekt, den
-    dieser Fund beseitigt, nur verschoben. **Sichtbar wird die Wahl für
-    niemanden:** beide Felder haben keinen Leser im Baum.
+    Der Auftrag nannte als Erwartung *„ohne Pflege ⇒ 0,5"* (die damalige
+    Konstante `WP_PV_ANTEIL_DEFAULT`) und im selben Satz *„dieselbe Lesetür"*
+    wie `:1783`. Beides zusammen ging nicht: Die Lesetür dort — und ebenso im
+    Formular (`investitionFormHelpers.ts:280`) — trägt
+    `PARAM_WAERMEPUMPE_DEFAULTS["pv_anteil_prozent"]` = **30**. Mit 0,5 stünden
+    in **einer** Antwort weiterhin zwei Vorgabewerte für dieselbe Größe — also
+    genau der Defekt, den dieser Fund beseitigt, nur verschoben. **Sichtbar
+    wird die Wahl für niemanden:** beide Felder haben keinen Leser im Baum.
+
+    ⭐ **Nachtrag 13.09.2026 (S1b):** Die Frage hat sich damit endgültig
+    erledigt — es gibt nur noch **einen** Vorgabewert. Die 0,5-Konstante ist
+    ersatzlos gelöscht, und der ROI-Pfad (`investitionen/crud.py`), der das Feld
+    bis dahin als dritte Lesestelle in eine Geldformel trug, liest es nicht
+    mehr. Übrig sind die zwei Mengen-Leser: dieser hier und der N-277-Fallback.
     """
     ohne = await _seed(db, wp=[{"pv_anteil": None}], name="ohne")
     default = await _seed(
@@ -261,15 +268,20 @@ async def test_eine_neubau_waermepumpe_bekommt_keine_ersatz_ersparnis(db):
 # ═══ Klausel 4 — die bewusste Nicht-Änderung ════════════════════════════════
 
 @pytest.mark.asyncio
-async def test_die_angezeigte_alternativ_ersparnis_bleibt_beim_festen_default(db):
-    """⛔ `wp_netz_anteil` liest den gepflegten Anteil **nicht** — Absicht.
+async def test_der_gepflegte_anteil_bewegt_die_alternativ_ersparnis_nicht(db):
+    """⛔ Die Geldformel liest den gepflegten Anteil **nicht** (SOLL S1b).
 
-    Diese Probe schützt eine **Nicht**-Änderung: `jahres_wp_ersparnis` ist die
-    einzige der vier Stellen mit einem Leser (`jahres_netto_ertrag`). Würde sie
-    den gepflegten Anteil lesen, bewegte sich eine angezeigte Zahl — bei
-    Formular-Vorgabe 30 % um volle 20 Prozentpunkte Netzanteil nach oben.
-    Zwei Anlagen mit **verschieden** gepflegtem Anteil, sonst identisch, müssen
-    deshalb dieselbe Alternativ-Ersparnis und denselben Netto-Ertrag ausweisen.
+    ⚠ **Diese Probe hieß bis 2026-09-13 `…bleibt_beim_festen_default`** und
+    schützte eine bewusste Nicht-Änderung: die Jahresformel trug damals einen
+    festen PV-Abschlag von 50 %, und den gepflegten Anteil dort einzusetzen
+    hätte eine angezeigte Zahl bewegt. **Die Substanz ist dieselbe geblieben,
+    ihr Grund hat sich umgedreht:** Mit S1b (N-459) ist der Abschlag ganz
+    entfallen — der WP-Strom trägt den vollen Netztarif, das Feld „PV-Anteil
+    (%)" beantwortet eine Mengenfrage und speist keine Preisformel.
+
+    Zwei Anlagen mit **verschieden** gepflegtem Anteil, sonst identisch, weisen
+    deshalb dieselbe Alternativ-Ersparnis aus — und der Anteil kommt trotzdem
+    an, nur in den Mengenfeldern.
     """
     wenig = await _seed(db, wp=[
         {"pv_anteil": 10, "strom": 300.0, "heizenergie": 900.0, "traeger": "gas"},

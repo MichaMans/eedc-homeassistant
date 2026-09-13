@@ -143,7 +143,6 @@ from backend.core.berechnungen.ust_eigenverbrauch import (
 from backend.core.wirtschaftlichkeit_defaults import (
     EINSPEISEVERGUETUNG_DEFAULT_CENT,
     NETZBEZUG_DEFAULT_CENT,
-    WP_PV_ANTEIL_DEFAULT,
 )
 
 router = APIRouter(prefix="/ha/export", tags=["HA Export"])

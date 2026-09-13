@@ -11,6 +11,60 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Der Strom deiner Wärmepumpe wird jetzt überall voll gerechnet — auch der Teil aus der eigenen PV**
+
+**Betrifft dich das?** Jeden mit einer Wärmepumpe. Am deutlichsten, wenn du
+*Cockpit → Aussicht* oder *Auswertungen → ROI* nutzt oder die eedc-Sensoren
+`jahres_ersparnis_euro`, `roi_prozent` und `amortisation_jahre` in Home
+Assistant aufzeichnest.
+
+**Was war:** Dieselbe Wärmepumpe hatte je nach Sicht **vier verschiedene
+Ersparnis-Zahlen** — an unserer Demo-Anlage 1.990,43 € im Komponenten-Hub,
+1.072,04 € in der Aussicht und 1.355,00 € in der ROI-Auswertung. Der Grund: Drei
+der vier Rechenwege zogen einen Teil des Wärmepumpen-Stroms als „kommt ja aus
+der eigenen PV" ab — einmal pauschal die Hälfte, einmal den am Gerät gepflegten
+*PV-Anteil (%)*, einmal gar nicht.
+
+Der Abzug war nicht nur uneinheitlich, er war doppelt gezählt: Jede
+Kilowattstunde, die deine Wärmepumpe aus der eigenen Anlage nimmt, ist bereits
+auf der **PV-Seite** gutgeschrieben — als *Eigenverbrauch*, bewertet mit deinem
+Netzbezugspreis. Sie ein zweites Mal von den Wärmepumpen-Kosten abzuziehen hieß,
+denselben Strom zweimal zu verdienen. An unserer Demo-Anlage waren das
+206,53 € pro Jahr zu viel.
+
+**Was jetzt gilt:** Die Wärmepumpe trägt in **jeder** Geld- und CO₂-Rechnung
+ihren ganzen Strom. Dadurch sinken einige Zahlen:
+
+| Sicht | vorher | jetzt |
+| --- | ---: | ---: |
+| *Cockpit → Aussicht* — Netto-Ertrag (Jahresprognose) | 5.681,57 € | **5.475,04 €** (−3,6 %) |
+| *Cockpit → Aussicht* — Restlaufzeit bis Amortisation | 167 Monate | **175 Monate** |
+| *Auswertungen → ROI* — Zeile der Wärmepumpe | 1.355,00 € | **926,92 €** (−31,6 %) |
+| *Auswertungen → ROI* — CO₂ der Wärmepumpe | 2.343,0 kg | **1.800,8 kg** |
+
+Die CO₂-Zahl der ROI-Zeile trifft sich damit endlich mit der aus
+*Auswertungen → CO₂* — dort wurde schon immer der ganze Strom gerechnet.
+
+**Was gleich bleibt:** Der **Komponenten-Hub**, *Cockpit → Monat*, *Cockpit →
+Jahr* und *Auswertungen → CO₂* zeigen exakt dieselben Zahlen wie vorher — sie
+haben nie einen PV-Abschlag gemacht. Auch die Sensoren `netto_ertrag_euro` und
+`wp_ersparnis_euro` (je Wärmepumpe) ändern sich nicht. **Wer nur ins Cockpit
+schaut, merkt nichts.**
+
+**In Home Assistant:** Drei Sensoren ändern ihren Wert an dem Tag, an dem du
+aktualisierst — `jahres_ersparnis_euro` (−6,6 %), `roi_prozent` (−6,6 %) und
+`amortisation_jahre` (+1,28 Jahre). **Die Langzeitstatistik springt an diesem
+einen Tag**; das ist kein Messfehler, sondern die Korrektur. Wer die Kurven
+langfristig auswertet, sollte den Sprung kennen.
+
+**Was du tun musst:** Nichts. Das Feld *PV-Anteil (%)* an deiner Wärmepumpe
+bleibt und wird weiter gebraucht — es sagt eedc, **wie viel** deines PV-Stroms
+in die Wärmepumpe geht, und wirkt damit auf die Eigenverbrauchs-Prognose und
+darauf, welcher Komponente der Eigenverbrauch zugerechnet wird. Sein Hinweis im
+Formular sagt das jetzt ausdrücklich: eine Mengenangabe, keine Preisangabe.
+
+---
+
 **Datenquellen: bei getrennter Strommessung heißt das zweite Stromfeld wieder „Pflicht"**
 
 **Betrifft dich das?** Nur, wenn du an einer Wärmepumpe die **getrennte

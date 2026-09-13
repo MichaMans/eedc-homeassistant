@@ -433,7 +433,7 @@ export function WaermepumpeFelder({ paramData, onInputChange, setParam, zeige, m
             type="number" step="1" min="0" max="100"
             value={paramData.pv_anteil_prozent as string}
             onChange={onInputChange}
-            hint="Anteil des WP-Stroms aus PV"
+            hint="Anteil des WP-Stroms aus PV — dient der Zuordnung des Eigenverbrauchs, senkt die Stromkosten der Wärmepumpe nicht"
           />
           <Input
             label="Zusatzkosten Alt-Heizung (€/Jahr)"

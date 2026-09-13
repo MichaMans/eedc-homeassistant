@@ -87,6 +87,8 @@ Diese Tabelle ist der Kern dieses Handbuchs. Sie beantwortet die Frage, die fast
 | **Arbeitszahl Kühlen** | *Strom Kühlbetrieb* **und** *Nutzenergie Kühlbetrieb* (Kältemengenzähler) | „—" mit Grund *„kein Kältemengenzähler zugeordnet"* |
 | **Aufteilung Heizen/Kühlen/Lüften/Entfeuchten** | entweder **gemessene** Betriebsart-Zähler **oder** ein *Betriebsmodus*-Sensor, den eedc laufend mitliest | der Block fehlt ganz — und zwar bewusst, statt vier Nullen zu zeigen |
 | **Ersparnis vs. Alternative** | gemessene oder abgeleitete Wärme **und** ein Alt-Preis am Gerät | „—" |
+
+> ⚑ **Der Strom der Wärmepumpe wird immer voll gerechnet, auch der Teil aus der eigenen PV — dessen Wert steht auf der PV-Seite als Eigenverbrauch.** Sonst zählte dieselbe Kilowattstunde zweimal.
 | **CO₂-Einsparung** | Stromverbrauch und Wärme | der Wärmepumpen-Anteil fehlt in der Bilanz |
 | **Kompressor-Starts / Betriebsstunden** | ein *Total-Increasing*-Zähler dafür | die Kacheln erscheinen gar nicht |
 | **Tages**werte statt nur Monatswerte | dieselben Zähler — aber **fortlaufend mitgeschrieben** | „—" mit Grund, siehe Kasten |
@@ -282,6 +284,8 @@ Am Gerät gibt es den Schalter **„Getrennte Strommessung"**.
 > Eine Wärmepumpe kann nicht weniger Wärme abgeben, als sie Strom aufnimmt — deshalb ist eine Zahl unter 1 immer ein Hinweis auf die **Strom**seite, nie auf zu viel Wärme.
 
 Ohne Wärmemengenzähler rechnet eedc die Heizwärme aus *Strom × gepflegter Arbeitszahl* und **kennzeichnet sie als abgeleitet**. Die Mengen sind dann eine Modellrechnung, die Arbeitszahl fällt weg (sie wäre zirkulär). Das ist ein legitimer Betriebszustand, kein Mangel. Wo diese Wärme erscheint, steht ihre Herkunft dabei — im Komponenten-Hub als „geschätzt: Strom × JAZ 3,5" unter der Wärme-Kachel; Ersparnis und CO₂ bleiben eine Modellrechnung und sagen das.
+
+> ⚑ **Der Strom der Wärmepumpe wird immer voll gerechnet, auch der Teil aus der eigenen PV — dessen Wert steht auf der PV-Seite als Eigenverbrauch.** Das gilt für die Ersparnis wie für die CO₂-Bilanz, in jeder Sicht.
 
 ### Schritt 4 — Betriebsart erfassen (optional, aber lohnend)
 
@@ -623,6 +627,9 @@ Das war ein Fehler und ist behoben. Bis v4.0.28 hing an jedem „—" derselbe f
 
 **„Was sagt mir ‚kWh/Kd' im Vergleich?"**
 Wie viel Strom deine Heizung je **Heizgradtag** braucht — je Grad, um den es draußen kälter war als 15 °C, mal Tage. Damit lassen sich zwei Winter vergleichen, auch wenn einer mild und einer streng war: Sinkt die Zahl, arbeitet die Anlage sparsamer. **Sie ist kein Qualitätsurteil wie die Arbeitszahl** und zwischen zwei Häusern nicht vergleichbar — ein großes, schlecht gedämmtes Haus braucht immer mehr je Kältegrad als ein kleines. Sie zählt **nur den Heizbetrieb**: Warmwasser bleibt außen vor, weil es nicht vom Wetter abhängt. Du siehst sie deshalb nur mit **getrennt gemessenem Heizstrom**, nur auf der Achse *Saison* und erst, wenn eine Heizperiode auch eine Außentemperatur-Messreihe hat — der Vergleich zweier Winter kommt mit der nächsten Heizperiode. Ein **von Hand gepflegter Monatsdurchschnitt** dient dabei ausdrücklich **nicht** als Quelle: Er unterschätzt die Heizgradtage in Übergangsmonaten deutlich, weil warme und kalte Tage sich darin wegmitteln. ⚠ **Auch dann nicht, wenn das Feld *Ø Temperatur* im Monatsabschluss inzwischen automatisch gefüllt wird** — die Heizgradtage lesen die **Tagesreihe** direkt und rechnen jeden Tag einzeln; ein Monatsmittel, egal woher, kann das nicht ersetzen. Steht keine Zahl da, sagt eedc daneben, was fehlt.
+
+**„Meine Wärmepumpe läuft zur Hälfte mit PV — warum senkt das ihre Stromkosten nicht?"**
+Weil dieser Strom schon auf der anderen Seite gutgeschrieben ist. Deine PV-Anlage bekommt für jede selbst verbrauchte Kilowattstunde den vollen Netzbezugspreis gutgeschrieben — das ist die Position *Eigenverbrauch*. Würde eedc denselben Strom bei der Wärmepumpe noch einmal abziehen, stünde er zweimal im Ergebnis. Deshalb trägt die Wärmepumpe **ihren ganzen Strom** zum Netztarif, in der Ersparnis wie in der CO₂-Bilanz. Das Feld *PV-Anteil (%)* am Gerät bleibt trotzdem sinnvoll: Es sagt eedc, **wie viel** deines PV-Stroms in die Wärmepumpe geht, und wirkt damit auf die Eigenverbrauchs-Prognose und darauf, welcher Komponente der Eigenverbrauch zugerechnet wird. Es ist eine Mengenangabe, keine Preisangabe.
 
 **„Ich vergleiche meine JAZ mit der aus dem Datenblatt."**
 Das sind verschiedene Größen. Datenblatt-Werte (SCOP, COP, SEER) entstehen auf einem Prüfstand unter genormten Bedingungen. eedc misst deine Anlage in deinem Haus, mit deinen Vorlauftemperaturen, deinem Warmwasserbedarf und deinem Wetter. **Eine niedrigere Zahl ist kein Defekt** — sie ist die Realität, für die du dich interessierst.

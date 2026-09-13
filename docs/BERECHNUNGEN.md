@@ -1086,20 +1086,46 @@ WP_Strom_kWh         = Strom_Heizung + Strom_Warmwasser
 #### Gemeinsame Formeln (alle Modi)
 
 ```
-PV_Anteil            = pv_anteil_prozent / 100
-Netz_Anteil          = 1 - PV_Anteil
 η_alt                = alter_wirkungsgrad(Energieträger)   # 0,90 Gas · 0,85 Öl · 1,0 Strom
 
-WP_Kosten            = WP_Strom * Netz_Anteil * Strompreis / 100
+WP_Kosten            = WP_Strom * Strompreis / 100
 Alte_Kosten          = Gesamtwärmebedarf / η_alt * Alter_Preis / 100
                      + alternativ_zusatzkosten_jahr        # Schornsteinfeger / Wartung / Grundpreis Gaszähler
 
 Jahres-Einsparung    = Alte_Kosten - WP_Kosten
 
 CO2_alt               = Gesamtwärmebedarf / η_alt * CO2_Faktor[gas|oel|strom]
-CO2_WP                = WP_Strom * Netz_Anteil * 0.38
+CO2_WP                = WP_Strom * 0.38
 CO2-Einsparung        = CO2_alt - CO2_WP
 ```
+
+> ### ⛔ Der WP-Strom trägt den vollen Netztarif — auch der Teil aus der eigenen PV
+>
+> **Hier stand bis zum 13.09.2026 ein `Netz_Anteil = 1 − pv_anteil_prozent/100`** in
+> **beiden** Formeln, Kosten wie CO₂. Er ist ersatzlos entfallen, und mit ihm die
+> versteckte 50-%-Konstante `WP_PV_ANTEIL_DEFAULT`, die dieselbe Größe an zwei weiteren
+> Stellen anders bildete.
+>
+> **Der Grund ist keine Vereinfachung, sondern ADR-002/P9:** Der PV-Strom, den die
+> Wärmepumpe verbraucht, ist auf der **PV-Seite** bereits gutgeschrieben — im Geld als
+> **Eigenverbrauch** (er wird dort mit dem Netzbezugspreis bewertet), im CO₂ als
+> **vermiedener Netzstrom**. Ihn in der Wärmepumpen-Rechnung ein zweites Mal abzuziehen,
+> zählte dieselbe Kilowattstunde doppelt. Am Zahlenbeispiel: PV 1.000 kWh, davon 300 kWh
+> in die Wärmepumpe, Rest eingespeist, Netz 30 ct, Einspeisung 8 ct, Gas-Alternative
+> 500 €. Wahr sind 556 € Jahresnutzen; mit PV-Abschlag wies eedc 646 € aus.
+>
+> Das Feld **„PV-Anteil (%)"** am Gerät bleibt und beantwortet eine **Mengenfrage**
+> („wie viel des WP-Stroms kam aus der eigenen Anlage?"). Es speist genau zwei Stellen:
+> den Eigenverbrauchs-Fallback der Prognose und die Zuordnung des Eigenverbrauchs auf das
+> einzelne Gerät. Es beantwortet **keine Preisfrage**.
+>
+> Damit rechnen alle vier Ersparnis-Pfade derselben Wärmepumpe nach **einer** Regel:
+> Monats-Layer (`services/wp_wirtschaftlichkeit.py` — Komponenten-Hub, *Cockpit → Monat/
+> Jahr*, HA-Sensor je Gerät), anlagenweite Alternativkosten
+> (`core/berechnungen/alternativkosten.py`), die Jahresformel der Prognose
+> (`api/routes/aussichten.py`) und diese Planungsformel hier. Die CO₂-Zeile trifft sich
+> dabei mit dem gemessenen Pfad `co2_wp_ersparnis_kg`, der schon immer den vollen Strom
+> belastete (ADR-001/DI-1).
 
 > **Wirkungsgrad der Altanlage (η_alt):** `Gesamtwärmebedarf` ist **abgegebene Wärme**, nicht Brennstoff — das Eingabefeld heißt „Heizwärmebedarf (kWh/Jahr) — aus Energieausweis", und derselbe Wert wird oben durch die JAZ geteilt (JAZ = Wärme/Strom). Ein Kessel muss dafür `Wärme / η` verfeuern; `Alter_Preis` ist der Preis je kWh **Brennstoff** (so steht er auf der Rechnung). Die Umrechnung macht der Layer-SoT `gas_kosten_altanlage`, die η-Wahl der Resolver `alter_wirkungsgrad` — beide in `core/berechnungen/alternativkosten.py`.
 >
@@ -2541,7 +2567,7 @@ PV_kWh             = PVGIS_Monatswert (oder TMY * kWp * 0.85)
 Basis_EV            = PV_kWh * Basis_EV_Quote   (historisch ermittelt, 15-70%)
 Speicher_Beitrag    = Ø_Speicher_Entladung * PV_Faktor
 V2H_Beitrag         = Ø_V2H_Entladung (konstant)
-WP_PV_Anteil        = WP_Strom * 0.5 * sqrt(PV_Faktor)
+WP_PV_Anteil        = WP_Strom * PV_Anteil_gepflegt * sqrt(PV_Faktor) * Normierung
 
 Eigenverbrauch      = min(Basis_EV + Speicher + V2H + WP_PV, PV_kWh)
 Einspeisung         = PV_kWh - Eigenverbrauch
@@ -2553,7 +2579,25 @@ WP saisonal gewichtet:
 WP_SAISON_FAKTOREN = {Jan: 1.8, Feb: 1.6, Mär: 1.3, Apr: 0.8, Mai: 0.4, Jun: 0.2,
                       Jul: 0.2, Aug: 0.2, Sep: 0.4, Okt: 0.8, Nov: 1.3, Dez: 1.7}
 WP_Strom_Monat = WP_Strom_Durchschnitt * Saison_Faktor
+
+Normierung     = Σ_Monate(Saison_Faktor) / Σ_Monate(Saison_Faktor * sqrt(PV_Faktor))
 ```
+
+> ⚠ **`WP_PV_Anteil` hat zwei Bestandteile, die leicht verwechselt werden.**
+> `PV_Anteil_gepflegt` ist der am Gerät eingetragene *PV-Anteil (%)* (Vorgabe 30 %; bei
+> mehreren Wärmepumpen ihr Mittel, Geräte ohne Pflege fallen aus dem Mittel heraus).
+> `sqrt(PV_Faktor)` gibt der Größe ihre **Saisonform** — im Sommer steht mehr PV zur
+> Verfügung —, und die `Normierung` über die **zwölf Kalendermonate** sorgt dafür, dass
+> die Jahressumme trotz dieser Form genau dem gepflegten Anteil entspricht. Ohne sie
+> stünde im Formular 30 % und in der Jahresbilanz 23 %.
+>
+> ⛔ Hier stand bis zum 13.09.2026 `WP_Strom * 0.5 * sqrt(PV_Faktor)` — der Stand **vor**
+> dem 30.08.2026, als der gepflegte Anteil diese Stelle erreichte. Reine Doku-Drift; die
+> Zeile darunter (`WP_Strom_Monat`) war die ganze Zeit richtig.
+>
+> ⚠ Diese Größe ist eine **Mengen**-Aussage und wirkt nur im Eigenverbrauchs-Modell der
+> Prognose. Auf die **Kosten** der Wärmepumpe wirkt sie nicht — siehe den Kasten in
+> [§3.5](#35-wärmepumpe-einsparung).
 
 #### Amortisation
 

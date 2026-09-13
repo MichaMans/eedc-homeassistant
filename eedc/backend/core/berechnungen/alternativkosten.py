@@ -36,7 +36,6 @@ from backend.core.investition_parameter import (
     PARAM_WAERMEPUMPE_DEFAULTS,
 )
 from backend.core.wirtschaftlichkeit_defaults import (
-    WP_PV_ANTEIL_DEFAULT,
     WP_WIRKUNGSGRAD_GAS_DEFAULT,
     WP_WIRKUNGSGRAD_OEL_DEFAULT,
     WP_WIRKUNGSGRAD_STROM_DEFAULT,
@@ -178,10 +177,12 @@ def berechne_wp_alternativkosten_ersparnis(
             fehlen (ct/kWh).
 
     Returns:
-        Σ über alle WPs/Monate ``(gas_kosten − wp_stromkosten_netz)`` plus die
+        Σ über alle WPs/Monate ``(gas_kosten − wp_stromkosten)`` plus die
         anteiligen fixen Zusatzkosten ``Σ zusatzkosten_jahr × erfasste_Monate / 12``.
-        Der PV-Anteil am WP-Strom (``WP_PV_ANTEIL_DEFAULT``) wird nicht zum
-        Netztarif belastet.
+        Der **ganze** WP-Strom wird zum Netztarif belastet (SOLL Wärme/Klima
+        S1b) — auch der Teil aus der eigenen PV. Sein Wert steht auf der
+        PV-Seite als Eigenverbrauch; ihn hier ein zweites Mal abzuziehen
+        zählte dieselbe Kilowattstunde doppelt (ADR-002/P9).
     """
     ersparnis = 0.0
     zusatzkosten_jahr_gesamt = 0.0
@@ -224,10 +225,14 @@ def berechne_wp_alternativkosten_ersparnis(
             monats_strompreis = netzbezug_preis_by_periode.get(
                 (jahr, monat), netzbezug_preis_fallback
             )
-            wp_stromkosten_netz = (
-                strom * (1.0 - WP_PV_ANTEIL_DEFAULT) * monats_strompreis / 100
-            )
-            ersparnis += gas_kosten - wp_stromkosten_netz
+            # S1b (13.09.2026, N-459): der GANZE Strom zum Netztarif. Bis
+            # hierher stand ein fester PV-Abschlag von 50 %
+            # (`WP_PV_ANTEIL_DEFAULT`) — er zog eine Kilowattstunde ab, die auf
+            # der PV-Seite schon als Eigenverbrauch gutgeschrieben ist
+            # (ADR-002/P9). Der am Gerät gepflegte „PV-Anteil (%)" beantwortet
+            # eine Mengenfrage (N-277/N-354), keine Preisfrage.
+            wp_stromkosten = strom * monats_strompreis / 100
+            ersparnis += gas_kosten - wp_stromkosten
             monate_gezaehlt.add((jahr, monat))
     ersparnis += zusatzkosten_jahr_gesamt * len(monate_gezaehlt) / 12
     return ersparnis

@@ -2241,7 +2241,15 @@ async def get_roi_dashboard(
         elif inv.typ == InvestitionTyp.WAERMEPUMPE.value:
             # Modus-Auswahl: gesamt_jaz (Standard), scop (EU-Label) oder getrennte_cops
             effizienz_modus = params.get(PARAM_WAERMEPUMPE["EFFIZIENZ_MODUS"], PARAM_WAERMEPUMPE_DEFAULTS["effizienz_modus"])
-            pv_anteil = params.get(PARAM_WAERMEPUMPE["PV_ANTEIL_PROZENT"], PARAM_WAERMEPUMPE_DEFAULTS["pv_anteil_prozent"])
+            # ⛔ Hier stand bis 2026-09-13 `pv_anteil = params.get(…PV_ANTEIL_PROZENT…)`
+            # und ging als `pv_anteil_prozent` in die Formel: diese Zeile war die
+            # EINZIGE Sicht, in der das Formularfeld eine Geldzahl bewegte, und
+            # sie widersprach den drei anderen Ersparnis-Zahlen derselben
+            # Wärmepumpe. Sie ist entfallen (SOLL Wärme/Klima S1b, N-459) — der
+            # WP-Strom wird voll belastet, sein PV-Anteil steht auf der PV-Seite.
+            # Nebenwirkung: `pv_anteil_prozent: null` im Parameter-JSON legte
+            # diese ganze Route mit einem TypeError lahm; mit dem Leser fällt
+            # auch der Absturz weg.
             alter_energietraeger = params.get(PARAM_WAERMEPUMPE["ALTER_ENERGIETRAEGER"], PARAM_WAERMEPUMPE_DEFAULTS["alter_energietraeger"])
             alter_preis = params.get(PARAM_WAERMEPUMPE["ALTER_PREIS_CENT_KWH"], PARAM_WAERMEPUMPE_DEFAULTS["alter_preis_cent_kwh"])
             alternativ_zusatzkosten = params.get(PARAM_WAERMEPUMPE["ALTERNATIV_ZUSATZKOSTEN_JAHR"], 0) or 0
@@ -2264,7 +2272,6 @@ async def get_roi_dashboard(
                     cop_warmwasser=cop_warmwasser,
                     effizienz_modus='getrennte_cops',
                     strompreis_cent=wp_strompreis,
-                    pv_anteil_prozent=pv_anteil,
                     alter_energietraeger=alter_energietraeger,
                     alter_preis_cent_kwh=alter_preis,
                     alternativ_zusatzkosten_jahr=alternativ_zusatzkosten,
@@ -2284,7 +2291,6 @@ async def get_roi_dashboard(
                     scop_warmwasser=scop_warmwasser,
                     effizienz_modus='scop',
                     strompreis_cent=wp_strompreis,
-                    pv_anteil_prozent=pv_anteil,
                     alter_energietraeger=alter_energietraeger,
                     alter_preis_cent_kwh=alter_preis,
                     alternativ_zusatzkosten_jahr=alternativ_zusatzkosten,
@@ -2304,7 +2310,6 @@ async def get_roi_dashboard(
                     jaz=jaz,
                     effizienz_modus='gesamt_jaz',
                     strompreis_cent=wp_strompreis,
-                    pv_anteil_prozent=pv_anteil,
                     alter_energietraeger=alter_energietraeger,
                     alter_preis_cent_kwh=alter_preis,
                     alternativ_zusatzkosten_jahr=alternativ_zusatzkosten,

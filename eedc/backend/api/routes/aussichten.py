@@ -77,7 +77,6 @@ from backend.services.emob_ladeanteil import reichere_monatszeilen_an
 from backend.core.wirtschaftlichkeit_defaults import (
     EINSPEISEVERGUETUNG_DEFAULT_CENT,
     NETZBEZUG_DEFAULT_CENT,
-    WP_PV_ANTEIL_DEFAULT,
 )
 from backend.core.berechnungen.speicher_wirtschaftlichkeit import (
     berechne_speicher_ersparnis,
@@ -1973,19 +1972,20 @@ async def get_finanz_prognose(
             )
             + wp_alternativ_zusatzkosten_jahr
         )
-        # WP-Stromkosten pro Jahr (nur Netzanteil) — konservative 50/50-Annahme
+        # WP-Stromkosten pro Jahr — der GANZE Strom zum Netztarif.
         #
-        # ⛔ **Die DRITTE Stelle derselben Größe — und sie bleibt bewusst beim
-        # festen Default (N-354, gemessen 13.09.2026).** Sie ist die einzige der
-        # drei, die einen **Leser** hat: `jahres_wp_ersparnis` speist
-        # `jahres_netto_ertrag` und `wp_alternativ_ersparnis_euro`. Den
-        # gepflegten Anteil hier einzusetzen wäre deshalb keine Aufräumarbeit,
-        # sondern eine **Wertänderung an einer angezeigten Zahl** — und zwar für
-        # jede Anlage, deren Formular den Vorgabewert 30 % trägt: Der Netzanteil
-        # spränge von 50 % auf 70 %, die ausgewiesene Ersparnis fiele.
-        # Dieselbe Klasse wie `alternativkosten.py:228`, wo dieselbe Konstante
-        # verrechnet wird. Wer es ändert, bringt eine eigene Bilanz mit.
-        wp_netz_anteil = 1.0 - WP_PV_ANTEIL_DEFAULT
+        # ⛔ **SOLL Wärme/Klima S1b (Entscheid 13.09.2026, N-459).** Bis hierher
+        # stand ein fester PV-Abschlag von 50 % (`WP_PV_ANTEIL_DEFAULT`) und
+        # ließ 206,53 €/Jahr der Demo-Anlage unbelastet. Der Abzug war eine
+        # **Doppelzählung**: dieselbe Kilowattstunde trägt schon auf der
+        # PV-Seite — `jahres_ev_ersparnis` bewertet den ganzen Eigenverbrauch
+        # zum Netzpreis, und der WP-Strom hinter dem Hauszähler steckt darin
+        # (im Fallback-Zweig sogar ausdrücklich als Summand, N-277). Ein Fluss
+        # trägt genau einmal zum Finanz-Netto bei (ADR-002/P9).
+        # ⚠ Der am Gerät gepflegte „PV-Anteil (%)" gehört NICHT hierher: er
+        # beantwortet eine Mengenfrage (Eigenverbrauchs-Fallback N-277, Zuordnung
+        # je Gerät N-354), keine Preisfrage. Wer ihn hier einsetzt, halbiert die
+        # Doppelzählung, statt sie zu beseitigen.
         # N-279: dieselbe Grundmenge wie `gas_kosten_jahr` darüber — also NUR die
         # Geräte mit Ersatz. `jahres_wp_verbrauch` (alle WPs) stand hier bis
         # 2026-08-29 und machte die Differenz unsymmetrisch: der Zähler zählte
@@ -1993,18 +1993,21 @@ async def get_finanz_prognose(
         # Wärmepumpe im Neubau senkte damit die ausgewiesene Ersparnis der
         # zweiten, die tatsächlich eine Gasheizung ersetzt hat.
         wp_strom_jahr = jahres_wp_verbrauch_mit_ersatz
-        wp_stromkosten_netz_jahr = wp_strom_jahr * wp_netz_anteil * wp_netzbezug_preis / 100
+        wp_stromkosten_netz_jahr = wp_strom_jahr * wp_netzbezug_preis / 100
         # Netto-Ersparnis
         jahres_wp_ersparnis = gas_kosten_jahr - wp_stromkosten_netz_jahr
 
     # ── N-354: die zwei WP-PV-Größen, EINMAL gebildet und je Gerät ──────────
     #
     # ⛔ **Bis zum 13.09.2026 standen sie zweimal verschieden in dieser Datei:**
-    # `jahres_wp_verbrauch * 0.5` in den Komponenten-Beiträgen und
-    # `jahres_wp_verbrauch * WP_PV_ANTEIL_DEFAULT` im Response-Feld — beide mit
-    # einem festen Anteil, obwohl das Formularfeld „PV-Anteil (%)" am Gerät
-    # gepflegt wird, und beide **je Gerät mit dem ANLAGEN-Aggregat**: bei zwei
-    # Wärmepumpen stand derselbe volle Betrag zweimal in der Liste.
+    # `jahres_wp_verbrauch * 0.5` in den Komponenten-Beiträgen und dieselbe feste
+    # 50-%-Konstante im Response-Feld — obwohl das Formularfeld „PV-Anteil (%)"
+    # am Gerät gepflegt wird, und beide **je Gerät mit dem ANLAGEN-Aggregat**:
+    # bei zwei Wärmepumpen stand derselbe volle Betrag zweimal in der Liste.
+    #
+    # ⭐ **Diese zwei Größen sind seit S1b die EINZIGEN Leser des Felds** (dazu
+    # der Eigenverbrauchs-Fallback oben) — es beantwortet eine Mengenfrage. Die
+    # Geld- und CO₂-Formeln belasten den WP-Strom voll und lesen es nicht.
     #
     # ⭐ **Die Lesetür ist dieselbe wie beim Eigenverbrauchs-Fallback oben**
     # (`_gepflegter_pv_anteil`) — der Muster-Commit ist `029533d1` (N-277).
