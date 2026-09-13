@@ -1,6 +1,6 @@
 # Sensor-Referenz: Feldnamen, Einheiten, Anforderungen
 
-**Version 4.0** | Stand: 2026-07-25 — Referenz für UI-Beschreibungen in der Datenquellen-Zuordnung und im MQTT-Setup
+*Referenz für UI-Beschreibungen in der Datenquellen-Zuordnung und im MQTT-Setup.*
 
 > Siehe auch: [Wärme & Klima](HANDBUCH_WAERME_KLIMA.md) — welcher der Wärmepumpen-Zähler unten welche Kennzahl möglich macht, und was ohne ihn passiert.
 

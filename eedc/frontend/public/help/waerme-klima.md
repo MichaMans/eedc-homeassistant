@@ -1,7 +1,5 @@
 # eedc Handbuch — Wärme & Klima
 
-**Version 4.0** | Stand: 2026-08-27
-
 > Dieses Handbuch ist Teil der eedc-Dokumentation.
 > Siehe auch: [Bedienung](HANDBUCH_BEDIENUNG.md) | [Einstellungen & Datenquellen](HANDBUCH_EINSTELLUNGEN.md) | [Daten-Checker](HANDBUCH_DATEN_CHECKER.md) | [Berechnungen & Kennzahlen](BERECHNUNGEN.md) | [Sensor-Referenz](SENSOR-REFERENZ.md) | [Glossar](GLOSSAR.md)
 

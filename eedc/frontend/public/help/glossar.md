@@ -1,8 +1,6 @@
 
 # eedc Glossar & Support
 
-**Version 4.0** | Stand: 2026-07-25
-
 > Dieses Glossar ist Teil der eedc-Dokumentation.
 > Siehe auch: [Teil I: Installation](HANDBUCH_INSTALLATION.md) | [Teil II: Bedienung](HANDBUCH_BEDIENUNG.md) | [Teil III: Einstellungen](HANDBUCH_EINSTELLUNGEN.md) | [Berechnungen](BERECHNUNGEN.md) | [Prognosen](HANDBUCH_PROGNOSEN.md) | [Wärme & Klima](HANDBUCH_WAERME_KLIMA.md) | [Sensor-Referenz](SENSOR-REFERENZ.md)
 

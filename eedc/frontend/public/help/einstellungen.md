@@ -1,8 +1,6 @@
 
 # eedc Handbuch — Teil III: Einstellungen
 
-**Version 4.0** | Stand: 2026-07-25
-
 > Dieses Handbuch ist Teil der eedc-Dokumentation.
 > Siehe auch: [Teil I: Installation & Einrichtung](HANDBUCH_INSTALLATION.md) | [Teil II: Bedienung](HANDBUCH_BEDIENUNG.md) | [Daten-Checker](HANDBUCH_DATEN_CHECKER.md) | [Infothek](HANDBUCH_INFOTHEK.md) | [Wärme & Klima](HANDBUCH_WAERME_KLIMA.md) | [Sensor-Referenz](SENSOR-REFERENZ.md) | [Glossar](GLOSSAR.md)
 

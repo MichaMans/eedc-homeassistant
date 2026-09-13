@@ -1,7 +1,5 @@
 # eedc Berechnungsreferenz
 
-**Version 4.0** | Stand: 2026-07-25
-
 Dieses Dokument beschreibt alle Berechnungsketten im eedc-System: von den Eingabefeldern
 über die Berechnungslogik bis zur Anzeige im Frontend. Es dient als Referenz zur Fehlersuche
 und zum Verständnis der Datenflüsse.
