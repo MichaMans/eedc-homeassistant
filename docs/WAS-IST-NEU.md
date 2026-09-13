@@ -11,6 +11,27 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Das Handbuch *Wärme & Klima* nennt jetzt seine Grenzen**
+
+**Betrifft dich das?** Jeden mit Wärmepumpe oder Klimaanlage, dem schon einmal
+aufgefallen ist, dass die Summe der Tage nicht ganz zum Monat passt oder dass im
+laufenden Monat die Aufteilung nach Betriebsart fehlt.
+
+**Was war:** Vier Eigenheiten dieser Fläche sind gebaut, begründet und richtig —
+sie standen aber in keinem Anwendertext. Wer sie bemerkte, musste sie für einen
+Fehler halten.
+
+**Was jetzt gilt:** Das [Handbuch Wärme & Klima](HANDBUCH_WAERME_KLIMA.md) erklärt
+sie: warum die Summe der Tagessäulen um eine Stunde vom Monatswert abweicht, warum
+Monats- und Jahresverlauf aus zwei verschiedenen Quellen kommen, warum im laufenden
+Monat Kältemenge und Aufteilung fehlen können, und dass der Stundenverlauf den
+Tageswert nach der Form der Stunden verteilt, statt jede Stunde einzeln zu messen.
+Dazu steht dort jetzt, warum ein Betriebsmodus-Sensor eine *Arbeitszahl Kühlen*
+ergibt, aber keine für *Heizen*, und was der Stundenverlauf braucht, um Heizen und
+Warmwasser getrennt zu zeigen. **Es ändert sich keine Zahl und keine Anzeige.**
+
+---
+
 **Cockpit zeigt beim Blättern nur noch eine Periode**
 
 **Betrifft dich das?** Jeden, der in *Cockpit → Tag*, *Monat* oder *Jahr* von

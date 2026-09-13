@@ -43,7 +43,7 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 | Ort | Was dort steht |
 |-----|----------------|
 | **Cockpit → Live** | Momentanleistung gesamt und je Funktion, Betriebsmodus, Warmwasser-Temperatur |
-| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Ersparnis, Kompressor-Starts, die **Liste je Funktion** und die Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, mit Kältemengenzähler die **gemessene Kälte als eigene Linie**, Außentemperatur auf der zweiten Achse. Jedes Gerät bleibt dabei in seinen eigenen Stunden. Die Stunden ergeben zusammen genau die Aufteilung darunter; was sich keiner Stunde zuordnen lässt, steht darunter als *„Strom / Wärme / Kälte ohne Stundenzuordnung"*; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen). Mit **getrennten Stromzählern für Heizen und Warmwasser** schaltet ein Wähler über dem Verlauf zwischen *nach Betriebsart* und *nach Funktion* um — nie beides zugleich, weil Betriebsarten Ausschnitte und Funktionen Summanden des Stroms sind; der Titel nennt die gerade gestapelte Größe. Im **Stundenverlauf** des Tages (dem Butterfly-Chart darüber, nicht in diesem Block) erscheint die Wärmepumpe getrennt nach *Heizen* und *Warmwasser*, wenn du beide **Leistungs**-Sensoren zugeordnet hast **und** *Leistung gesamt* leer bleibt — dieselben zwei Flächen wie in *Cockpit → Live* |
+| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Ersparnis, Kompressor-Starts, die **Liste je Funktion** und die Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, mit Kältemengenzähler die **gemessene Kälte als eigene Linie**, Außentemperatur auf der zweiten Achse. Jedes Gerät bleibt dabei in seinen eigenen Stunden. Die Stunden ergeben zusammen genau die Aufteilung darunter; was sich keiner Stunde zuordnen lässt, steht darunter als *„Strom / Wärme / Kälte ohne Stundenzuordnung"*; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen). Mit **getrennten Stromzählern für Heizen und Warmwasser** schaltet ein Wähler über dem Verlauf zwischen *nach Betriebsart* und *nach Funktion* um — nie beides zugleich, weil Betriebsarten Ausschnitte und Funktionen Summanden des Stroms sind; der Titel nennt die gerade gestapelte Größe. Im **Stundenverlauf** des Tages (dem Butterfly-Chart darüber, nicht in diesem Block) erscheint die Wärmepumpe getrennt nach *Heizen* und *Warmwasser*, wenn du beide **Leistungs**-Sensoren zugeordnet hast **und** *Leistung gesamt* leer bleibt — dieselben zwei Flächen wie in *Cockpit → Live* ([Schritt 6](#schritt-6--live-werte-optional)) |
 | **Cockpit → Monat** | derselbe Block auf Monatsbasis, dazu die Arbeitszahlen je Funktion und ein **Verlauf je Tag** (dieselbe Darstellung wie am Tag, mit Kälte-Linie) |
 | **Cockpit → Jahr** | Jahressummen, dieselben Kennzahlen wie im Monat — Arbeitszahl mit Grund und Heizstab-Satz, je Funktion, Kühlen, Aufteilung nach Betriebsart mit Restmenge — über das Jahr **neu gerechnet** (nicht gemittelt), ein **Verlauf je Monat** (Strom, gemessene Wärme und Kälte), Block *CO₂-Bilanz* |
 | **PDF-Jahresbericht** | dieselben Kennzahlen wie *Cockpit → Jahr* aus derselben Rechnung — Arbeitszahl mit Grund, je Funktion, Kühlen, Herkunft einer geschätzten Wärme, Vorbehalt an der CO₂-Zeile (seit 05.09.2026; vorher stand dort eine Arbeitszahl ohne Grund und nichts je Funktion) |
@@ -136,6 +136,8 @@ Dieser Abschnitt ist so wichtig wie die Tabelle darüber. **Mehrere Dinge fehlen
 
 **Kein Vergleich von passiv gegen aktiv gekühlt.** Passive Kühlung läuft nur über Umwälzpumpen und erreicht ein Vielfaches der Effizienz einer aktiv gekühlten Anlage. Beide Zahlen sind für sich richtig; sie gegeneinander zu stellen wäre die Falschaussage. Deshalb gibt es am Gerät das Feld **„Kühlung: aktiv oder passiv"** — es ändert **keine** deiner Zahlen, es hält dich nur aus dem falschen Vergleich heraus.
 
+**Keine erfundene Stunde.** Der Verlauf je Stunde in *Cockpit → Tag* zeigt **gemessene** Mengen, aber er misst nicht jede Stunde für sich: Er nimmt den Tageswert und verteilt ihn nach der **Form** der Stunden — jede Stunde bekommt den Anteil, den dein Zähler an diesem Tag dort getragen hat. Das ist der Grund für die beiden Eigenschaften aus [§1](#1-was-diese-fläche-umfasst): dass die 24 Stunden zusammen immer genau den Balken darunter ergeben, und dass eine Menge ohne Stundenform lieber genannt als umgelegt wird. Läuft alles über Home Assistant, stammen Tageswert und Stundenform aus **derselben** Zählerreihe im selben Zeitfenster; die Verteilung ist dort rechnerisch dasselbe wie eine Stundenmessung. Auf dem MQTT-/Standalone-Pfad und überall dort, wo einer Stunde ein Zählerstand fehlt, bleibt es eine Verteilung — geglättet wird trotzdem nichts, denn eine über den Tag geschmierte Kurve wäre eine erfundene Form, keine Auskunft.
+
 ---
 
 ## 4. Wann eine Kennzahl verschwindet — und warum das richtig ist
@@ -157,16 +159,45 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 | **nur Kühlbetrieb in diesem Zeitraum** | Der Zähler lief, aber nicht fürs Heizen. „Kein Stromverbrauch" wäre hier die falsche Auskunft. | nichts, das ist die Wahrheit über einen Sommermonat |
 | **Wärmepumpe und Klimaanlage in einer Zahl** | Der Block fasst eine klassische Wärmepumpe und eine Split-Klimaanlage zusammen. Beide heizen, aber sie sind nicht vergleichbar: andere Nutzenergie, anderer Maßstab. Eine gemeinsame Arbeitszahl wäre ein Quotient aus zwei Welten. | jedes Gerät einzeln im Komponenten-Hub ansehen — dort hat jedes seine eigene Zahl |
 | **nicht alle Geräte melden Wärme** | Der Block fasst mehrere Geräte zusammen; im Nenner steht der Strom von allen, im Zähler die Wärme von einem. | einzelnes Gerät im Komponenten-Hub ansehen |
-| **Wärme und Strom stammen von verschiedenen Geräten** | Die Gegenrichtung: Ein Gerät steuert Wärme bei, ohne dass sein Strom im Nenner steht — die Zahl wäre zu **hoch**. Der Satz erscheint auch dann, wenn beide Seiten gleich viele Geräte tragen; entscheidend ist, ob es **dieselben** sind. | einzelnes Gerät im Komponenten-Hub ansehen — dort steht je Gerät, welche Seite fehlt. Hängen mehrere Geräte an **einem** Zähler, erfasse sie als **ein** Gerät (siehe Schritt 1) |
+| **Wärme und Strom stammen von verschiedenen Geräten** | Die Gegenrichtung: Ein Gerät steuert Wärme bei, ohne dass sein Strom im Nenner steht — die Zahl wäre zu **hoch**. Der Satz erscheint auch dann, wenn beide Seiten gleich viele Geräte tragen; entscheidend ist, ob es **dieselben** sind. | einzelnes Gerät im Komponenten-Hub ansehen — dort steht je Gerät, welche Seite fehlt. Hängen mehrere Geräte an **einem** Zähler, erfasse sie als **ein** Gerät ([Schritt 1](#schritt-1--gerät-anlegen-und-die-bauart-wählen)) |
 | **Wärme und Strom stammen aus verschiedenen Monaten** | Dieselbe Störung über die **Zeit** statt über die Geräte: Ein Monat trägt Wärme ohne Strom, ein anderer trägt Strom — die Jahressumme nimmt beide mit. Typisch, wenn der Stromzähler erst mitten im Jahr in Betrieb ging. | die fehlenden Monatswerte nachpflegen — oder einen Zeitraum wählen, in dem beide Seiten gemessen sind |
 | **Nutzenergie und Strom dieser Funktion stammen von verschiedenen Geräten** | Wie zwei Zeilen darüber, aber für **eine** Arbeitszahl (*Heizen*, *Warmwasser* oder *Kühlen*): Genau diese Funktion mischt Geräte, die übrigen Zahlen dürfen bleiben. Beim Kühlen ist die Nutzenergie die **Kälte**menge — deshalb nicht „Wärme". | getrennte Strommessung am zweiten Gerät einschalten und zuordnen, wenn es sie gibt |
 | **Nutzenergie und Strom dieser Funktion stammen aus verschiedenen Monaten** | Dieselbe Lage je Funktion, über die Zeit statt über die Geräte. Bei nur **einem** Gerät ist das die zutreffende Auskunft — von „Geräten" zu sprechen wäre dort falsch. | die fehlenden Monatswerte nachpflegen |
 | **Heizstab-Strom auf dem WP-Zähler** | Deine eigene Angabe im Feld *Fremdanteil auf den Zählern*. Der Stromwert ist zu groß. | Angabe korrigieren, wenn sie nicht mehr stimmt |
 | **zweiter Erzeuger am Wärmezähler** | Dieselbe Angabe, andere Richtung: Ein zweiter Erzeuger speist denselben Heizkreis — ein Gas- oder Ölkessel, oder ein **elektrischer Heizstab, dessen Strom getrennt gezählt wird**. Der Wärmewert ist zu groß. | dito Ersparnis und CO₂ bleiben stehen, tragen aber den Vorbehalt *„zweiter Erzeuger am Wärmezähler — Ersparnis und CO₂ enthalten dessen Wärme"*: eedc kennt den Anteil des zweiten Erzeugers nicht und rechnet ihn nicht heraus. |
 | **Zähler messen verschiedene Zeiträume** | Strom und Wärme stammen aus verschieden langen Messzeiträumen. | Lücken im Monatsabschluss schließen |
-| **Strom nicht getrennt je Funktion gemessen** | Betrifft nur die Arbeitszahlen *Heizen* und *Warmwasser*. | getrennte Strommessung einschalten und zuordnen |
+| **Strom nicht getrennt je Funktion gemessen** | Betrifft nur die Arbeitszahlen *Heizen* und *Warmwasser*. Ein Betriebsmodus-Sensor ersetzt die getrennte Messung hier **nicht** — siehe den Kasten unter dieser Tabelle. | getrennte Strommessung einschalten und zuordnen |
 | **kein Kältemengenzähler zugeordnet** | Betrifft nur die Arbeitszahl *Kühlen*. | Kältemengenzähler zuordnen — oder es bleibt so |
 | **keine Kälte abgegeben in diesem Zeitraum** | Nur am **Tag**: Der Kältemengenzähler ist zugeordnet und meldet **null**, obwohl Kühlstrom geflossen ist — typisch, wenn das Gerät im Kühlmodus stand und pausierte (die Stunde zählt dann zum Kühlen, siehe *„Leerlauf behält deinen Modus"*). | nichts. **Nicht mit *kein Kältemengenzähler zugeordnet* verwechseln** — dort fehlt die Messung, hier ist sie da und sagt null |
+
+> ### ⚑ Warum ein Betriebsmodus-Sensor keine Arbeitszahl *Heizen* ergibt — die Kühlzahl aber schon
+>
+> Das sieht auf den ersten Blick nach einer Lücke aus: Du hast einen Betriebsmodus-Sensor
+> zugeordnet, eedc weist dir damit *Heizen · Warmwasser · Kühlen* getrennt aus — und bekommst
+> trotzdem für *Kühlen* eine Arbeitszahl und für *Heizen* keine. Das ist gewollt.
+>
+> **Der Nenner einer Arbeitszahl je Funktion ist der getrennt *gemessene* Strom dieser Funktion.**
+> Was aus dem Betriebsmodus entsteht, ist keine zweite Messung, sondern eine **Verteilung** deines
+> Gesamtstroms auf die Stunden: eedc schaut nach, was das Gerät wann tat, und teilt danach auf. Eine
+> Verteilung erbt jede Unschärfe ihres Schlüssels — wie lange dein Gerät wirklich in welchem Modus
+> lief, wie viel davon Standby war —, eine Messung nicht. Aus so einem Anteil eine Effizienzzahl zu
+> bilden hieße, die Ungenauigkeit der Aufteilung als Eigenschaft deiner Wärmepumpe auszuweisen.
+>
+> **Beim Kühlen ist es trotzdem richtig, und zwar aus einem Grund, den es nur dort gibt:** Für Heizen
+> und Warmwasser existiert der gemessene Weg — *Strom Heizen* und *Strom Warmwasser* ([Schritt 2](#schritt-2--entscheiden-ein-zähler-oder-getrennte)).
+> Für den Kühlbetrieb gibt es ihn nicht überall, und die Kältemenge selbst liegt ohnehin nur mit
+> Zähler vor. Wo keine bessere Zahl möglich ist, ist die verteilte die einzige — und sie steht neben
+> einer gemessenen Kältemenge, nicht neben einer geschätzten.
+>
+> **Was du tun kannst:** Willst du auch für Heizen und Warmwasser eine Arbeitszahl, brauchst du zwei
+> Stromzähler statt eines — *Getrennte Strommessung* einschalten und beide zuordnen ([Schritt 2](#schritt-2--entscheiden-ein-zähler-oder-getrennte)). Der
+> Betriebsmodus-Sensor bleibt dabei sinnvoll: Er trägt weiter die Aufteilung nach Betriebsart.
+>
+> ⚑ **Dieselbe Unterscheidung wirkt auf der Abzugsseite**, und dort ändert sie die Gesamt-Arbeitszahl:
+> Abgezogen wird nur, was im Nenner auch drinsteht. Ein aus dem Betriebsmodus verteilter Kühlanteil
+> kürzt deinen gemessenen Heiz- und Warmwasserstrom nicht — nachgerechnet in
+> [Fall B2](#b2--getrennte-zähler-für-heizung-und-warmwasser-betriebsmodus-sensor-kein-kühlzähler)
+> und erklärt in [§7](#7-häufige-missverständnisse).
 
 ### Und drei Gründe, die nur der **Tag** kennt
 
@@ -221,7 +252,7 @@ Alles läuft über **Einstellungen → Datenquellen**. Dort steht je Gerät eine
 >
 > ⚠ **Führst du Heizung und Warmwasser über *einen* Wärmemengenzähler**, trag die Summe unter *Heizwärme* ein. eedc kann die beiden dann nicht trennen — die Aufteilung *Wärme nach Zweck* zeigt in diesem Fall nur die Heizseite, und die getrennten Arbeitszahlen bleiben ohne Zahl.
 
-> ⭐ **Mehrere Wärmepumpen an EINEM Zähler sind für eedc EIN Gerät.** Bei einer **Kaskade** oder zwei Geräten, die auf denselben Pufferspeicher arbeiten und über einen gemeinsamen Wärmemengen- und Stromzähler laufen, leg **eine** Investition an und ordne ihr beide Zähler zu. Trägst du sie einzeln ein, steht die gemessene Wärme beim einen Gerät und der gemessene Strom beim anderen — eedc kann nicht wissen, dass die beiden Zähler dieselbe Anlage meinen, und sperrt die Arbeitszahl mit *„Wärme und Strom stammen von verschiedenen Geräten"*. Physisch wäre Σ Wärme ÷ Σ Strom hier richtig; eedc darf es nur nicht raten. ⚠ Die **Anschaffungskosten** trägst du dann ebenfalls zusammen ein — die Wirtschaftlichkeit rechnet auf derselben Investition.
+> ⭐ **Mehrere Wärmepumpen an EINEM Zähler sind für eedc EIN Gerät.** Bei einer **Kaskade** oder zwei Geräten, die auf denselben Pufferspeicher arbeiten und über einen gemeinsamen Wärmemengen- und Stromzähler laufen, leg **eine** Investition an und ordne ihr beide Zähler zu. Trägst du sie einzeln ein, steht die gemessene Wärme beim einen Gerät und der gemessene Strom beim anderen — eedc kann nicht wissen, dass die beiden Zähler dieselbe Anlage meinen, und sperrt die Arbeitszahl mit *„Wärme und Strom stammen von verschiedenen Geräten"* ([§4](#4-wann-eine-kennzahl-verschwindet--und-warum-das-richtig-ist)). Physisch wäre Σ Wärme ÷ Σ Strom hier richtig; eedc darf es nur nicht raten. ⚠ Die **Anschaffungskosten** trägst du dann ebenfalls zusammen ein — die Wirtschaftlichkeit rechnet auf derselben Investition.
 
 ### Schritt 2 — Entscheiden: ein Zähler oder getrennte?
 
@@ -419,6 +450,29 @@ Es gibt **zwei Wege**, und **gemessen schlägt abgeleitet**:
 
 > ⚑ **„Leistung gesamt" und die Aufteilung schließen sich im Verlauf aus.** Ordnest du *Leistung gesamt* zu, wertet eedc *Leistung Heizen* und *Leistung Warmwasser* im Live-Tagesverlauf **nicht** aus — dort erscheint dann eine Fläche für die ganze Wärmepumpe. Die Zuordnungs-Fläche sagt es dir an den betroffenen Feldern. Beides ist richtig, es ist eine Wahl: Die Gesamtleistung ist der vollständige Anlagenwert (und die einzige Quelle des Wärmepumpen-Anteils in der Verbrauchsprognose, solange noch keine Tagesprofile aggregiert sind), die getrennten Felder sind die feinere Auskunft.
 
+> ### ⭐ Zwei Flächen statt einer — was der Stundenverlauf dafür voraussetzt
+>
+> Damit deine Wärmepumpe im **Stundenverlauf** des Tages (dem Butterfly-Chart über dem Block
+> *Wärme/Klima*) getrennt nach *Heizen* und *Warmwasser* erscheint, müssen **beide** Bedingungen
+> erfüllt sein:
+>
+> 1. *Leistung Heizen* **und** *Leistung Warmwasser* sind zugeordnet — **beide**. Mit nur einer
+>    davon wäre die Funktionsfläche die Wärmepumpen-Fläche unter anderem Namen, und eedc lässt sie
+>    dann zusammen.
+> 2. *Leistung gesamt* bleibt **leer**. Ist es zugeordnet, gilt der Kasten darüber: die
+>    Gesamtleistung verdrängt die beiden Einzelfelder.
+>
+> Dieselben zwei Bedingungen gelten für *Cockpit → Live* — was du dort siehst, siehst du auch im
+> Stundenverlauf des Tages, in denselben zwei Farben und unter denselben Namen.
+>
+> ⚑ **Liegt am selben Gerät zusätzlich ein kWh-Zähler, hat er das letzte Wort über die Menge.** Die
+> beiden Leistungsreihen sagen dann nicht mehr, *wie viel* verbraucht wurde, sondern nur noch, *wie
+> es sich verteilt*. Ist der Zähler **größer** als beide Reihen zusammen, steht die Differenz als
+> eigene Fläche **„Wärmepumpe (übrige)"** daneben, statt still zu verschwinden. Ist er **kleiner**,
+> rechnet eedc die beiden Flächen im selben Verhältnis auf den Zähler herunter — die Stapelhöhe
+> bleibt die gemessene Menge, statt über sie hinauszuwachsen. **Ohne getrennte Leistungssensoren —
+> der Normalfall — ändert sich für dich nichts.**
+
 > ⚑ **Was diese Wahl berührt — und was nicht.** Deine **Mengen** kommen aus den kWh-Zählern und bleiben unberührt: Stromverbrauch, Wärme, Kosten, CO₂, Ersparnis und die **Arbeitszahlen für Heizen, Warmwasser und gesamt**. Die **Aufteilung nach Betriebsart** entsteht dagegen aus dem Leistungspfad — eedc liest dort die *Form* der Stunden ab und legt die Zählermenge darauf. Welchen Leistungssensor du zuordnest, kann deshalb verschieben, wie viel Strom dem Heizen, Kühlen oder Warmwasser zugerechnet wird, und damit auch die **Arbeitszahl Kühlen** (ihr Nenner ist genau dieser Anteil). Wenn dein Gerät im Kühlbetrieb läuft und du nur *Leistung Heizen* und *Leistung Warmwasser* zugeordnet hast, tragen die Kühlstunden im Leistungspfad nichts — ordne dann **Leistung gesamt** zu.
 
 > ⛔ **Watt ist keine Kilowattstunde.** Ein Leistungssensor gehört **nie** in ein kWh-Feld. Die Stundenwerte eines Leistungssensors ergeben zwar eine plausible Zahl — sie speist aber nicht die Zählerpfade, aus denen der Block *Wärme/Klima* entsteht. Liefert dein Gerät **nur** Leistung, baue in Home Assistant unter *Helfer → Integral-Sensor* (Riemannsche Summe) einen kWh-Zähler daraus.
@@ -532,6 +586,21 @@ Nein. *Heizwärme* ist die **abgegebene thermische Wärme**. Der Strom fürs Hei
 
 **„Die Summe der Tage passt nicht zum Monat."**
 Bei der CO₂-Einsparung ist das **so vorgesehen**: Der Tageswert trägt nur den PV-Anteil, weil es Wärmepumpen-Wärme und E-Auto-Kilometer nur monatlich gibt. Die Spalte heißt deshalb ausdrücklich *„CO₂-Einsparung (PV)"*.
+
+Bei **Wärme/Klima** kommt ein zweiter Grund dazu, und er ist genau **eine Stunde** groß. Liest eedc deine Tageswerte aus der Langzeitstatistik von Home Assistant — der Regelfall im Add-on —, dann steht ein Tag für das Fenster *Vortag 23 Uhr bis heute 23 Uhr*. Das ist Absicht: Es ist dasselbe Fenster, in dem eedc auch die Stunden zählt, und nur deshalb geht eine Tageszeile in sich auf — Strom, Aufteilung, Wärme und Arbeitszahl desselben Tages messen dieselben 24 Stunden. Der **Monats**wert läuft dagegen vom Monatsersten 0 Uhr bis zum Monatsletzten 24 Uhr. Die Summe der Tagessäulen enthält damit die letzte Stunde des Vormonats und nicht die letzte Stunde des Monats: **Beide Zahlen sind richtig, sie messen nur nicht dieselben 24 Stunden.** **Zu tun ist nichts** — würde eedc eines der beiden Fenster verbiegen, wäre entweder die Tagesansicht in sich falsch oder der Monatswert nicht mehr der, den Home Assistant kennt. Dieselbe Fensterfrage stellt sich auch bei Speicher, Wallbox und E-Auto; die Tabelle dazu steht in [Berechnungen & Kennzahlen](BERECHNUNGEN.md).
+
+**„Der Monatsverlauf zeigt Tagessäulen, im Jahresverlauf fehlt derselbe Monat — oder umgekehrt."**
+Die beiden Verläufe stammen aus zwei Quellen, und das ist der Preis dafür, dass es beide überhaupt gibt. Der **Monats**verlauf zeichnet je Tag, was eedc an diesem Tag selbst mitgeschrieben hat. Der **Jahres**verlauf zeichnet je Monat die **Monatszeile** — also das, was gespeichert, importiert oder aus der Langzeitstatistik ergänzt wurde. Wo beides vorliegt, stimmen sie überein. Auseinander laufen sie in zwei Lagen:
+
+- Ein **importierter oder von Hand gepflegter** Monat hat keine Tageswerte. Im Jahr steht sein Punkt, im Monatsverlauf bleiben die Säulen leer.
+- Ein Monat **vor deiner Zuordnung** hat es umgekehrt: Die Langzeitstatistik reicht zurück und füllt den Jahrespunkt, mitgeschriebene Zählerstände gibt es für diese Tage nicht. Das ist derselbe Sachverhalt wie im Kasten *„Monat da, Tag leer"* ([§2](#2-voraussetzungen--welcher-zähler-für-welche-anzeige)).
+
+**Was du tun kannst:** Wo Zählerstände vorliegen, hilft *Einstellungen → Daten → Tag neu berechnen*. Für einen rein importierten Monat gibt es dagegen nichts nachzurechnen — dort hat nie jemand einen Tag gemessen, und eine erfundene Verteilung auf 30 Säulen wäre keine Auskunft.
+
+**„Im laufenden Monat sehe ich Strom und Wärme, aber keine Aufteilung und keine Kältemenge."**
+Solange ein Monat läuft, ist er eine **Vorschau**: eedc füllt die Kacheln aus den Quellen, die es gerade lesen kann. Für eine Wärmepumpe sind das genau zwei Größen — **Stromverbrauch** und **Wärme**. Die **Aufteilung nach Betriebsart**, die **Kältemenge** und die **Arbeitszahl Kühlen** kommen dagegen ausschließlich aus der gespeicherten Monatszeile, und die entsteht erst mit dem Monatsabschluss. Deshalb können daneben Zahlen stehen, während diese drei leer bleiben. **Das ist keine Messlücke, sondern der Unterschied zwischen einer laufenden Vorschau und einer abgeschlossenen Zeile** — und weil Kältemenge und Kühlstrom aus **derselben** Quelle kommen, widersprechen sie einander dabei nie.
+
+**Was du tun kannst:** Tagesgenau stehen Aufteilung und Kältemenge längst da — in *Cockpit → Tag*, sobald die Zähler zugeordnet sind. Im Monat sind sie da, sobald du den Monat im Monatsabschluss gepflegt hast.
 
 **„Der Balken summiert sich nicht auf den Wert der Kachel darüber."**
 Richtig — und seit v4.0.29 steht darunter, warum: **„Aufgeteilte Menge: 30 von 284 kWh".** Die Aufteilung entsteht nur für Geräte und Zeiträume, in denen eedc die Betriebsart mitlesen konnte; die Kachel zählt alle Geräte.

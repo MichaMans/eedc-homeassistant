@@ -189,11 +189,24 @@ eigene Speicher-Investition erfasst und publiziert unter deren ID auf
 
 | Feld | Label | Einheit | Sensortyp | Beschreibung |
 |------|-------|---------|-----------|-------------|
-| `leistung_w` | Leistung | W | Momentan | Aktuelle elektrische Leistungsaufnahme der WP. Muss ≥ 0 sein. Alternativ: getrennte Sensoren (s.u.). |
-| `leistung_heizen_w` | Leistung Heizen | W | Momentan | Nur bei getrennter Messung: Leistungsaufnahme Heizbetrieb. Optional. |
-| `leistung_warmwasser_w` | Leistung Warmwasser | W | Momentan | Nur bei getrennter Messung: Leistungsaufnahme Warmwasser. Optional. |
+| `leistung_w` | Leistung | W | Momentan | Aktuelle elektrische Leistungsaufnahme der WP. Muss ≥ 0 sein. Alternativ: getrennte Sensoren (s.u.). ⚠️ **Zugeordnet verdrängt es sie** — siehe Kasten unter der Tabelle. |
+| `leistung_heizen_w` | Leistung Heizen | W | Momentan | Nur bei getrennter Messung: Leistungsaufnahme Heizbetrieb. Optional. ⚠️ Wird **nicht** ausgewertet, solange `leistung_w` zugeordnet ist — siehe Kasten unter der Tabelle. |
+| `leistung_warmwasser_w` | Leistung Warmwasser | W | Momentan | Nur bei getrennter Messung: Leistungsaufnahme Warmwasser. Optional. ⚠️ Wird **nicht** ausgewertet, solange `leistung_w` zugeordnet ist — siehe Kasten unter der Tabelle. |
 | `leistung_kuehlen_w` | Leistung Kühlen | W | Momentan | Nur bei getrennter Messung: Leistungsaufnahme Kühlbetrieb. Optional, reine Anzeige — die Mengen kommen aus dem kWh-Zähler. |
 | `warmwasser_temperatur_c` | Warmwassertemperatur | °C | Momentan | Aktuelle Warmwassertemperatur. Optional, wird als Gauge angezeigt. |
+
+> ⚠️ **`leistung_w` verdrängt `leistung_heizen_w` und `leistung_warmwasser_w`.** Ist die
+> Gesamtleistung zugeordnet, wertet eedc die beiden Funktions-Sensoren im Tagesverlauf **nicht**
+> aus — die Wärmepumpe erscheint dort als **eine** Fläche. Erst wenn `leistung_w` leer bleibt
+> **und beide** Funktions-Sensoren zugeordnet sind, zeigen *Cockpit → Live* und der Stundenverlauf
+> des Tages **zwei** Flächen (Heizen, Warmwasser). Ein einzelner Funktions-Sensor genügt nicht —
+> er wäre die Gerätereihe unter anderem Namen. Beides ist richtig, es ist eine Wahl: Die
+> Gesamtleistung ist der vollständige Anlagenwert (und die einzige Quelle des
+> Wärmepumpen-Anteils in der Verbrauchsprognose), die getrennten Felder sind die feinere
+> Auskunft. Details und Folgen: [Handbuch Wärme & Klima §5, Schritt 6](HANDBUCH_WAERME_KLIMA.md#schritt-6--live-werte-optional).
+>
+> ⚠️ **Kein Ersatz für kWh-Zähler.** Diese Felder sind Momentanleistungen und speisen die
+> Mengen nicht — Stromverbrauch, Wärme und alle Arbeitszahlen kommen aus den kWh-Feldern oben.
 
 ### MQTT Energy Topics
 
