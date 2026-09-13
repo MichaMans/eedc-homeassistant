@@ -11,6 +11,37 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Fehlt eine Stromseite, sagt es der Daten-Checker jetzt — je Seite einzeln**
+
+**Betrifft dich das?** Nur, wenn du an einer Wärmepumpe die **getrennte
+Strommessung** eingeschaltet hast (*Strom Heizen* und *Strom Warmwasser* statt
+eines Gesamtzählers) und in einem Monat genau **eine** der beiden Seiten fehlt,
+während die zugehörige Wärme erfasst ist. Wer einen Gesamtzähler führt oder
+beide Seiten pflegt, merkt nichts.
+
+**Was war:** Der Daten-Checker warnte nur, wenn **beide** Stromfelder eines
+Monats leer waren. Fehlte nur eines — ein ausgefallener Sensor, ein spät
+zugeordneter Zähler, ein Handeintrag ohne das zweite Feld —, stand dort kein
+Hinweis, sondern die Zusage *„Monatsdaten vollständig"*. Die **Gesamt**-Arbeitszahl
+rechnet in dieser Lage die Wärme **beider** Seiten über den Strom **einer** und
+fällt dadurch zu hoch aus. In einem nachgestellten Monat (1800 kWh Heizwärme +
+600 kWh Heizstrom + 600 kWh Warmwasser-Wärme, Warmwasser-Strom fehlt) stand dort
+**4,0**, ohne dass irgendwo ein Grund danebenstand.
+
+**Was jetzt gilt:** Unter *Einstellungen → Daten* nennt der Daten-Checker jede
+fehlende Seite einzeln — *„Strom Heizen fehlt in n Monat(en)"* bzw. *„Strom
+Warmwasser fehlt in n Monat(en)"* —, mit den betroffenen Monaten, der Folge und
+dem Weg dorthin. Fehlen beide Seiten, bleibt es bei der einen gewohnten Meldung.
+Ein Monat **ohne** Betrieb auf einer Seite gilt nicht als Lücke: Wer im Sommer
+nicht heizt, bekommt keine Meldung zum Heizstrom.
+
+**Was du tun musst:** Wenn der Hinweis erscheint, den fehlenden Wert für die
+genannten Monate im **Monatsabschluss** nachtragen — die Arbeitszahlen stehen
+danach mit vollständigem Nenner da. ⛔ **Es ändert sich keine Zahl von allein**
+und nichts wird gesperrt; eedc sagt nur, was es vorher verschwiegen hat.
+
+---
+
 **Nachts geladen? Die Aufteilung stand im falschen Tag**
 
 **Betrifft dich das?** Nur in *Cockpit → Tag*, und nur an Tagen, an denen dein

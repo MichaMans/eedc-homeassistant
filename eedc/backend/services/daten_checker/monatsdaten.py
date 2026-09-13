@@ -15,7 +15,9 @@ from backend.core.field_definitions import (
     basis_feld_key,
     get_feld_bedarf,
     get_speicher_netzladung_kwh,
+    get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
+    get_wp_warmwasser_kwh,
     groesse_gibt_es_am_geraet,
 )
 from backend.core.berechnungen.erzeuger_traeger import erzeuger_traeger
@@ -1124,6 +1126,8 @@ class MonatsdatenChecks:
             ))
 
         fehlend_strom: list[str] = []
+        fehlend_strom_heizen: list[str] = []
+        fehlend_strom_ww: list[str] = []
         fehlend_heiz: list[str] = []
 
         for (jahr, monat) in erwartete:
@@ -1137,10 +1141,41 @@ class MonatsdatenChecks:
                 # ein Feld zu erwarten, das der Monatsabschluss gar nicht mehr
                 # anbietet — die Klasse, an der N-86 schon einmal hing:
                 # dieselbe Anlage, zwei Flächen, gegenteilige Aussage.
-                if daten.get("strom_heizen_kwh") is None and (
-                    not ww_strom_gibt_es or daten.get("strom_warmwasser_kwh") is None
-                ):
+                heizen_fehlt = daten.get("strom_heizen_kwh") is None
+                ww_fehlt = (
+                    ww_strom_gibt_es and daten.get("strom_warmwasser_kwh") is None
+                )
+                if heizen_fehlt and (ww_fehlt or not ww_strom_gibt_es):
+                    # Die ganze Stromachse ist leer (an einer Klimaanlage: ihre
+                    # einzige Seite) — EINE Meldung, unverändert seit je. Für
+                    # den Anwender ist das EIN Sachverhalt; ihn in zwei Zeilen
+                    # zu zerlegen wäre kein schärferer Hinweis, sondern Lärm.
                     fehlend_strom.append(label)
+                else:
+                    # ⭐ Fehlt nur EINE Seite, während die zugehörige Wärme
+                    # gemessen ist, war hier bis zum 13.09.2026 **nichts** — die
+                    # `and`-Verknüpfung darüber verlangte beide Leerstellen. Der
+                    # Monat bekam statt dessen die OK-Zeile „Monatsdaten
+                    # vollständig", und die Gesamt-Arbeitszahl rechnete die Wärme
+                    # BEIDER Seiten über den Strom EINER (gemessen: Heizwärme
+                    # 1800 + Heizstrom 600 + Warmwasser-Wärme 600 ohne
+                    # Warmwasser-Strom ⇒ 4,0 — plausibel genug, dass auch der
+                    # Plausibilitäts-Prüfer schweigt, dessen Schwelle bei 7,0
+                    # liegt).
+                    #
+                    # ⛔ Die Bedingung hängt an der **Wärme**, nicht an der
+                    # bloßen Anwesenheit des Felds: ein Monat ohne Warmwasser-
+                    # Abgabe braucht keinen Warmwasser-Strom. Sonst meldete eedc
+                    # jeder reinen Heiz-Anlage zwölf Lücken im Jahr — ein
+                    # Hinweis, der keinen Fehler beschreibt.
+                    #
+                    # ⚠ Beide Lesetüren mit dem, was sie brauchen (N-450):
+                    # `get_wp_warmwasser_kwh` filtert mit `param` den Wert weg,
+                    # den eine Klimaanlage gar nicht abgeben kann.
+                    if heizen_fehlt and get_wp_heizenergie_kwh(daten) > 0:
+                        fehlend_strom_heizen.append(label)
+                    if ww_fehlt and get_wp_warmwasser_kwh(daten, param) > 0:
+                        fehlend_strom_ww.append(label)
             else:
                 if daten.get("stromverbrauch_kwh") is None:
                     fehlend_strom.append(label)
@@ -1148,10 +1183,13 @@ class MonatsdatenChecks:
             if heiz_erwartet and daten.get("heizenergie_kwh") is None:
                 fehlend_heiz.append(label)
 
+        def _monate(labels: list[str]) -> str:
+            text = ", ".join(labels[:6])
+            if len(labels) > 6:
+                text += f" (+{len(labels) - 6} weitere)"
+            return text
+
         if fehlend_strom:
-            monate_str = ", ".join(fehlend_strom[:6])
-            if len(fehlend_strom) > 6:
-                monate_str += f" (+{len(fehlend_strom) - 6} weitere)"
             if not getrennte_strommessung:
                 strom_label = "Stromverbrauch"
             elif not ww_strom_gibt_es:
@@ -1161,14 +1199,45 @@ class MonatsdatenChecks:
             ergebnisse.append(CheckErgebnis(
                 kategorie=kat, schwere=CheckSeverity.WARNING,
                 meldung=f"{name}: {strom_label} fehlt in {len(fehlend_strom)} Monat(en)",
-                details=monate_str,
+                details=_monate(fehlend_strom),
                 link=link_monat_erfassen(fehlend_strom[0]),
             ))
 
+        # Je Seite eine Meldung — sie können nebeneinander stehen, ohne dasselbe
+        # zu sagen: die eine nennt die Heiz-, die andere die Warmwasser-Achse,
+        # und ein Monat steht nie in beiden (fehlen beide, greift der Block
+        # darüber). Schwere, Kategorie und Weg sind dieselben wie dort — kein
+        # zweiter Turm, derselbe Melder, geschärft.
+        for labels, seite, waerme_satz in (
+            (fehlend_strom_heizen, "Strom Heizen",
+             "Die Heizwärme dieser Monate ist erfasst, der Strom dafür nicht."),
+            (fehlend_strom_ww, "Strom Warmwasser",
+             "Die Warmwasser-Wärme dieser Monate ist erfasst, der Strom dafür "
+             "nicht."),
+        ):
+            if not labels:
+                continue
+            ergebnisse.append(CheckErgebnis(
+                kategorie=kat, schwere=CheckSeverity.WARNING,
+                meldung=f"{name}: {seite} fehlt in {len(labels)} Monat(en)",
+                details=(
+                    f"{_monate(labels)}. {waerme_satz} eedc bildet jede "
+                    "Arbeitszahl aus abgegebener Wärme ÷ eingesetztem Strom und "
+                    "setzt dafür beide Seiten der getrennten Messung voraus. Die "
+                    "Zeile dieser Funktion sagt es bereits („kein Stromverbrauch "
+                    "erfasst“); die Gesamt-Arbeitszahl kann es nicht sagen — sie "
+                    "rechnet dann mit einem unvollständigen Nenner, also die "
+                    "Wärme beider Seiten über dem Strom einer, und fällt zu hoch "
+                    f"aus. Trage „{seite}“ für diese Monate im Monatsabschluss "
+                    "nach — die Arbeitszahlen stehen danach mit vollständigem "
+                    "Nenner da, ohne dass du sonst etwas tun musst."
+                ),
+                investition_id=inv.id,
+                link=link_monat_erfassen(labels[0]),
+            ))
+
         if fehlend_heiz:
-            monate_str = ", ".join(fehlend_heiz[:6])
-            if len(fehlend_heiz) > 6:
-                monate_str += f" (+{len(fehlend_heiz) - 6} weitere)"
+            monate_str = _monate(fehlend_heiz)
             ergebnisse.append(CheckErgebnis(
                 kategorie=kat, schwere=CheckSeverity.INFO,
                 meldung=f"{name}: Heizwärme fehlt in {len(fehlend_heiz)} Monat(en)",
@@ -1182,7 +1251,11 @@ class MonatsdatenChecks:
         # in `_check_werte_in_nicht_gefuehrten_feldern` (N-393) — aufgerufen aus
         # `stammdaten.py` im Block „Allgemeine Prüfungen für alle Typen".
 
-        if not fehlend_strom and not fehlend_heiz:
+        # ⛔ Die beiden Seiten-Listen gehören hier dazu. Vor dem 13.09.2026 bekam
+        # ein Monat, dem genau eine Stromseite fehlte, nicht nur keine Warnung —
+        # er bekam diese OK-Zeile, also eine ausdrückliche Zusage „vollständig".
+        if not (fehlend_strom or fehlend_strom_heizen
+                or fehlend_strom_ww or fehlend_heiz):
             ergebnisse.append(CheckErgebnis(
                 kategorie=kat, schwere=CheckSeverity.OK,
                 meldung=f"{name}: Monatsdaten vollständig ({len(erwartete)} Monate)",

@@ -231,6 +231,8 @@ Am Gerät gibt es den Schalter **„Getrennte Strommessung"**.
 - **Ein**: Du ordnest **zwei** zu — *Strom Heizen* und *Strom Warmwasser*. Der Gesamtverbrauch ist dann die Summe; ein zusätzlicher Gesamtzähler wird nicht mehr erwartet.
 
 > ⚠ **Der Schalter ist eine Zusage, kein Wunsch.** Steht er auf *ein* und du ordnest die beiden Zähler nicht zu, hat das Gerät **keinen** Stromverbrauch — nicht nur keine getrennte Aufteilung. Genau daran ist ein Tester hängen geblieben: Er hatte einen Gesamtzähler, den Schalter aber eingeschaltet; der Block *Wärme/Klima* fehlte daraufhin in der Tagesansicht komplett. **Ausschalten hat es gelöst.**
+>
+> ⭐ **Die Zusage gilt je Seite, und der Daten-Checker nennt jede fehlende einzeln.** Fehlt in einem Monat nur *Strom Warmwasser*, während die Warmwasser-Wärme dieses Monats erfasst ist, meldet er *„Strom Warmwasser fehlt in n Monat(en)"* — und umgekehrt für die Heiz-Seite. Der Grund: eedc bildet jede Arbeitszahl aus **abgegebener Wärme ÷ eingesetztem Strom**. Fehlt eine Stromseite, sperrt die Zeile **dieser Funktion** korrekt mit *„kein Stromverbrauch erfasst"* — die **Gesamt**-Arbeitszahl kann das nicht, sie rechnet dann die Wärme beider Seiten über den Strom einer und fällt zu hoch aus. **Der Handgriff:** den Wert für die genannten Monate im Monatsabschluss nachtragen. ⚑ Ein Monat **ohne** Betrieb auf einer Seite ist keine Lücke — wer im Sommer nicht heizt, bekommt keine Meldung zum Heizstrom.
 
 ### Schritt 3 — Die Wärme zuordnen (oder bewusst darauf verzichten)
 
