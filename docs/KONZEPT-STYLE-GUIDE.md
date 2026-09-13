@@ -178,6 +178,26 @@ Diese Abschnitte definieren das gemeinsame Fundament, auf dem alle Komponenten i
 
 ---
 
+### A3a — Eine Sicht zeigt EINE Periode (Entscheid Gernot, 13.09.2026)
+
+> ⭐ **Die Regel in einem Satz:** *Eine periodengebundene Sicht zeigt immer genau eine Periode — die **Nutzlast** trägt ihren Zeitraum, und die Sicht beschriftet sich aus der Nutzlast, nicht aus der Auswahl.*
+
+**Begründet an der Kategorie, nicht am Beispiel.** Sobald eine Sicht **zwei** periodengebundene Größen hat — zwei Abfragen, oder eine Abfrage plus eine Client-Ableitung aus einer immer geladenen Liste —, gibt es einen Zeitraum, in dem sie verschiedenen Perioden angehören. Ohne eine gemeinsame Marke steht dann die eine Periode über der anderen, **und zwar in beiden Auflösungs-Reihenfolgen**: Antwortet die Nebenquelle zuerst, steht die neue Periode unter alten Kacheln; antwortet sie später, steht die alte Nebenquelle unter neuen Kacheln. `keepPreviousData` allein löst das **nicht** — es hält die Hälften stehen, es ordnet sie einander nicht zu.
+
+Daraus die drei Klauseln:
+
+| Klausel | Regel |
+| --- | --- |
+| **Marke** | Jede periodengebundene Nutzlast trägt ihren Zeitraum (`datum` · `{jahr, monat}` · `jahr` · Fenster-Objekt) — auch die eines Hooks. |
+| **Paarung** | Eine Nebengröße wird nur angezeigt, wenn ihr Zeitraum der der Leitgröße ist. Sonst gilt sie als „noch nicht da" und ihr Element entfällt — **kein** neuer Ladezustand, die bestehende Leer-Bauform des Blocks. |
+| **Beschriftung** | Überschrift, Zustands-Badge, Perioden-Namen, Datei-Namen und Reparatur-Ziele hängen an der **angezeigten** Periode; die Auswahl steht daneben als Lade-Marker (`lädt <Periode> …`, A3-Token `…`). Rail und Stepper folgen weiter der **Auswahl** — ein Klick muss sofort wirken. |
+
+**Gebaute Belege** (13.09.2026): *Cockpit → Tag* (`v4/CockpitTagV4.tsx`, Proben `v4/CockpitTagEinTag.test.tsx`) · *Cockpit → Monat* (`v4/CockpitMonatV4.tsx`, `v4/CockpitMonatEinePeriode.test.tsx`) · *Cockpit → Jahr* (`v4/CockpitJahrV4.tsx`, `v4/CockpitJahrEinePeriode.test.tsx`) · Zählerstände als geteilte Nebenquelle aller drei (`components/zaehler/ZaehlerstaendeBlock.tsx`: `ZaehlerAntwort` trägt ihr Fenster, `zaehlerstaendeFuer` paart). Der Lade-Marker ist in allen drei Köpfen dieselbe Badge-Klasse (`PROVENANZ_BADGE`) als Prop am bestehenden Kopf — keine zweite Komponente.
+
+> ⛔ **Maschinelles Gegenstück: keines — und das ist die Entscheidung.** Ein Wächter müsste Abfragen, ihre Abhängigkeiten und die Render-Wege der abgeleiteten Werte miteinander verknüpfen, um „periodengebunden" überhaupt zu erkennen; das ist unverhältnismäßig gegenüber dem, was er fängt. Getragen wird die Regel von den **Proben je Sicht** (vier bzw. sechs Klauseln, alle mit Sprengsatz gegengeprüft). Wer eine vierte periodengebundene Sicht baut, schreibt die vier Klauseln mit.
+
+---
+
 ### A4 — Animation + Übergänge
 
 > **Animiert:** Wert-Änderungen (Zahlen-Tween), Hover-Highlights, State-Toggles.

@@ -11,6 +11,27 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Cockpit zeigt beim Blättern nur noch eine Periode**
+
+**Betrifft dich das?** Jeden, der in *Cockpit → Tag*, *Monat* oder *Jahr* von
+einem Zeitraum zum nächsten blättert.
+
+**Was war:** Jede dieser Sichten holt ihre Zahlen in mehreren Abrufen — und sie
+kommen nicht gemeinsam an. Für einen Moment stand deshalb der Wärme/Klima-Verlauf
+des neuen Tages unter den Kacheln des alten, im Monat die Auswertung des einen
+über den Mengen des anderen, und im Jahr sprangen CO₂-Kurve und Monatsbalken
+sogar ganz ohne Ladezeit auf das neue Jahr. Die Überschrift wechselte dabei jedes
+Mal sofort, obwohl die Zahlen darunter noch zum vorigen Zeitraum gehörten.
+
+**Was jetzt gilt:** Jede Sicht zeigt genau einen Zeitraum. Solange der gewählte
+lädt, bleibt der bisherige **vollständig** stehen — mit seinem Verlauf, seiner
+Auswertung und seinen Zählerständen, statt mit Lücken —, und die Überschrift nennt
+ihn beim Namen; daneben steht *„lädt Feb 2025 …"* für das, worauf umgestellt wird.
+Sind die neuen Zahlen da, wechselt alles auf einmal. Zeitstrahl und Stepper
+reagieren unverändert sofort auf den Klick, und keine einzige Zahl ändert sich.
+
+---
+
 **Die ⓘ-Tooltips zeigen jetzt die Zahlen, mit denen gerechnet wurde**
 
 **Betrifft dich das?** Jeden, der an einer Kennzahl das kleine ⓘ öffnet — in
