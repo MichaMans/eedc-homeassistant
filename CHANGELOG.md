@@ -123,6 +123,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 - **Das Add-on-Volume-Mapping folgt der aktuellen Home-Assistant-Schreibweise.** Der Supervisor meldet die bisherige Kurzform `config:ro` seit HA 2023.10 als veraltet — aufgefallen, als zum ersten Mal ein echter Supervisor unsere Add-on-Konfiguration eingelesen hat. Das Add-on deklariert jetzt `homeassistant_config` und hängt es ausdrücklich unter `/config` ein. ⭐ **Der ausdrückliche Pfad ist der eigentliche Punkt:** Unter dem neuen Namen allein läge das Home-Assistant-Konfigurationsverzeichnis nach `/homeassistant`, während eedc an zwei Stellen unter `/config` sucht — die **Recorder-Datenbank** (der schnelle Weg zur Langzeitstatistik) und die **Energie-Konfiguration** (die Vorschläge im Einrichtungsassistenten, #197). Die Statistik wäre still auf den langsameren Weg gefallen, die Vorschläge ersatzlos ausgefallen. ⚠ **Für dich ändert sich nichts** — der Container sieht exakt dasselbe Verzeichnis wie zuvor, kein Zugriff kommt hinzu, keine Neuinstallation ist nötig.
 
+- **Intern — die Tages-Kilowattstunden des MQTT-Betriebs lesen über die Sitzung, die der Aufruf schon hält.** `mqtt_energy_history_service.get_tages_kwh` und seine zwei Snapshot-Helfer öffneten je eine eigene Datenbank-Verbindung, obwohl *Cockpit → Live* seine Sitzung bis dorthin durchreicht. **Es ändert sich keine Zahl und keine Anzeige** — es ist dieselbe Bauform, die nach v4.0.40 die Testläufe rot gemacht hat, an der nächsten Stelle beseitigt, und der Weg ist jetzt zum ersten Mal durch Proben gedeckt.
+
 ---
 
 ## [4.0.44] - 2026-09-09 — Eine halbe Prognose ist keine Prognose — und die Ersparnis nennt ihre Alternative beim Namen

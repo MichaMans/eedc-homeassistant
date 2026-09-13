@@ -571,9 +571,16 @@ async def safe_get_tages_kwh(
             logger.warning(f"Fehler bei {label}-kWh Berechnung (HA): {type(e).__name__}: {e}")
 
     # 2. Fallback: MQTT Energy Snapshots
+    #
+    # ⛔ **Die eigene Sitzung wird durchgereicht** (N-400, 13.09.2026). Bis dahin
+    # öffnete der MQTT-Zweig darunter je eine EIGENE Sitzung auf der App-Datenbank,
+    # obwohl diese Funktion `db` von `Depends(get_db)` an hält — dieselbe Bauform,
+    # die nach v4.0.40 den Tests-Workflow rot gemacht hat (N-399). ⚠ Und sie fiele
+    # hier besonders leise aus: das `except Exception` unten macht aus jedem Fehler
+    # ein `logger.debug` und ein leeres Ergebnis.
     try:
         from backend.services.mqtt_energy_history_service import get_tages_kwh as mqtt_get_tages_kwh
-        result = await mqtt_get_tages_kwh(anlage.id, tage_zurueck, inv_types=inv_types)
+        result = await mqtt_get_tages_kwh(anlage.id, db, tage_zurueck, inv_types=inv_types)
         if result:
             if tage_zurueck == 0:
                 kwh_cache.set_heute(anlage.id, result)

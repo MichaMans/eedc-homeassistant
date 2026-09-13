@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.berechnungen import summe_pv_bkw_kwh
 from backend.core.database import get_session
@@ -128,7 +129,7 @@ async def cleanup_old_snapshots(retention_days: int = 31) -> int:
 
 
 async def get_tages_kwh(
-    anlage_id: int, tage_zurueck: int = 0,
+    anlage_id: int, db: AsyncSession, tage_zurueck: int = 0,
     inv_types: dict[str, str] | None = None,
 ) -> dict[str, Optional[float]]:
     """
@@ -138,7 +139,28 @@ async def get_tages_kwh(
       heute (0):   current_cache_value - snapshot_midnight_today
       gestern (1): snapshot_midnight_today - snapshot_midnight_yesterday
 
+    ⛔ **`db` ist Pflicht — dieser Weg liegt auf dem Anfragepfad** (N-400, 13.09.2026).
+    Bis dahin öffneten diese Funktion und ihre zwei Snapshot-Helfer je eine eigene
+    Sitzung über ``get_session()``, obwohl der einzige Aufrufer
+    (``live_history_service.safe_get_tages_kwh``) seine Sitzung von ``Depends(get_db)``
+    bis hierher durchreicht — Cockpit → Live, zweimal je Abruf (heute + gestern).
+    Das ist Wort für Wort die Lage, die nach v4.0.40 den Tests-Workflow rot gemacht
+    hat (**N-399**, ``cb216e8a``): eine zweite Verbindung auf die *App*-Datenbank,
+    lokal grün, weil ``data/eedc.db`` die Tabelle hat, und auf dem CI-Runner
+    ``no such table: mqtt_energy_snapshots``.
+
+    ⚠ **Kein optionales ``db=None`` mit stillem Rückfall auf ``get_session()``** —
+    genau dieser Rückfall wäre die Drift-Quelle, die N-399 benennt: er sieht an jeder
+    Aufrufstelle richtig aus und öffnet doch wieder die zweite Verbindung, sobald
+    jemand das Argument vergisst. Wer keine Sitzung hat, hat hier nichts zu suchen.
+
+    ⚠ ``snapshot_energy_cache`` und ``cleanup_old_snapshots`` in derselben Datei
+    öffnen weiterhin ihre eigene Sitzung — **richtig so**: sie laufen als
+    Scheduler-Jobs ohne Sitzung von außen (die 26 von 29 Stellen aus der
+    N-399-Erhebung).
+
     Args:
+        db: Async-Session (der Aufrufer hält sie bereits).
         inv_types: {inv_id: typ} für Key-Translation (inv/14/... → pv_14 etc.)
 
     Returns:
@@ -156,10 +178,10 @@ async def get_tages_kwh(
         current = mqtt_svc.cache.get_energy_data(anlage_id)
         if not current:
             return {}
-        midnight_snap = await _get_closest_snapshot(anlage_id, today_midnight)
+        midnight_snap = await _get_closest_snapshot(anlage_id, db, today_midnight)
         if not midnight_snap:
             # Fallback: frühester Snapshot von heute (erster Tag nach Einrichtung)
-            midnight_snap = await _get_earliest_snapshot_after(anlage_id, today_midnight)
+            midnight_snap = await _get_earliest_snapshot_after(anlage_id, db, today_midnight)
         if not midnight_snap:
             return {}
         return _compute_deltas(current, midnight_snap, inv_types)
@@ -168,92 +190,93 @@ async def get_tages_kwh(
         # Gestern (oder weiter zurück)
         target_midnight = today_midnight - timedelta(days=tage_zurueck - 1)
         prev_midnight = target_midnight - timedelta(days=1)
-        end_snap = await _get_closest_snapshot(anlage_id, target_midnight)
-        start_snap = await _get_closest_snapshot(anlage_id, prev_midnight)
+        end_snap = await _get_closest_snapshot(anlage_id, db, target_midnight)
+        start_snap = await _get_closest_snapshot(anlage_id, db, prev_midnight)
         if not end_snap or not start_snap:
             return {}
         return _compute_deltas(end_snap, start_snap, inv_types)
 
 
 async def _get_closest_snapshot(
-    anlage_id: int, target: datetime, window_minutes: int = 10
+    anlage_id: int, db: AsyncSession, target: datetime, window_minutes: int = 10
 ) -> Optional[dict[str, float]]:
     """
     Findet den Snapshot am nächsten zum Zielzeitpunkt.
 
     Sucht in einem ±window_minutes Fenster um target.
+    Liest über die **übergebene** Sitzung — Begründung im Docstring von
+    ``get_tages_kwh`` (N-400).
     Returns: {energy_key: value_kwh} oder None.
     """
     window_start = target - timedelta(minutes=window_minutes)
     window_end = target + timedelta(minutes=window_minutes)
 
-    async with get_session() as session:
-        # Finde den Timestamp am nächsten zum Ziel
-        ts_result = await session.execute(
-            select(MqttEnergySnapshot.timestamp)
-            .where(
-                MqttEnergySnapshot.anlage_id == anlage_id,
-                MqttEnergySnapshot.timestamp >= window_start,
-                MqttEnergySnapshot.timestamp <= window_end,
-            )
-            .order_by(
-                func.abs(
-                    func.julianday(MqttEnergySnapshot.timestamp)
-                    - func.julianday(target)
-                )
-            )
-            .limit(1)
+    # Finde den Timestamp am nächsten zum Ziel
+    ts_result = await db.execute(
+        select(MqttEnergySnapshot.timestamp)
+        .where(
+            MqttEnergySnapshot.anlage_id == anlage_id,
+            MqttEnergySnapshot.timestamp >= window_start,
+            MqttEnergySnapshot.timestamp <= window_end,
         )
-        closest_ts = ts_result.scalar_one_or_none()
-        if closest_ts is None:
-            return None
+        .order_by(
+            func.abs(
+                func.julianday(MqttEnergySnapshot.timestamp)
+                - func.julianday(target)
+            )
+        )
+        .limit(1)
+    )
+    closest_ts = ts_result.scalar_one_or_none()
+    if closest_ts is None:
+        return None
 
-        # Alle Keys für diesen Timestamp holen
-        rows = await session.execute(
-            select(
-                MqttEnergySnapshot.energy_key,
-                MqttEnergySnapshot.value_kwh,
-            ).where(
-                MqttEnergySnapshot.anlage_id == anlage_id,
-                MqttEnergySnapshot.timestamp == closest_ts,
-            )
+    # Alle Keys für diesen Timestamp holen
+    rows = await db.execute(
+        select(
+            MqttEnergySnapshot.energy_key,
+            MqttEnergySnapshot.value_kwh,
+        ).where(
+            MqttEnergySnapshot.anlage_id == anlage_id,
+            MqttEnergySnapshot.timestamp == closest_ts,
         )
-        return {row[0]: row[1] for row in rows.all()}
+    )
+    return {row[0]: row[1] for row in rows.all()}
 
 
 async def _get_earliest_snapshot_after(
-    anlage_id: int, after: datetime
+    anlage_id: int, db: AsyncSession, after: datetime
 ) -> Optional[dict[str, float]]:
     """
     Findet den frühesten Snapshot nach einem Zeitpunkt.
 
     Fallback für den ersten Tag nach Einrichtung, wenn kein
-    Mitternacht-Snapshot existiert.
+    Mitternacht-Snapshot existiert. Liest über die **übergebene** Sitzung —
+    Begründung im Docstring von ``get_tages_kwh`` (N-400).
     """
-    async with get_session() as session:
-        ts_result = await session.execute(
-            select(MqttEnergySnapshot.timestamp)
-            .where(
-                MqttEnergySnapshot.anlage_id == anlage_id,
-                MqttEnergySnapshot.timestamp >= after,
-            )
-            .order_by(MqttEnergySnapshot.timestamp.asc())
-            .limit(1)
+    ts_result = await db.execute(
+        select(MqttEnergySnapshot.timestamp)
+        .where(
+            MqttEnergySnapshot.anlage_id == anlage_id,
+            MqttEnergySnapshot.timestamp >= after,
         )
-        earliest_ts = ts_result.scalar_one_or_none()
-        if earliest_ts is None:
-            return None
+        .order_by(MqttEnergySnapshot.timestamp.asc())
+        .limit(1)
+    )
+    earliest_ts = ts_result.scalar_one_or_none()
+    if earliest_ts is None:
+        return None
 
-        rows = await session.execute(
-            select(
-                MqttEnergySnapshot.energy_key,
-                MqttEnergySnapshot.value_kwh,
-            ).where(
-                MqttEnergySnapshot.anlage_id == anlage_id,
-                MqttEnergySnapshot.timestamp == earliest_ts,
-            )
+    rows = await db.execute(
+        select(
+            MqttEnergySnapshot.energy_key,
+            MqttEnergySnapshot.value_kwh,
+        ).where(
+            MqttEnergySnapshot.anlage_id == anlage_id,
+            MqttEnergySnapshot.timestamp == earliest_ts,
         )
-        return {row[0]: row[1] for row in rows.all()}
+    )
+    return {row[0]: row[1] for row in rows.all()}
 
 
 def _compute_deltas(
