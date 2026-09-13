@@ -11,6 +11,112 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Datenquellen: bei getrennter Strommessung heißt das zweite Stromfeld wieder „Pflicht"**
+
+**Betrifft dich das?** Nur, wenn du an einer Wärmepumpe die **getrennte
+Strommessung** eingeschaltet hast — oder zwei Geräte desselben Typs führst
+(zwei Wärmepumpen, zwei PV-Strings).
+
+**Was war:** Sobald eines der beiden Stromfelder zugeordnet war, stand unter
+*Einstellungen → Datenquellen* am anderen *„Der WP-Stromverbrauch ist bereits
+zugeordnet — hier ist nichts einzutragen"*, während der Daten-Checker unter
+*Einstellungen → Daten* für genau dieses Feld warnte. Bei zwei Geräten desselben
+Typs deckte ein Zähler an Gerät A die Lücke an Gerät B zu.
+
+**Was jetzt gilt:** Die Zuordnungs-Fläche urteilt je Gerät. Bei getrennter
+Strommessung sind *Strom Heizen* und *Strom Warmwasser* beide Pflicht — dieselbe
+Aussage wie der Daten-Checker daneben, der jetzt auch die Zuordnung als Weg
+nennt. **Keine Zahl ändert sich.**
+
+**Was du tun musst:** Nichts. Wer die Lücke jetzt zum ersten Mal sieht, ordnet
+den fehlenden Zähler zu.
+
+---
+
+**Die fehlende Ø Temperatur der letzten Monate holt jetzt ein Knopf nach**
+
+**Betrifft dich das?** Jeden, der zwischen Juli und September 2026 Monate
+abgeschlossen hat.
+
+**Was war:** In dieser Zeit füllte eedc das Feld *„Ø Temperatur"* im
+Monatsabschluss nicht automatisch — der Automatismus war beim
+Oberflächen-Wechsel verloren gegangen. Er ist zurück, wirkt aber nur nach vorn:
+Die Monate dazwischen stehen leer, und du hättest jeden einzelnen öffnen müssen.
+
+**Was jetzt gilt:** Unter *Einstellungen → Daten → Daten-Checker* steht eine
+neue Zeile **„Wetterwerte – fehlende Monatswerte"**. Sie nennt, wie viele
+Monate leer sind und für wie viele davon deine **eigenen** Temperatur-Messwerte
+zurückreichen — und trägt genau diese auf Knopfdruck nach. Ein von Hand
+eingetragener Wert bleibt dabei immer stehen. Für die übrigen Monate öffnest du
+den Monat und drückst *„Wetterdaten holen"*; einen Sammel-Knopf dafür gibt es
+bewusst nicht, denn das wäre ein Abruf im Internet je Monat.
+
+**Was sich dadurch NICHT ändert:** keine Zahl in deinen Auswertungen. Die
+Außentemperatur-Linie und der Vergleich *kWh je Heizgradtag* lesen deine
+Tagesreihe, nicht dieses Feld.
+
+---
+
+**Der Stundenverlauf steht nicht mehr über seiner eigenen Erzeugungslinie**
+
+**Betrifft dich das?** Nur, wenn du **beides** hast: eigene Ertragssensoren an
+deinen PV-Strings **und** einen Zähler für die Anlagen-PV.
+
+**Was war:** In *Cockpit → Tag* zeigt der Stundenverlauf deine PV-Fläche nach
+Strings aufgeteilt. Melden die String-Sensoren einer Stunde zusammen mehr, als
+der Anlagenzähler hergibt, ragte der Stapel über die Gesamterzeugungs-Linie
+hinaus — du hast dort mehr String-Leistung gelesen, als die Anlage geliefert hat.
+
+**Was jetzt gilt:** Der Zähler sagt, **wie viel** es war, die String-Sensoren
+sagen, **wie es sich verteilt**. Liegt ihre Summe darüber, werden die Flächen
+proportional auf die gemessene Anlagen-PV gestaucht; ihr Größenverhältnis
+untereinander bleibt dabei genau so, wie es gemessen wurde. In der
+Gegenrichtung wird nichts gestreckt — was die Strings nicht erklären, steht
+weiterhin als *„PV (übrige)"* da. **Deine Energiebilanz ändert sich nicht**, nur
+das Bild stimmt wieder.
+
+---
+
+**Die Angabe „Fremdanteil auf den Zählern" nennt nicht mehr nur den Heizstab**
+
+**Betrifft dich das?** Jeden, bei dem außer der Wärmepumpe noch etwas anderes am
+selben Stromzähler hängt — eine Klimaanlage, ein Pool-Heizer, ein Heizstab.
+
+**Was war:** Es ist die einzige Angabe, mit der du eedc sagen kannst, dass der
+Stromzähler mehr misst als die Wärmepumpe. Sie hieß aber *„Heizstab-Strom liegt
+mit auf dem Stromzähler"* — wer keinen Heizstab hat, suchte unter diesem Namen
+und fand seinen Fall nicht. Die Folge: Die Angabe blieb auf *„Kein Fremdanteil"*
+stehen, und die Arbeitszahl mischte weiter zwei Geräte in einen Quotienten.
+
+**Was jetzt gilt:** Die Option heißt *„Ein weiterer Verbraucher liegt mit auf
+dem Stromzähler (z. B. Heizstab)"*, und derselbe Satz steht als Grund neben der
+leeren Arbeitszahl-Kachel. Das
+[Handbuch Wärme & Klima](HANDBUCH_WAERME_KLIMA.md) zieht mit. **Es ändert sich
+keine Zahl und keine gespeicherte Angabe** — wer den Heizstab schon eingetragen
+hat, muss nichts tun.
+
+---
+
+**Die Finanzprognose kennt den PV-Anteil deiner Wärmepumpe — auch bei zwei Geräten**
+
+**Betrifft dich das?** Nur, wenn du die Prognose-Schnittstelle
+(`/api/aussichten/finanzen/…`) **direkt** abfragst, etwa für ein eigenes
+Dashboard. **In der App ändert sich nichts** — die betroffenen Felder zeigt
+keine Sicht an.
+
+**Was war:** In der Antwort standen für den PV-Anteil des Wärmepumpen-Stroms
+zwei feste 50 %, obwohl du den Anteil am Gerät pflegen kannst. Und die Liste
+*Komponenten-Beiträge* schrieb bei zwei Wärmepumpen zweimal denselben vollen
+Betrag hinein — auch die Ersparnis gegenüber Gas oder Öl, sogar für ein Gerät
+im Neubau, das gar nichts ersetzt hat.
+
+**Was jetzt gilt:** Jedes Gerät bekommt seinen eigenen Beitrag — aus seinem
+gepflegten PV-Anteil und seinem gemessenen Stromanteil, die Gas-Ersparnis
+anteilig nach seiner Wärmemenge und nur, wenn es wirklich etwas ersetzt hat.
+Die Summe der Gerätebeiträge ist genau der Anlagenwert.
+
+---
+
 **Das Handbuch *Wärme & Klima* nennt jetzt seine Grenzen**
 
 **Betrifft dich das?** Jeden mit Wärmepumpe oder Klimaanlage, dem schon einmal

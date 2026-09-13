@@ -107,6 +107,16 @@ const WP_ART_OPTIONEN = [
 // (T89667 #249), gegen eine Auskunft, die genau in diese Lage riet.
 // ⚠ Wer hier „aufräumt", nimmt einem Anwender die Wiedererkennung:
 // `test_soll_waerme_klima_achse3_aufloesung.py` meldet es.
+//
+// ⭐ **`fremdstrom` nennt seit dem 13.09.2026 die KLASSE, nicht das Beispiel
+// (N-371).** Bis dahin hieß die Option „Heizstab-Strom liegt mit auf dem
+// Stromzähler" — wer eine **Klimaanlage** oder einen Pool-Heizer auf demselben
+// Zähler hat, suchte unter „Heizstab" und fand seinen Fall nicht. Es ist die
+// einzige Angabe, mit der ein Anwender eedc sagen kann, dass sein WP-Zähler
+// mehr misst als die Wärmepumpe; sie muss deshalb jede Lage benennen, nicht
+// die häufigste. Der gespeicherte Wert bleibt `fremdstrom` — eine Beschriftung
+// braucht keine Migration —, und der Heizstab bleibt als **Beispiel** darin
+// stehen, weil der Prüfer oben genau das hält (beide Lagen nennen ihn).
 const ABGRENZUNG_OPTIONEN = [
   {
     value: '',
@@ -115,7 +125,7 @@ const ABGRENZUNG_OPTIONEN = [
   },
   {
     value: 'fremdstrom',
-    label: 'Heizstab-Strom liegt mit auf dem Stromzähler',
+    label: 'Ein weiterer Verbraucher liegt mit auf dem Stromzähler (z. B. Heizstab)',
     description: 'Seine Wärme läuft NICHT über den Wärmemengenzähler. Der Stromwert enthält dann '
       + 'mehr, als die gemessene Wärme abdeckt — die Mengen bleiben richtig, die Arbeitszahl entfällt.',
   },

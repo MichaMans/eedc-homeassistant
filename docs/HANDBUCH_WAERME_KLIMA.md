@@ -163,7 +163,7 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 | **Wärme und Strom stammen aus verschiedenen Monaten** | Dieselbe Störung über die **Zeit** statt über die Geräte: Ein Monat trägt Wärme ohne Strom, ein anderer trägt Strom — die Jahressumme nimmt beide mit. Typisch, wenn der Stromzähler erst mitten im Jahr in Betrieb ging. | die fehlenden Monatswerte nachpflegen — oder einen Zeitraum wählen, in dem beide Seiten gemessen sind |
 | **Nutzenergie und Strom dieser Funktion stammen von verschiedenen Geräten** | Wie zwei Zeilen darüber, aber für **eine** Arbeitszahl (*Heizen*, *Warmwasser* oder *Kühlen*): Genau diese Funktion mischt Geräte, die übrigen Zahlen dürfen bleiben. Beim Kühlen ist die Nutzenergie die **Kälte**menge — deshalb nicht „Wärme". | getrennte Strommessung am zweiten Gerät einschalten und zuordnen, wenn es sie gibt |
 | **Nutzenergie und Strom dieser Funktion stammen aus verschiedenen Monaten** | Dieselbe Lage je Funktion, über die Zeit statt über die Geräte. Bei nur **einem** Gerät ist das die zutreffende Auskunft — von „Geräten" zu sprechen wäre dort falsch. | die fehlenden Monatswerte nachpflegen |
-| **Heizstab-Strom auf dem WP-Zähler** | Deine eigene Angabe im Feld *Fremdanteil auf den Zählern*. Der Stromwert ist zu groß. | Angabe korrigieren, wenn sie nicht mehr stimmt |
+| **Ein weiterer Verbraucher auf dem WP-Zähler (z. B. Heizstab)** | Deine eigene Angabe im Feld *Fremdanteil auf den Zählern*. Der Stromwert ist zu groß. | Angabe korrigieren, wenn sie nicht mehr stimmt |
 | **zweiter Erzeuger am Wärmezähler** | Dieselbe Angabe, andere Richtung: Ein zweiter Erzeuger speist denselben Heizkreis — ein Gas- oder Ölkessel, oder ein **elektrischer Heizstab, dessen Strom getrennt gezählt wird**. Der Wärmewert ist zu groß. | dito Ersparnis und CO₂ bleiben stehen, tragen aber den Vorbehalt *„zweiter Erzeuger am Wärmezähler — Ersparnis und CO₂ enthalten dessen Wärme"*: eedc kennt den Anteil des zweiten Erzeugers nicht und rechnet ihn nicht heraus. |
 | **Zähler messen verschiedene Zeiträume** | Strom und Wärme stammen aus verschieden langen Messzeiträumen. | Lücken im Monatsabschluss schließen |
 | **Strom nicht getrennt je Funktion gemessen** | Betrifft nur die Arbeitszahlen *Heizen* und *Warmwasser*. Ein Betriebsmodus-Sensor ersetzt die getrennte Messung hier **nicht** — siehe den Kasten unter dieser Tabelle. | getrennte Strommessung einschalten und zuordnen |
@@ -213,7 +213,8 @@ Sie beantworten die Frage „Warum ist der Tag leer, obwohl der Monat gefüllt i
 
 Zwei Lagen machen jede Arbeitszahl unbrauchbar, **ohne dass man es den Zahlen ansieht**:
 
-1. Der **Heizstab hängt am Stromzähler** der Wärmepumpe, seine Wärme läuft aber nicht über den Wärmemengenzähler. ⇒ Der Stromwert ist zu groß, die Arbeitszahl zu klein.
+1. Ein **weiterer Verbraucher hängt am Stromzähler** der Wärmepumpe, seine Wärme läuft aber nicht über den Wärmemengenzähler. ⇒ Der Stromwert ist zu groß, die Arbeitszahl zu klein.
+   Typisch ist der **Heizstab** — es gilt aber genauso für eine **Klimaanlage**, einen Pool-Heizer oder jeden anderen Verbraucher hinter demselben Zähler.
 2. Ein **zweiter Erzeuger speist denselben Heizkreis**, den der Wärmemengenzähler misst; der Stromzähler erfasst nur die Wärmepumpe. ⇒ Der Wärmewert ist zu groß, die Arbeitszahl zu gut.
    Das ist der Gas- oder Ölkessel im bivalenten Betrieb — **und ebenso ein elektrischer Heizstab, dessen Wärme durch denselben Wärmemengenzähler läuft, während sein Strom getrennt gezählt wird.** Bei vielen Geräten (Daikin, Nibe) ist genau das die Werkseinstellung.
 

@@ -615,14 +615,14 @@ describe('KOMPONENTEN_ADAPTER — spezifische Blöcke (Inc. 3b)', () => {
       investition: inv({ typ: 'waermepumpe' }),
       zusammenfassung: { durchschnitt_cop: 3.8, gesamt_waerme_kwh: 100, gesamt_stromverbrauch_kwh: 30,
         gesamt_heizenergie_kwh: 80, gesamt_warmwasser_kwh: 20, ersparnis_euro: 100,
-        jaz_heizen: null, jaz_heizen_grund: 'Heizstab-Strom auf dem WP-Zähler',
-        jaz_warmwasser: null, jaz_warmwasser_grund: 'Heizstab-Strom auf dem WP-Zähler' },
+        jaz_heizen: null, jaz_heizen_grund: 'Ein weiterer Verbraucher auf dem WP-Zähler (z. B. Heizstab)',
+        jaz_warmwasser: null, jaz_warmwasser_grund: 'Ein weiterer Verbraucher auf dem WP-Zähler (z. B. Heizstab)' },
       monatsdaten: [],
     }])
     const [g] = await KOMPONENTEN_ADAPTER.waermepumpe.fetch(1)
     expect(titles(g.sekundaer!.kpis)).toEqual(['JAZ Heizen', 'JAZ Warmwasser'])
     expect(g.sekundaer!.kpis[0].value).toBe('—')
-    expect(g.sekundaer!.kpis[0].subtitle).toBe('Heizstab-Strom auf dem WP-Zähler')
+    expect(g.sekundaer!.kpis[0].subtitle).toBe('Ein weiterer Verbraucher auf dem WP-Zähler (z. B. Heizstab)')
   })
 
   it('WP B3/H-2: geschätzte Wärme trägt ihre Herkunft, Ersparnis und CO₂ den Vorbehalt', async () => {

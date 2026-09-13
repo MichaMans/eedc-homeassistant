@@ -206,13 +206,21 @@ MODUS_STROM_FELD: Final[dict[str, str]] = {
 # Tarife baut, hat vier Zahlen. `AUFGETEILTE_MODI` bleibt davon **unberührt** —
 # die abgeleitete Aufteilung ändert sich nicht.
 #
-# Ausgeschrieben statt generiert, aus demselben Grund wie oben (Grep-Barkeit);
+# Ausgeschrieben statt generiert, aus demselben Grund wie oben (Grep-Barkeit).
+#
 # ⛔ **Hier stand bis 2026-08-29: „`test_263_betriebsart_felder.py` hält beide
-# Tabellen gegen den Kanon." Die Datei existiert nicht, und gemessen hält
-# KEINE Probe diese beiden Tabellen gegen `BETRIEBSMODUS_KANON`** — anders als
-# `MODUS_STROM_FELD`, für das `test_263_k2_modus_split.py::
-# test_feldnamen_folgen_dem_kanon` genau das leistet. Eine fünfte Betriebsart
-# im Kanon bekäme hier still kein Feld. Als Fund geführt, nicht als Auslassung.
+# Tabellen gegen den Kanon." Die Datei existiert nicht** — und bis zum
+# 13.09.2026 hielt auch sonst **keine** Probe diese Tabellen gegen eine
+# Kanon-Menge (N-347).
+#
+# ⭐ **Seit dem 13.09.2026 tun es vier Proben**, alle in
+# `test_263_k2_modus_split.py` neben der Nachbar-Probe für `MODUS_STROM_FELD`:
+# `test_die_betriebsart_tabellen_folgen_den_messbaren_modi` (Referenzmenge ist
+# **`MESSBARE_MODI`**, nicht `AUFGETEILTE_MODI` — s. dort) ·
+# `test_die_betriebsart_feldnamen_folgen_ihrer_konvention` ·
+# `test_jeder_kanon_wert_ist_eingeordnet` (eine fünfte Betriebsart im Kanon
+# muss entweder einen Zähler bekommen oder mit Grund ausgeschlossen werden) ·
+# `test_die_beiden_mengen_bleiben_verschieden_und_das_ist_die_aussage`.
 
 #: Betriebsarten, für die eedc einen eigenen **Betriebsart-Zähler** anbietet.
 #:

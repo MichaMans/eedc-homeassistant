@@ -141,12 +141,27 @@ GRUND_KEINE_WARMWASSERBEREITUNG = "keine Warmwasserbereitung in diesem Zeitraum"
 #: deren Wärme fehlt (SOLL §4.2 Fall 1). Kurz — er steht sichtbar auf der Kachel.
 GRUND_GERAETE_OHNE_WAERME = "nicht alle Geräte melden Wärme"
 
-#: **R2/W-7 — Fall H-C:** Der Strom eines fremden Erzeugers (typisch ein
+#: **R2/W-7 — Fall H-C:** Der Strom eines fremden Verbrauchers (typisch ein
 #: Heizstab) liegt auf dem WP-Zähler, seine Wärme läuft nicht über den
 #: Wärmemengenzähler. ⇒ **E ist zu groß**, die Arbeitszahl systematisch zu
 #: niedrig. Von außen unsichtbar — es ist eine Anwender-Angabe
 #: (`PARAM_WAERMEPUMPE["ABGRENZUNG"] = "fremdstrom"`).
-GRUND_FREMDSTROM = "Heizstab-Strom auf dem WP-Zähler"
+#:
+#: ⛔ **Der Grund nennt seit dem 13.09.2026 die KLASSE, nicht das Beispiel
+#: (N-371).** Bis dahin lautete er „Heizstab-Strom auf dem WP-Zähler" — und
+#: damit las jemand, dessen **Klimaanlage** auf demselben Zähler hängt, einen
+#: Satz über ein Gerät, das er nicht besitzt. Es ist dieselbe Bauform, gegen
+#: die {@link GRUND_FREMDWAERME} weiter unten seit N-349 gebaut ist und die
+#: ``abgrenzung_verletzt`` ausdrücklich vermeidet (*„Ein Kennzeichen je Beispiel
+#: hätte eine Fallsammlung daraus gemacht"*): die **Regel** war allgemein, ihr
+#: **Anwendertext** blieb Fallsammlung. Der Heizstab steht weiter als Beispiel
+#: darin — er ist der häufigste Fall, nur nicht der einzige.
+#:
+#: ⚠ Der Text ist ein **Zitat** an drei Orten: Handbuch §4 („Die Gründe,
+#: wörtlich"), Jahresbericht-PDF und die Kachel-Untertitel im Hub. Wer ihn
+#: ändert, zieht ``docs/HANDBUCH_WAERME_KLIMA.md`` mit —
+#: ``test_handbuch_waerme_klima_zitiert_die_gruende_woertlich`` meldet es.
+GRUND_FREMDSTROM = "Ein weiterer Verbraucher auf dem WP-Zähler (z. B. Heizstab)"
 
 #: **R2/F12 — bivalent:** Ein zweiter Wärmeerzeuger speist denselben Kreis, sein
 #: Aufwand liegt nicht auf dem WP-Zähler. ⇒ **Q ist zu groß**, die Arbeitszahl

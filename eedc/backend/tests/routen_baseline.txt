@@ -249,6 +249,7 @@ POST /api/live/mqtt/settings
 POST /api/live/mqtt/test
 POST /api/monatsabschluss/{anlage_id}/{jahr}/{monat}
 POST /api/monatsdaten/
+POST /api/monatsdaten/anlage/{anlage_id}/temperatur-aus-messung
 POST /api/portal-import/apply/{anlage_id}
 POST /api/portal-import/preview
 POST /api/pvgis/horizont/{anlage_id}/abrufen

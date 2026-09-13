@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { baueChartSerien, baueChartDaten, wpIstAufgeschluesselt, zeigtWpRest } from './TagVerlaufChart'
 import { angeboteneSpalten, erfassteSenken } from './TagWerteTabelle'
-import { wpRestKw, wpSplitKw, wpSplitSerien } from '../../lib/erzeugerSpalten'
+import { pvRestKw, pvSplitKw, wpRestKw, wpSplitKw, wpSplitSerien } from '../../lib/erzeugerSpalten'
 import { CHART_COLORS } from '../../lib'
 import type { StundenWert, SerieInfo } from '../../api/energie_profil'
 
@@ -374,5 +374,97 @@ describe('Stundenverlauf — Wärmepumpe je Funktion (WK-09 B1)', () => {
     expect(mit[11]['waermepumpe_7_heizen']).toBeCloseTo(heizen11, 10)
     expect(mit[11]['waermepumpe_7_warmwasser']).toBeCloseTo(ww11, 10)
     expect(mit[11].wp).toBeUndefined()
+  })
+})
+
+
+// ─── N-455: der Quellen-Stapel bleibt die Erzeugung, in BEIDE Richtungen ────
+//
+// **Kein Melder — Nebenbefund an N-449** (Master 13.09.2026 am Code gemessen).
+// Die Senkenseite bekam mit N-449 den Deckel `wpSplitKw`; die Quellenseite
+// behielt nur `pvRestKw`, und der klemmt den **Rest** bei 0, nicht die
+// String-Flächen selbst. Melden die String-Sensoren einer Stunde zusammen mehr,
+// als der Anlagenzähler hergibt — `pv_kw` ist zählertreu, die Strings kommen
+// aus dem Leistungspfad —, wuchs der Quellen-Stapel über die PV-Gesamtlinie
+// hinaus, während `gesamterzeugung` daneben weiter mit `pv_kw` rechnete.
+//
+// ⚠ **Wie groß die Drift bei realen String-Sensoren wird, ist nicht erhoben**
+// (der Fund ist am Code gemessen, nicht an Daten). Die Kante existiert
+// unabhängig davon.
+
+const PV_A: SerieInfo = { key: 'pv_7', label: 'Dach Süd', typ: 'pv-module', kategorie: 'pv', seite: 'quelle' }
+const PV_B: SerieInfo = { key: 'pv_9', label: 'Dach Ost', typ: 'pv-module', kategorie: 'pv', seite: 'quelle' }
+const PV_SPLIT = [PV_A, PV_B]
+
+/** Eine Stunde mit zwei String-Sensoren; `pv_kw` ist der Anlagenzähler. */
+const pvStunde = (pvKw: number, a: number, b: number) => stunde({
+  stunde: 11, pv_kw: pvKw, batterie_kw: 0, netzbezug_kw: 0, einspeisung_kw: 0,
+  verbrauch_kw: 0, komponenten: { pv_7: a, pv_9: b },
+})
+
+function quellenSumme(punkt: Record<string, number | string>, keys: string[]): number {
+  return keys.reduce((a, k) => a + (typeof punkt[k] === 'number' ? punkt[k] as number : 0), 0)
+}
+
+function pvChartDaten(daten: StundenWert[]) {
+  const keys = PV_SPLIT.map((x) => x.key)
+  return baueChartDaten({
+    daten, extraErzeuger: [], extraVerbraucher: KEINE_EXTRA,
+    erzeugerSerien: PV_SPLIT,
+    pvAufgeschluesselt: true,
+    zeigePvRest: daten.some((x) => pvRestKw(x.pv_kw, x.komponenten, keys) > 0.05),
+  })
+}
+
+describe('Stundenverlauf — der PV-Deckel auf der Quellenseite (N-455)', () => {
+  it.each([
+    // Lage, Zähler, String A, String B, erwartet A, erwartet B, erwarteter Rest
+    ['UNTER (Strings kleiner als der Zähler)', 6.0, 3.0, 1.5, 3.0, 1.5, 1.5],
+    ['GLEICH (Strings genau der Zähler)',      4.5, 3.0, 1.5, 3.0, 1.5, 0.0],
+    ['ÜBER (Strings größer als der Zähler)',   3.6, 3.0, 1.5, 2.4, 1.2, 0.0],
+  ] as const)('K1: Σ Stringflächen + Rest == pv_kw — %s', (_n, zaehler, a, b, sollA, sollB, sollRest) => {
+    const daten = [pvStunde(zaehler, a, b)]
+    const punkt = pvChartDaten(daten)[11]
+
+    // Einzelwerte, nicht nur die Summe.
+    expect(punkt.pv_7).toBeCloseTo(sollA, 10)
+    expect(punkt.pv_9).toBeCloseTo(sollB, 10)
+    expect(typeof punkt.pv_rest === 'number' ? punkt.pv_rest : 0).toBeCloseTo(sollRest, 10)
+
+    // Und die Stapelhöhe ist exakt die Anlagen-PV — die Zahl, die daneben als
+    // `gesamterzeugung` steht und die Gesamtlinie zeichnet.
+    expect(quellenSumme(punkt, ['pv_7', 'pv_9', 'pv_rest'])).toBeCloseTo(zaehler, 10)
+    expect(punkt.gesamterzeugung).toBeCloseTo(zaehler, 10)
+  })
+
+  it('ohne Aufschlüsselung bleibt die PV-Fläche bitgleich der Anlagenwert', () => {
+    // Die Gegenprobe zur Regel: Der Deckel darf nur greifen, wo aufgeschlüsselt
+    // wird — sonst hätte er eine Wirkung auf jede Anlage ohne String-Sensoren.
+    const daten = [pvStunde(3.6, 3.0, 1.5)]
+    const ohne = baueChartDaten({
+      daten, extraErzeuger: [], extraVerbraucher: KEINE_EXTRA,
+      erzeugerSerien: [], pvAufgeschluesselt: false, zeigePvRest: false,
+    })
+    expect(ohne[11].pv).toBeCloseTo(3.6, 10)
+    expect(ohne[11].pv_7).toBeUndefined()
+  })
+
+  it('das Verhältnis der Strings überlebt den Deckel', () => {
+    // ⚠ Ein Deckel **verteilt** nichts (Memory `project_kwp_verteilung_aggregator`):
+    // Das 2:1 aus den Messwerten bleibt 2:1, es wird nur gestaucht.
+    const punkt = pvChartDaten([pvStunde(3.6, 3.0, 1.5)])[11]
+    expect((punkt.pv_7 as number) / (punkt.pv_9 as number)).toBeCloseTo(2.0, 10)
+    // Gegenanker: die Werte sind nicht die ungedeckelten.
+    expect(punkt.pv_7).not.toBeCloseTo(3.0, 3)
+  })
+
+  it('die reine Funktion und der Chart liefern dieselbe Zahl', () => {
+    // Eine Quelle, ein Ort: Der Chart darf die Regel nicht neben `pvSplitKw`
+    // noch einmal formulieren.
+    const komp = { pv_7: 3.0, pv_9: 1.5 }
+    const punkt = pvChartDaten([pvStunde(3.6, 3.0, 1.5)])[11]
+    const rein = pvSplitKw(3.6, komp, PV_SPLIT.map((x) => x.key))
+    expect(punkt.pv_7).toBeCloseTo(rein.pv_7, 10)
+    expect(punkt.pv_9).toBeCloseTo(rein.pv_9, 10)
   })
 })

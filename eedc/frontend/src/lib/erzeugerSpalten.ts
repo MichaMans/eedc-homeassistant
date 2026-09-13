@@ -97,6 +97,12 @@ export function baueErzeugerSpalten(
  * ohne eigenen Sensor stecken darin, und die Betrags-Drift zwischen Leistungs-
  * und Zählerpfad (#356) ebenfalls. Er wird ausgewiesen statt auf die Geräte
  * verteilt — verteilt stünde an einem Dach eine Zahl, die niemand gemessen hat.
+ *
+ * ⚑ **Die Gegenrichtung deckelt {@link pvSplitKw}** (N-455): Ist Σ Strings
+ * größer als `pv_kw`, wird dort skaliert, und dieser Rest ist 0 — die Formel
+ * unten bleibt davon unberührt, weil sie ohnehin bei 0 klemmt. Bis zum
+ * 13.09.2026 gab es diesen Deckel nicht, und der Quellen-Stapel wuchs in
+ * solchen Stunden über die PV-Gesamtlinie hinaus.
  */
 export function pvRestKw(
   pvKw: number | null | undefined,
@@ -105,6 +111,50 @@ export function pvRestKw(
 ): number {
   const summe = keys.reduce((a, k) => a + Math.max(0, komponenten?.[k] ?? 0), 0)
   return Math.max(0, (pvKw ?? 0) - summe)
+}
+
+/**
+ * Die String-Flächen einer Stunde — **auf die Anlagen-PV gedeckelt** (N-455).
+ *
+ * ⭐ **Die Quellen-Hälfte von {@link wpSplitKw}, mit derselben Doktrin:**
+ * Zähler = Menge, Leistungspfad = Form. `pv_kw` der Stunde ist zählertreu
+ * (ΔkWh-Rekonstruktion, die Kurvenform kommt vom Leistungssensor — v3.45.5),
+ * die String-Reihen kommen aus dem Leistungspfad (`komponenten`). Melden die
+ * Strings zusammen **mehr**, als der Anlagenzähler hergibt, sagen sie nicht
+ * mehr, *wie viel* erzeugt wurde, sondern nur noch, *wie es sich verteilt*.
+ *
+ * ⛔ **Warum es nötig ist (K1).** {@link pvRestKw} klemmt den Rest bei 0 — in
+ * der Gegenrichtung hält das die Stapelhöhe **nicht**: Ist Σ Strings größer als
+ * `pv_kw`, ragt der Quellen-Stapel über die PV-Gesamtlinie hinaus, während
+ * `gesamterzeugung` daneben weiter mit `pv_kw` rechnet. Dieselbe Kante, die
+ * N-449 auf der Senkenseite geschlossen hat; der Chart hatte auch hier nur
+ * **eine** Richtung übernommen.
+ *
+ * ⚠ **Nur nach unten.** Ist Σ Strings kleiner, wird nichts gestreckt — die
+ * Differenz ist die echte Restgröße „PV (übrige)" ({@link pvRestKw}): Strings
+ * ohne eigenen Sensor stecken darin. Eine hochskalierte Stringfläche wäre eine
+ * Behauptung über ein Dach, das niemand gemessen hat.
+ *
+ * ⚠ **Ein Deckel verteilt nichts** — die Memory-Doktrin „die Stunde verteilt
+ * nicht" (`project_kwp_verteilung_aggregator`) ist unberührt: Hier wird kein
+ * Anlagenwert auf Module aufgeteilt, sondern **Gemessenes** auf die gemessene
+ * Gesamtmenge skaliert.
+ *
+ * Returns:
+ *   ``{key: kW}`` je String-Serie, **positiv** wie die Quelle.
+ */
+export function pvSplitKw(
+  pvKw: number | null | undefined,
+  komponenten: Record<string, number> | null | undefined,
+  keys: string[],
+): Record<string, number> {
+  const roh = keys.map((k) => Math.max(0, komponenten?.[k] ?? 0))
+  const summe = roh.reduce((a, v) => a + v, 0)
+  const anlage = Math.max(0, pvKw ?? 0)
+  const faktor = summe > anlage && summe > 0 ? anlage / summe : 1
+  const werte: Record<string, number> = {}
+  keys.forEach((k, i) => { werte[k] = roh[i] * faktor })
+  return werte
 }
 
 /** Suffixe, mit denen der Leistungspfad **eine** Wärmepumpe je Funktion führt.

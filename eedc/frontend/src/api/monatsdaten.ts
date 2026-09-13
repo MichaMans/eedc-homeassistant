@@ -295,6 +295,20 @@ export const monatsdatenApi = {
   },
 
   /**
+   * Ø-Temperatur der leeren Monate aus der eigenen Messreihe nachtragen
+   * (N-426-Nachtrag). Füllt **nur Lücken** und nur Monate, die die Reihe
+   * erreicht; ein zweiter Lauf findet nichts mehr.
+   */
+  async temperaturAusMessung(anlageId: number): Promise<{
+    anlage_id: number
+    gefuellt: number
+    offen: number
+    monate: { jahr: number; monat: number; wert: number }[]
+  }> {
+    return api.post(`/monatsdaten/anlage/${anlageId}/temperatur-aus-messung`, {})
+  },
+
+  /**
    * Aggregierte Monatsdaten abrufen
    * PV-Erzeugung und Speicher-Daten werden aus InvestitionMonatsdaten summiert
    *

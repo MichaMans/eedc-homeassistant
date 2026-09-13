@@ -890,6 +890,30 @@ Fehlt der Wert für einen Monat, rechnet eedc trotzdem weiter — dann aber mit 
 
 ---
 
+### 4.25 Wetterwerte – fehlende Monatswerte <a name="425-wetterwerte-fehlende-monatswerte"></a>
+
+**Was wird geprüft:** Trägt jeder erfasste Monat eine **Ø Temperatur**?
+
+**Warum das zählt:** Das Feld *„Ø Temperatur"* im Monatsabschluss wird beim Abschließen automatisch gefüllt — eedc nimmt zuerst **deine eigene Messreihe** (Stundenwerte der Außentemperatur, ersatzweise das Tages-Min/Max) und sonst das Wetter-Archiv. Zwischen dem Oberflächen-Wechsel im **Juli 2026** und der Reparatur im **September 2026** gab es dieses Auto-Fill nicht: Jeder in dieser Zeit abgeschlossene Monat steht ohne Wert da, und der zurückgebaute Auto-Fill wirkt nur nach vorn.
+
+> **eedc rechnet mit diesem Feld heute keine Kennzahl aus.** Die Außentemperatur-Linie im Wärme/Klima-Verlauf und der Vergleich *kWh je Heizgradtag* lesen die **Tagesreihe** — feiner und unabhängig von diesem Feld. Der Monatswert ist die gepflegte **Rückfallebene** für Zeiträume, in denen diese Reihe fehlt, und die Grundlage, falls eine spätere Auswertung auf ihn setzt. Deshalb ist der Befund ein **Hinweis** und keine Warnung.
+
+#### Befunde
+
+| Meldung | Severity | Bedeutung | Behebung |
+|---------|----------|-----------|----------|
+| **Ø Temperatur fehlt in N Monat(en), für M davon reicht die Messreihe** | ℹ️ INFO | N Monate ohne Wert; für M davon liegen eigene Temperatur-Messwerte vor. | Knopf **„Temperatur aus Messung übernehmen"** direkt am Befund. Er trägt die M erreichbaren Monate aus deinen eigenen Messwerten nach; **bereits gepflegte Werte bleiben unberührt**, mehrfaches Ausführen ist gefahrlos. Für die übrigen: Monat im Monatsabschluss öffnen und *„Wetterdaten holen"* drücken. |
+| **Ø Temperatur fehlt in N Monat(en)** | ℹ️ INFO | Kein einziger dieser Monate wird von der Messreihe erreicht. | **Kein Knopf** — hier hilft nur der Monatsabschluss: Monat öffnen, *„Wetterdaten holen"*. eedc holt den Wert dann aus dem Wetter-Archiv. |
+| **Alle N erfassten Monate tragen eine Ø Temperatur** | ✅ OK | Nichts zu tun. | — |
+
+> **Warum es für die übrigen Monate keinen Knopf gibt.** Ein Wert aus dem Wetter-Archiv ist ein **Abruf im Internet, je Monat einer**. Das ist eine Sache, die du auslöst, wenn du den Monat vor dir hast — nicht etwas, das eedc im Hintergrund über 34 Monate laufen lässt. Der Knopf am Befund arbeitet ausschließlich mit Daten, die ohnehin bei dir liegen.
+
+#### Wo du den Wert siehst
+
+*Einstellungen → Daten → Monatsdaten* → Monat öffnen → Abschnitt **Wetter** → **„Ø Temperatur"**. Ein von Hand gesetzter Wert wird **nie** überschrieben — weder vom Auto-Fill noch von diesem Knopf.
+
+---
+
 ## 5. Behebungs-Workflows
 
 Diese Querschnitts-Anleitungen bündeln Schritte, die mehrere Befunde gleichzeitig betreffen — typischerweise weil ein einzelner Konfigurationsfehler in mehreren Kategorien aufschlägt.

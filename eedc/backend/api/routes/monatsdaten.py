@@ -1404,6 +1404,82 @@ async def delete_feldwert_nicht_gefuehrt(
     }
 
 
+@router.post("/anlage/{anlage_id}/temperatur-aus-messung")
+async def temperatur_aus_messung_uebernehmen(
+    anlage_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Füllt leere Ø-Temperaturen aus der eigenen Messreihe (N-426-Nachtrag).
+
+    Der Gegenstand ist eine **Historie**, die niemand mehr von Hand aufmacht:
+    Zwischen dem IA-V4-Flip (25.07.2026) und WK-03 (13.09.2026) gab es keinen
+    Wetter-Auto-Fill; jeder in dieser Zeit abgeschlossene Monat trägt in
+    ``Monatsdaten.durchschnittstemperatur`` ``NULL``. Der zurückgebaute
+    Auto-Fill wirkt nur nach vorn — für die Vergangenheit gibt es diesen Weg,
+    angeboten als Inline-Aktion am Daten-Checker (Bauform N-393).
+
+    ⛔ **Nur Lücken, nie ein gepflegter Wert (P3b).** Geschrieben wird
+    ausschließlich, wo das Feld ``None`` ist; alles andere bleibt unberührt.
+    Der Schreibweg ist ``write_with_provenance``, jeder gesetzte Wert steht
+    damit im Audit-Log.
+
+    ⚠ **Quelle ``manual:form``, und das ist bewusst so** — wie beim
+    Nachbar-Knopf ``feldwert_entfernen`` (N-393). Es ist eine **vom Anwender
+    ausgelöste** Aktion (SOURCE_LABELS: *„User-Eingabe oder User-bestätigte
+    Aktion"*), und derselbe Wert, den er sich im Monatsformular per Auto-Fill
+    holt und speichert, landet ebenfalls als ``manual:form`` in der Zeile. Zwei
+    Labels für denselben Wert, je nachdem welchen Knopf jemand gedrückt hat,
+    wären die Drift. ``repair`` bleibt dem Repair-Orchestrator vorbehalten, der
+    die Hierarchie durchbricht — hier gibt es nichts zu durchbrechen, das Feld
+    ist leer.
+
+    ⛔ **Nur, was die Messreihe hergibt, und kein Netzabruf.**
+    ``lade_monatsmittel_temperatur`` **ohne** ``gepflegt_je_monat`` ist Stufe 1
+    (Stundenmittel) und Stufe 2 (Tages-Min/Max) der Vorrangkette — die dritte
+    ist das Feld selbst, und ein Provider-Abruf je Monat ist bewusst **kein**
+    Teil dieser Aktion: er gehört in den Monat, den der Anwender öffnet
+    ([[feedback_kein_grosser_heiler_knopf]]).
+
+    ⭐ **Idempotent.** Ein zweiter Lauf findet nichts mehr — die Monate, die er
+    gefüllt hat, sind nicht mehr leer.
+    """
+    anlage = (await db.execute(
+        select(Anlage).where(Anlage.id == anlage_id)
+    )).scalar_one_or_none()
+    if anlage is None:
+        raise not_found("Anlage", anlage_id)
+
+    messreihe = await lade_monatsmittel_temperatur(db, anlage_id)
+
+    zeilen = (await db.execute(
+        select(Monatsdaten)
+        .where(Monatsdaten.anlage_id == anlage_id,
+               Monatsdaten.durchschnittstemperatur.is_(None))
+        .order_by(Monatsdaten.jahr, Monatsdaten.monat)
+    )).scalars().all()
+
+    gefuellt: list[dict] = []
+    for md in zeilen:
+        wert = messreihe.get((md.jahr, md.monat))
+        if wert is None:
+            continue
+        ergebnis = await write_with_provenance(
+            db, md, "durchschnittstemperatur", float(wert),
+            source="manual:form", writer=_MANUAL_WRITER,
+        )
+        if ergebnis.applied:
+            gefuellt.append(
+                {"jahr": md.jahr, "monat": md.monat, "wert": float(wert)}
+            )
+
+    await db.commit()
+    return {
+        "anlage_id": anlage_id,
+        "gefuellt": len(gefuellt),
+        "offen": len(zeilen) - len(gefuellt),
+        "monate": gefuellt,
+    }
+
+
 @router.delete("/{monatsdaten_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_monatsdaten(
     monatsdaten_id: int,

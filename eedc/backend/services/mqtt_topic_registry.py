@@ -21,10 +21,12 @@ from backend.models.investition import Investition
 from backend.utils.investition_filter import aktiv_jetzt
 from backend.core.field_definitions import (
     BASIS_LIVE_FELDER,
+    basis_feld_key,
     einheit_fuer,
     get_alle_felder_fuer_investition,
     get_feld_bedarf,
     get_live_felder_fuer_investition,
+    pflicht_felder_am_geraet,
 )
 
 
@@ -209,6 +211,13 @@ async def build_expected_topics(
                 "gruppe_titel": gruppe_titel,
             })
 
+        # N-456: Welche Felder muss GENAU DIESES Gerät liefern? Die Antwort
+        # steht in der Registry, und `pflicht_felder_am_geraet` ist ihr einziger
+        # Leser — die Zuordnungs-Fläche fragt sie über dieses Kennzeichen,
+        # `_check_energieprofil_abdeckung` fragt sie direkt. Zwei Leser, eine
+        # Wahrheit: vorher sagte die eine Fläche „hier ist nichts einzutragen",
+        # während die andere für dasselbe Feld eine fehlende Abdeckung meldete.
+        _pflicht_am_geraet = set(pflicht_felder_am_geraet(inv.typ, inv.parameter))
         for feld in get_alle_felder_fuer_investition(inv.typ, inv.parameter):
             # #377: Die Einheit kann am GERÄT hängen (Zählerstand: m³ / l / …)
             # statt am Feld. `einheit_fuer` ist der eine Leser dafür — ohne ihn
@@ -231,6 +240,10 @@ async def build_expected_topics(
                 # Erwartung einer Split-Klimaanlage nicht auflösen kann (N-86).
                 "bedarf": get_feld_bedarf(inv.typ, feld["feld"], inv.parameter)[0],
                 "bedarf_gruppe": get_feld_bedarf(inv.typ, feld["feld"], inv.parameter)[1],
+                # N-456: Pflicht UND am Gerät geltend — `bedarf` allein reicht
+                # nicht: `strom_heizen_kwh` trägt „pflicht" auch an einem Gerät
+                # ohne getrennte Strommessung, wo es die Größe gar nicht gibt.
+                "pflicht_am_geraet": basis_feld_key(feld["feld"]) in _pflicht_am_geraet,
                 # R1: an dieser Bauart untypisch, aber möglich (`weich`). Roh
                 # durchgereicht wie `bedingung`/`nur_manuell` — die Fläche
                 # entscheidet, ob das Feld in der ersten Reihe steht oder hinter

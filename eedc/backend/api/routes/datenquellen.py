@@ -1064,6 +1064,29 @@ async def get_datenquellen_felder(anlage_id: int, db: AsyncSession = Depends(get
     # §2i-6 — Bedarfs-Einstufung: ist ein LEERES Feld überhaupt eine Lücke?
     # Ohne sie zählte der Rollup Aggregat-, Alternativ- und Optional-Felder als
     # „ohne Quelle" und meldete auf einer korrekt eingerichteten Anlage Fehlalarm.
+    #
+    # ⛔ **`inv_id` und `pflicht_am_geraet` sind seit N-456 Teil der Eingabe.**
+    # Ohne sie war die Belegung anlagenweit: An einer Anlage mit ZWEI
+    # Wärmepumpen schaltete ein zugeordnetes Feld an Gerät A die leeren Felder
+    # an Gerät B auf „hier ist nichts einzutragen" — das zweite Gerät konnte gar
+    # nicht als offen erscheinen. Und bei getrennter Strommessung erklärte diese
+    # Fläche das zweite Stromfeld für inaktiv, während der Abdeckungs-Check
+    # daneben (`_check_energieprofil_abdeckung`) dafür warnte: zwei Flächen,
+    # eine Anlage, gegenteilige Aussage (N-86-Klasse).
+    #
+    # Die Investitions-ID steckt im `match_key` (`("inv_energy", <id>, <feld>)`)
+    # — NICHT in der Feld-ID selbst: die entsteht als `"_".join(match_key)`, und
+    # ein Feldname mit Unterstrichen ließe sich daraus nicht sicher zurücklesen.
+    _feld_inv_id = {
+        _feld_id(e["match_key"]): (
+            str(e["match_key"][1])
+            if str(e["match_key"][0]).startswith("inv_") else None
+        )
+        for e in eintraege
+    }
+    _feld_pflicht_am_geraet = {
+        _feld_id(e["match_key"]): bool(e.get("pflicht_am_geraet")) for e in eintraege
+    }
     _bedarf_eingabe = [
         {"id": fid,
          "feld": feld_feld[fid],
@@ -1071,7 +1094,9 @@ async def get_datenquellen_felder(anlage_id: int, db: AsyncSession = Depends(get
          "belegt": (effektiv.get(fid, {}).get("quelle", QUELLE_KEINE) != QUELLE_KEINE),
          "bedarf": feld_bedarf.get(fid, "optional"),
          "bedarf_gruppe": feld_bedarf_gruppe.get(fid),
-         "bedingung_anlage": feld_bedingung_anlage.get(fid)}
+         "bedingung_anlage": feld_bedingung_anlage.get(fid),
+         "inv_id": _feld_inv_id.get(fid),
+         "pflicht_am_geraet": _feld_pflicht_am_geraet.get(fid, False)}
         for fid in feld_feld
     ]
     bedarf_je_feld = stufe_bedarf_ein(_bedarf_eingabe, vorhandene_inv_typen)

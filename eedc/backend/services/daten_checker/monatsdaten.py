@@ -1208,6 +1208,20 @@ class MonatsdatenChecks:
         # und ein Monat steht nie in beiden (fehlen beide, greift der Block
         # darüber). Schwere, Kategorie und Weg sind dieselben wie dort — kein
         # zweiter Turm, derselbe Melder, geschärft.
+        #
+        # ⭐ **Der Verweis auf die Zuordnungs-Fläche ist seit N-456 (13.09.2026)
+        # dabei, und vorher wäre er falsch gewesen.** Bis dahin erklärte
+        # Einstellungen → Datenquellen genau dieses Feld für „bereits zugeordnet
+        # — hier ist nichts einzutragen", sobald die andere Stromseite belegt
+        # war: Wer dem Hinweis folgte, landete auf einer Fläche, die ihm sagte,
+        # es sei nichts zu tun (N-86-Klasse, deshalb nannte der Text zunächst
+        # bewusst nur den Monatsabschluss). Seit die Belegung je Gerät und nach
+        # den Registry-Bedingungen eingestuft wird, steht das Feld dort als
+        # Pflicht — beide Wege sagen jetzt dasselbe.
+        #
+        # ⚠ **Die Reihenfolge trägt die Aussage:** Der Monatsabschluss steht
+        # zuerst, weil nur er die **vergangenen** Monate füllt; eine Zuordnung
+        # wirkt nach vorn. Wer beides braucht, braucht beides.
         for labels, seite, waerme_satz in (
             (fehlend_strom_heizen, "Strom Heizen",
              "Die Heizwärme dieser Monate ist erfasst, der Strom dafür nicht."),
@@ -1230,7 +1244,9 @@ class MonatsdatenChecks:
                     "Wärme beider Seiten über dem Strom einer, und fällt zu hoch "
                     f"aus. Trage „{seite}“ für diese Monate im Monatsabschluss "
                     "nach — die Arbeitszahlen stehen danach mit vollständigem "
-                    "Nenner da, ohne dass du sonst etwas tun musst."
+                    "Nenner da, ohne dass du sonst etwas tun musst. Soll dieser "
+                    "Zähler künftig von allein mitlaufen, ordne ihn zusätzlich "
+                    "unter Einstellungen → Datenquellen zu."
                 ),
                 investition_id=inv.id,
                 link=link_monat_erfassen(labels[0]),
@@ -1294,6 +1310,114 @@ def _de_euro(betrag: float) -> str:
 
 class ErfassungsortChecks:
     """§8.1 — welche Fehleingabe das Wirtschaftlichkeits-Modell erzeugen kann."""
+
+    async def _check_wetterwert_fehlt(
+        self, anlage: Anlage, monatsdaten: list[Monatsdaten]
+    ) -> list[CheckErgebnis]:
+        """**N-426-Nachtrag** — Monate ohne Ø-Temperatur, und wie viele erreichbar sind.
+
+        ⛔ **Warum es diese Zeile überhaupt gibt.** Der Wetter-Auto-Fill des
+        Monatsformulars ist mit dem IA-V4-Flip (`243944e5`, 25.07.2026) samt der
+        alten Seite verschwunden und mit WK-03 (`fe28f49e`) zurückgekehrt. Er
+        wirkt **nach vorn**: Jeder seit dem V4-Flip abgeschlossene Monat trägt
+        weiterhin `NULL`, und der Anwender hätte jeden einzelnen aufmachen und
+        „Wetterdaten holen" drücken müssen. An der Demo-Anlage gemessen (11.09.):
+        34 von 34 Monaten leer, die Messreihe erreicht 7 davon.
+
+        ⭐ **Die Zeile nennt BEIDE Zahlen, und das ist ihre Aussage.** „n Monate
+        ohne Ø Temperatur" allein wäre eine Aufgabe ohne Weg; „für m davon reicht
+        die Messreihe" sagt, was der Knopf leisten kann und was nicht. Für die
+        übrigen gibt es keinen Knopf — dort hilft nur der Auto-Fill im Monat
+        selbst, und der holt seinen Wert aus dem Netz.
+
+        ⚠ **Kein Netzabruf in einer Prüfung.** Die Erreichbarkeit kommt aus
+        `lade_monatsmittel_temperatur` **ohne** ``gepflegt_je_monat`` — also
+        Stufe 1 (Stundenmittel) und Stufe 2 (Tages-Min/Max) der Vorrangkette,
+        ohne die dritte, die das gepflegte Feld selbst ist. Ein Kreislauf wäre
+        es sonst, und eine Prüfung, die Provider anfragt, wäre eine Prüfung mit
+        Nebenwirkung.
+
+        ⚠ **`hat_zaehlerzeile` ist die Grundmenge, nicht der Erwartungs-Anker.**
+        Gefragt wird nur nach Monaten, die es als Zeile **gibt** — ein Monat, den
+        der Anwender nie abgeschlossen hat, ist keine Wetter-Lücke, sondern eine
+        Monats-Lücke, und die meldet der Nachbar-Check.
+        """
+        kat = CheckKategorie.WETTERWERT_FEHLT
+        offen = [md for md in monatsdaten if md.durchschnittstemperatur is None]
+        if not offen:
+            if monatsdaten:
+                return [CheckErgebnis(
+                    kategorie=kat, schwere=CheckSeverity.OK,
+                    meldung=(
+                        f"Alle {len(monatsdaten)} erfassten Monate tragen eine "
+                        "Ø Temperatur"
+                    ),
+                )]
+            return []
+
+        from backend.services.mitteltemperatur import lade_monatsmittel_temperatur
+
+        # Stufe 1+2 der Vorrangkette — ohne die dritte (das Feld selbst).
+        messreihe = await lade_monatsmittel_temperatur(self.db, anlage.id)
+        erreichbar = [md for md in offen if (md.jahr, md.monat) in messreihe]
+
+        def _mm(md: Monatsdaten) -> str:
+            return f"{md.monat:02d}/{md.jahr}"
+
+        beispiele = ", ".join(_mm(md) for md in offen[:6])
+        if len(offen) > 6:
+            beispiele += f" (+{len(offen) - 6} weitere)"
+
+        gemeinsam = (
+            "Das Feld „Ø Temperatur“ im Monatsabschluss wird seit dem "
+            "Oberflächen-Wechsel im Juli 2026 wieder automatisch gefüllt — das "
+            "wirkt aber nur nach vorn. eedc rechnet mit dem Feld heute keine "
+            "Kennzahl aus (die Außentemperatur-Linie und der Vergleich je "
+            "Heizgradtag lesen die eigene Tagesreihe); es ist die gepflegte "
+            "Rückfallebene für Monate, in denen diese Reihe fehlt. "
+            f"Betroffen: {beispiele}."
+        )
+
+        if not erreichbar:
+            return [CheckErgebnis(
+                kategorie=kat, schwere=CheckSeverity.INFO,
+                meldung=f"Ø Temperatur fehlt in {len(offen)} Monat(en)",
+                details=(
+                    f"{gemeinsam} Für keinen dieser Monate reicht die eigene "
+                    "Messreihe zurück — dort hilft nur, den Monat im "
+                    "Monatsabschluss zu öffnen und „Wetterdaten holen“ zu "
+                    "drücken; eedc holt den Wert dann aus dem Wetter-Archiv."
+                ),
+                link=link_monat_erfassen(_mm(offen[0])),
+            )]
+
+        return [CheckErgebnis(
+            kategorie=kat, schwere=CheckSeverity.INFO,
+            meldung=(
+                f"Ø Temperatur fehlt in {len(offen)} Monat(en), "
+                f"für {len(erreichbar)} davon reicht die Messreihe"
+            ),
+            details=(
+                f"{gemeinsam} „Temperatur aus Messung übernehmen“ trägt die "
+                f"{len(erreichbar)} erreichbaren Monate aus deinen eigenen "
+                "Messwerten nach (Stundenmittel, sonst Tages-Min/Max) — "
+                "bereits gepflegte Werte bleiben unberührt. Für die "
+                f"übrigen {len(offen) - len(erreichbar)} reicht die Reihe nicht "
+                "zurück; dort hilft nur, den Monat im Monatsabschluss zu öffnen "
+                "und „Wetterdaten holen“ zu drücken."
+                if len(erreichbar) < len(offen) else
+                f"{gemeinsam} „Temperatur aus Messung übernehmen“ trägt sie aus "
+                "deinen eigenen Messwerten nach (Stundenmittel, sonst "
+                "Tages-Min/Max) — bereits gepflegte Werte bleiben unberührt."
+            ),
+            link=link_monat_erfassen(_mm(offen[0])),
+            action_kind="temperatur_aus_messung",
+            action_label="Temperatur aus Messung übernehmen",
+            action_params={
+                "anlage_id": anlage.id,
+                "monate": [_mm(md) for md in erreichbar],
+            },
+        )]
 
     def _check_erfassungsort_positionen(self, anlage: Anlage) -> list[CheckErgebnis]:
         from backend.models.investition import ERTRAGSFELD_TYPEN

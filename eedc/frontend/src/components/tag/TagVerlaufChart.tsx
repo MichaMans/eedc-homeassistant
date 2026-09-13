@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import { ChartLegende, eedcTooltipProps } from '../ui'
 import { EXTRA_SERIEN_FARBEN, PV_MODUL_FARBEN, KATEGORIE_FARBEN, CHART_COLORS, CHART_LABELS, HILFSLINIE_DASH, AREA_FILL_OPACITY, xAchse, yAchse, achsenEinheit, achsenTick, ACHSEN_MARGIN_TOP, fmtZahl } from '../../lib'
-import { pvRestKw, wpRestKw, wpSplitKw } from '../../lib/erzeugerSpalten'
+import { pvRestKw, pvSplitKw, wpRestKw, wpSplitKw } from '../../lib/erzeugerSpalten'
 import { useChartTheme } from '../../context/ThemeContext'
 import { useLegendenToggle } from '../../hooks'
 import { erfassteSenken, type SenkenKey } from './TagWerteTabelle'
@@ -207,7 +207,15 @@ export function baueChartDaten({
     if (pvAufgeschluesselt) {
       // `gesamterzeugung` oben bleibt auf `pv_kw` — die Aufschlüsselung ändert
       // die Darstellung, nicht die Bilanz.
-      for (const es of erzeugerSerien) punkt[es.key] = Math.max(0, s?.komponenten?.[es.key] ?? 0)
+      //
+      // ⛔ **Und die Höhe hält in BEIDE Richtungen** (N-455, dieselbe Regel wie
+      // acht Zeilen höher für die Senkenseite): `pvSplitKw` deckelt die
+      // String-Flächen auf `pv_kw`, wo ihre Summe größer ist (Zähler = Menge,
+      // Leistungspfad = Form), `pvRestKw` füllt auf, wo sie kleiner ist.
+      // Σ Stringflächen + Rest ist damit exakt `pv_kw` — vorher konnte der
+      // Quellen-Stapel über die PV-Gesamtlinie hinauswachsen.
+      const pvWerte = pvSplitKw(s?.pv_kw, s?.komponenten, erzeugerKeys)
+      for (const es of erzeugerSerien) punkt[es.key] = pvWerte[es.key]
       if (zeigePvRest) punkt.pv_rest = round2(pvRestKw(s?.pv_kw, s?.komponenten, erzeugerKeys))
     }
     return punkt

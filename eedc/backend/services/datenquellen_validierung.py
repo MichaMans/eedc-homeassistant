@@ -461,14 +461,38 @@ _GRUPPEN_TEXT = {
 }
 
 
+def _deckt_ab(belegtes: dict, leeres: dict) -> bool:
+    """Deckt dieses **belegte** Feld das **leere** seiner Gruppe ab? (N-456)
+
+    ⛔ **Nein, sobald beide an VERSCHIEDENEN Geräten hängen.** Bis zum
+    13.09.2026 war die Belegung nur nach `bedarf_gruppe` geschlüsselt — an einer
+    Anlage mit zwei Wärmepumpen schaltete ein zugeordnetes Feld an Gerät A die
+    leeren Felder an Gerät B auf *„hier ist nichts einzutragen"*. Das Feld des
+    zweiten Geräts konnte damit gar nicht als offen erscheinen.
+
+    ⭐ **Die Anlagen-Ebene deckt weiterhin in BEIDE Richtungen ab, und das ist
+    kein Widerspruch:** Der Anlagen-Zählerstand (`typ: basis`, ohne Gerät) und
+    ein Komponentenzähler messen dieselbe Größe an verschiedenen Stellen — dort
+    ist die Gruppe eine echte Alternative (`pv_energie`, `pv_live`,
+    `netz_live`). Zwei Geräte sind es nie.
+    """
+    a, b = belegtes.get("inv_id"), leeres.get("inv_id")
+    return not (a and b and a != b)
+
+
 def stufe_bedarf_ein(
     felder: list[dict], vorhandene_typen: set[str],
 ) -> dict[str, dict]:
     """Bedarfs-Einstufung je Feld.
 
     `felder`: [{"id", "feld", "typ", "belegt", "bedarf", "bedarf_gruppe",
-                "bedingung_anlage"}].
+                "bedingung_anlage", "inv_id", "pflicht_am_geraet"}].
     `vorhandene_typen`: Investitionstypen der Anlage (für `bedingung_anlage`).
+
+    ``inv_id`` und ``pflicht_am_geraet`` sind **optional** — ohne sie verhält
+    sich die Funktion wie vor N-456 (alles anlagenweit, jede Gruppe eine
+    Alternative). Die Route füllt beide; die Vorgabe hält die vorhandenen
+    Proben unverändert gültig.
 
     Returns {field_id: {"bedarf": …, "grund": …|None, "text": …|None}}.
     """
@@ -479,7 +503,6 @@ def stufe_bedarf_ein(
         gruppe_f = f.get("bedarf_gruppe")
         if f.get("belegt") and gruppe_f:
             belegt_je_gruppe.setdefault(gruppe_f, []).append(f)
-    belegte_gruppen = set(belegt_je_gruppe)
     out: dict[str, dict] = {}
     for f in felder:
         fid = f["id"]
@@ -502,8 +525,33 @@ def stufe_bedarf_ein(
             continue
 
         # 2. Leer, aber ein anderes Mitglied der Alternativ-Gruppe trägt den Wert.
+        #
+        # ⛔ **Zwei Einschränkungen seit N-456 (13.09.2026), beide aus der
+        # Registry, keine für `wp_strom` erfundene Sonderregel:**
+        #
+        # (a) Deckung nur innerhalb desselben Geräts oder gegen die
+        #     Anlagen-Ebene (`_deckt_ab`) — an zwei Wärmepumpen schaltete
+        #     bisher ein belegtes Feld an Gerät A das leere an Gerät B still ab.
+        #
+        # (b) **Ein Feld, das an DIESEM Gerät Pflicht ist, wird nie verdrängt.**
+        #     Sind an einem Gerät zwei Felder derselben Gruppe gleichzeitig
+        #     Pflicht, sind sie **Summanden** und keine Alternativen — bei
+        #     getrennter Strommessung tragen `strom_heizen_kwh` und
+        #     `strom_warmwasser_kwh` zusammen den Verbrauch, jedes einzeln nur
+        #     die Hälfte. Wäre eines von beiden eine Alternative, hätte die
+        #     Registry es als `erweitert` oder `nicht_an_dieser_bauart`
+        #     gekennzeichnet und `pflicht_felder_am_geraet` ließe es weg — genau
+        #     das passiert mit `stromverbrauch_kwh`, sobald F5 an ist.
+        #
+        # ⭐ **Dieselbe Wahrheit, zwei Leser:** `pflicht_am_geraet` kommt aus
+        # `pflicht_felder_am_geraet(typ, parameter, gruppe)`, dem Helfer, den
+        # `_check_energieprofil_abdeckung` schon liest. Vorher sagten die zwei
+        # Flächen über dasselbe Feld Gegenteiliges (N-86-Klasse): „hier ist
+        # nichts einzutragen" gegen „ohne vollständige Zähler-Abdeckung".
         gruppe = f.get("bedarf_gruppe")
-        if gruppe and gruppe in belegte_gruppen:
+        deckende = [b for b in belegt_je_gruppe.get(gruppe or "", ())
+                    if _deckt_ab(b, f)]
+        if gruppe and deckende and not f.get("pflicht_am_geraet"):
             text = _GRUPPEN_TEXT.get(gruppe)
             # Trägt NUR das Anlagen-Aggregat die Gruppe, ist die Komponenten-
             # Zeile für den Monat abgedeckt und für Tag/Stunde eben nicht.
@@ -511,8 +559,7 @@ def stufe_bedarf_ein(
             # allgemeine Satz richtig — deshalb die Herkunftsprüfung.
             if (gruppe == "pv_energie"
                     and f.get("feld") == _PV_KOMPONENTEN_FELD_MONAT
-                    and all(b.get("typ") == "basis"
-                            for b in belegt_je_gruppe.get(gruppe, ()))):
+                    and all(b.get("typ") == "basis" for b in deckende)):
                 text = _PV_AGGREGAT_NUR_ANLAGENSUMME_TEXT
             out[fid] = {
                 "bedarf": "inaktiv", "grund": f"gruppe:{gruppe}",

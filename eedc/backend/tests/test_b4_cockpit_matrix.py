@@ -266,7 +266,7 @@ TAG_SPROSSEN = {
         "wp_jaz": 3.0, "wp_jaz_nenner_kwh": 20.0, "wp_jaz_kuehlen": 3.0,
         "wp_jaz_kuehlen_grund": None}),
     "T-F11_fremdstrom": (dict(parameter={**LW, "abgrenzung": "fremdstrom"}, zaehler={"heizenergie_kwh": (1000.0, 1105.0)}), {
-        "wp_waerme_kwh": 105.0, "wp_jaz": None, "wp_jaz_grund": "Heizstab-Strom auf dem WP-Zähler"}),
+        "wp_waerme_kwh": 105.0, "wp_jaz": None, "wp_jaz_grund": "Ein weiterer Verbraucher auf dem WP-Zähler (z. B. Heizstab)"}),
 }
 
 
