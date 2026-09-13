@@ -21,9 +21,17 @@ export interface InvestitionFinancialDetail {
   bezeichnung: string
   typ: string
   betriebskosten_monat_euro: number
+  /** Jahresbetrag, aus dem `betriebskosten_monat_euro` der Zwölftel ist (A6). */
+  betriebskosten_jahr_euro?: number
   erloes_euro: number | null
   /** Herleitung der Erlös-Zeile — je Typ verschieden (gerechnet vs. gepflegt). */
   erloes_formel: string | null
+  /**
+   * Die **eingesetzten Werte** zur Formel darüber (A6). `null` bei den
+   * gepflegten Erlösen — dort gibt es keine Rechnung, nur eine Herkunftsangabe.
+   * Optional, damit ältere Antworten ohne das Feld weiter gelten.
+   */
+  erloes_berechnung?: string | null
   /**
    * Anzeigename der Erlös-Zeile („{Gerät} — {erloes_label}"). Kommt aus dem
    * Backend, weil ihn die **Kategorie** entscheidet: „Einspeisung" für BKW und
@@ -270,6 +278,9 @@ export interface AktuellerMonatResponse {
   anlage_sonstige_ausgaben_euro: number
   gesamtnettoertrag_euro: number | null
   betriebskosten_anteilig_euro: number | null
+  /** Σ der Jahresbeträge hinter `betriebskosten_anteilig_euro` und ihre Anzahl (A6). */
+  betriebskosten_anteilig_jahr_euro?: number | null
+  betriebskosten_anteilig_anzahl?: number | null
 
   // Tarif-Info
   netzbezug_preis_cent: number | null

@@ -216,6 +216,15 @@ export function baueJahrAlsMonat(
   // Auswertungen/Finanzen): numerische Felder Σ (null-bewusst), Identität/Label
   // vom ersten Vorkommen. Monats-`formel`/`berechnung` entfallen — ein Jahres-Σ
   // hat kein sinnvolles Monats-Formelbild (Tooltip zeigt dann nur Label + Σ).
+  //
+  // ⭐ Dasselbe gilt seit 2026-09-13 für die beiden A6-Felder der Erlös- und der
+  // Betriebskosten-Zeile: `erloes_berechnung` und `betriebskosten_jahr_euro`
+  // stammen aus dem ERSTEN Monat, die Beträge daneben sind Jahres-Σ. Eine
+  // Herleitung, die auf eine andere Zahl führt als die Zeile, ist schlimmer als
+  // keine — dieselbe Begründung wie oben, deshalb hier ebenfalls leer.
+  // ⚠ Bis dahin trug `erloes_formel` die Werte IM Text („… — 123,4 kWh × 8,20
+  // ct/kWh") und zeigte damit im Jahres-T-Konto den Januar neben der Jahres-Σ;
+  // mit dem Split ist der Formeltext wertfrei und gilt im Jahr wie im Monat.
   // (Die Monat-Bauer für Cockpit/Jahr lesen nur typ/bezeichnung → unverändert.)
   const addNull = (a: number | null, b: number | null): number | null =>
     a == null && b == null ? null : (a ?? 0) + (b ?? 0)
@@ -223,7 +232,10 @@ export function baueJahrAlsMonat(
   for (const m of monate) for (const fin of m.investitionen_financials ?? []) {
     const prev = financialsMap.get(fin.investition_id)
     if (!prev) {
-      financialsMap.set(fin.investition_id, { ...fin, formel: null, berechnung: null })
+      financialsMap.set(fin.investition_id, {
+        ...fin, formel: null, berechnung: null,
+        erloes_berechnung: null, betriebskosten_jahr_euro: undefined,
+      })
     } else {
       prev.betriebskosten_monat_euro += fin.betriebskosten_monat_euro
       prev.erloes_euro = addNull(prev.erloes_euro, fin.erloes_euro)

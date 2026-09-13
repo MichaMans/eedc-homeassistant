@@ -212,7 +212,7 @@ Diese Abschnitte definieren das gemeinsame Fundament, auf dem alle Komponenten i
 
 ### A6 — Berechnungs-Transparenz (Formel-Tooltip)
 
-> **Prinzip:** Jede *abgeleitete/aggregierte* Kennzahl (KPI, ROI, Autarkie %, Ersparnis, Wirkungsgrad, Prognose) zeigt ihre Herleitung auf Abruf — Formel + eingesetzte Werte + Datenquelle/Zeitraum. Rohe Zählerwerte und triviale Summen bleiben tooltip-frei (kein Rauschen).
+> **Prinzip:** Jede *abgeleitete/aggregierte* Kennzahl (KPI, ROI, Autarkie %, Ersparnis, Wirkungsgrad, Prognose) zeigt ihre Herleitung auf Abruf — Formel + eingesetzte Werte + Datenquelle/Zeitraum. Rohe Zählerwerte und triviale Summen bleiben tooltip-frei (kein Rauschen) — *die Ausnahmen im Detail unten*.
 > **Affordance:** konsistenter, dezenter Indikator (z. B. gepunktete Unterstreichung oder kleines ⓘ). Progressive Disclosure — versteckt bis Hover/Tap, daher **kein Profi-Modus** (dient gerade Einsteigern „woher kommt die Zahl?").
 > **Architektur (SoT):** Der Berechnungs-Layer-Helfer (`core/berechnungen/`, ADR-001) liefert **neben dem Wert eine strukturierte Herleitung** `{ wert, einheit, formel, eingesetzte_werte[], quelle, zeitraum }` — Wert UND Erklärung aus *einer* Quelle, können nicht driften. Vertrag in [KONZEPT-BERECHNUNGS-LAYER.md §6](KONZEPT-BERECHNUNGS-LAYER.md); dieselbe Herleitung speist perspektivisch PDF + Daten-Checker. Bestehend: `FormelTooltip` (ROIDashboard) als Vorbild, B1 nennt den Berechnung-Tooltip.
 > **A3-Kopplung:** der Tooltip erklärt auch, *warum* ein Wert `—`/`N/A`/`?` ist (Datenlücke vs. strukturell vs. Schätzung).
@@ -229,6 +229,32 @@ Diese Abschnitte definieren das gemeinsame Fundament, auf dem alle Komponenten i
 > — aus ihm ist auch `BEZEICHNUNG_ABGABE` der Kapitalrechnung abgeleitet, damit Geld- und
 > Energiezeile nicht getrennt driften können. Proben:
 > `test_abgabe_geldseite_beschriftung.py`, `components/finanzen/TKonto.test.tsx`.
+> ⭐ **Was als „triviale Summe" gilt, und was eine Ausnahme trotzdem zeigen darf** (12.09.2026,
+> Entscheid Gernot G-D). Drei Formen sind von der Pflicht zu **eingesetzten Werten** ausgenommen —
+> die **Formel** dürfen sie tragen, sie bleiben also nicht zwingend tooltip-frei:
+> **(1) Herkunftsangabe** — der Tooltip sagt, **woher** die Zahl kommt, statt wie sie gerechnet wurde
+> („Erfasst im Monatsabschluss als Position vom Typ *Ertrag*"); es gibt keine Rechnung, die man zeigen
+> könnte. **(2) Roher Zähler** und **(3) triviale Summe mit sichtbaren Summanden**.
+> ⭐ **Ein Quotient, dessen beide Eingangswerte als eigene Kacheln im selben Block stehen, gilt wie
+> eine triviale Summe mit sichtbaren Summanden.** Gleichgestellt sind Eingangswerte, die in der
+> **Zweitzeile derselben Kachel** oder in der **Kopfzeile desselben Blocks** stehen — die Begründung
+> ist, dass der Anwender beide Zahlen auf einer Fläche vor sich hat, und die trägt für alle drei
+> Formen gleich weit. ⚠ **Der Vorbehalt gehört dazu:** Nachbarkacheln sind einzeln parkbar. Parkt
+> jemand den Eingangswert und behält den Quotienten, trägt die Ausnahme für ihn nicht mehr. Das ist
+> der bewusst in Kauf genommene Rest — eine park-abhängige Regel wäre maschinell nicht prüfbar und
+> stünde gegen die Park-Doktrin.
+> **Maschinelles Gegenstück:** `npm run check:formel-herleitung` (Allowlist mit Klasse + Begründung
+> je Eintrag, Baseline 0 ungedeckt).
+> ✅ **Gebaut am 13.09.2026** (WK-04, Fund N-365): **zwölf** Kacheln in *Cockpit → Monat/Jahr*,
+> *Auswertungen → Finanzen*, *Komponenten → Speicher* und *Komponenten → Wärme/Klima* nennen ihre
+> eingesetzten Werte; zehn Backend-Felder liefern sie (`erloes_berechnung`,
+> `betriebskosten_jahr_euro`, `betriebskosten_anteilig_jahr_euro` + `_anzahl`,
+> `performance_ratio_tage` sowie Zähler und Nenner der drei Arbeitszahlen je Funktion).
+> Stand des Wächters: **84 Formel-Träger · 25 Ausnahmen (a 15 · b 10) · 0 ungedeckt.**
+> ⛔ **Es gibt keine dritte Klasse „dokumentiert offen".** Sie stand hier einen halben Tag lang, für
+> genau die drei Arbeitszahlen je Funktion — Entscheid Gernot (13.09.2026): *ein benannter Deckel ist
+> ein Deckel*, und N-365 verlangt ausdrücklich keinen. Sie haben ihre Herleitung stattdessen bekommen.
+> Wer künftig vor derselben Lage steht, ergänzt das fehlende Feld im Backend.
 
 > **✅ Tooltip-Kanon (visuell, Fundament-P3, 2026-06-13).** EIN dunkles Tooltip-Design für alle:
 > - **Fläche:** `bg-gray-900 dark:bg-gray-950 text-white`, `rounded-lg`, `shadow-lg` — in beiden Modi dunkel. Daten-Tooltips `p-3 text-sm`, Micro-Tooltips (title-Ersatz, `SimpleTooltip`) `px-2 py-1 text-xs`.

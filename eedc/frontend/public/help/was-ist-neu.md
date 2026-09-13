@@ -11,6 +11,53 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Die ⓘ-Tooltips zeigen jetzt die Zahlen, mit denen gerechnet wurde**
+
+**Betrifft dich das?** Jeden, der an einer Kennzahl das kleine ⓘ öffnet — in
+*Cockpit → Monat* und *Cockpit → Jahr*, in *Auswertungen → Finanzen* und in
+*Komponenten → Speicher* bzw. *Wärme/Klima*.
+
+**Was war:** Der Tooltip nannte die Formel, aber nicht die Zahlen. An
+*Netto-Ertrag* stand *„Einspeise-Erlös + Eigenverbrauchs-Ersparnis"* — welche
+zwei Beträge das waren, stand nirgends. An *Zyklen/Monat* stand eine Division,
+deren zweite Zahl auf keiner Seite zu finden war.
+
+**Was jetzt gilt:** Unter der Formel stehen die eingesetzten Werte. An
+*Netto-Ertrag* zum Beispiel *„148,20 € Einspeise-Erlös + 96,40 €
+Eigenverbrauchs-Ersparnis = 244,60 €"*, an *Zyklen/Monat* *„99,2 Vollzyklen ÷ 8
+Monate"*. Die *Performance Ratio* sagt jetzt, über wie viele Tage sie mittelt.
+Im T-Konto der Finanzen nennen der Einspeise-Erlös, die Betriebskosten je Gerät
+und die anteiligen Betriebskosten ihre Grundlage — beim Einspeise-Erlös stehen
+Formel und Rechnung endlich getrennt, wie an jeder anderen Kachel auch. Und die
+drei Arbeitszahlen **je Funktion** (Heizen, Warmwasser, Kühlen) im
+Komponenten-Hub sagen, aus welcher Wärme- und welcher Strommenge sie entstanden
+sind: *„1.000,0 kWh ÷ 250,0 kWh"*.
+
+**Der Fall, um den es eigentlich geht:** Wer monatelang eine Arbeitszahl von 0,7
+vor sich hat, sieht eine Zahl, die es physikalisch nicht geben kann — fast immer
+ein falsch zugeordneter Wärmemengenzähler. Mit den beiden Mengen daneben ist das
+in Sekunden zu erkennen. eedc warnt dabei bewusst nicht; es zeigt seine Rechnung
+und überlässt dir den Schluss.
+
+**Kleinigkeit am Rande:** Im **Jahres**-T-Konto stand über den Betriebskosten
+*„Betriebskosten/Jahr ÷ 12"*, obwohl daneben die Jahressumme steht. Jetzt heißt
+es dort *„Σ der Monats-Zwölftel"*. Der Betrag war immer richtig.
+
+**Warum das hilft:** Eine abgeleitete Zahl lässt sich ohne ihre Eingangsgrößen
+nicht einordnen. Wo zwei Größen dieselbe Einheit haben, fällt eine falsche
+Zuordnung sonst gar nicht auf — genau daran hat ein Anwender monatelang eine
+unmögliche Arbeitszahl nicht erklären können.
+
+**Was du tun musst:** Nichts. **Es ändert sich keine Zahl, nur die Auskunft
+darüber.** Wer das ⓘ nie öffnet, sieht keinen Unterschied.
+
+**Was bewusst so bleibt:** An einem rohen Zählerstand, an einer Summe, deren
+Summanden daneben stehen, und dort, wo der Tooltip nur sagt, **woher** eine Zahl
+kommt, erscheint weiterhin keine Rechnung. Eine Zahl mit *„Rechnung:
+Zählerstand"* zu versehen wäre nur Rauschen.
+
+---
+
 **Die Ø Temperatur im Monatsabschluss füllt sich wieder — aus deinen eigenen Messwerten**
 
 **Betrifft dich das?** Jeden, der einen Monat im **Monatsabschluss** erfasst und

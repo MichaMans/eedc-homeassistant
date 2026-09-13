@@ -299,10 +299,21 @@ export interface WaermepumpeDashboardResponse {
     jaz_heizen_grund?: string | null
     jaz_warmwasser?: number | null
     jaz_warmwasser_grund?: string | null
+    /** A6 (N-365): Zähler und Nenner, aus denen die Arbeitszahl daneben
+     *  ENTSTANDEN ist — aus demselben Layer-Objekt wie der Wert. ⛔ NICHT aus
+     *  den Anzeigefeldern nachbauen: der Layer entscheidet, OB es eine Zahl
+     *  geben darf (abgeleitete Wärme, Abgrenzungs-Störung), und lässt die
+     *  Rohsummen daneben stehen. `null`, wo es keine Arbeitszahl gibt. */
+    jaz_heizen_zaehler_kwh?: number | null
+    jaz_heizen_nenner_kwh?: number | null
+    jaz_warmwasser_zaehler_kwh?: number | null
+    jaz_warmwasser_nenner_kwh?: number | null
     /** W-5: Arbeitszahl Kühlen. Hängt an den Betriebsart-Zählern, NICHT an der
      *  getrennten Strommessung — eine Klimaanlage hat oft genau diese Zähler. */
     jaz_kuehlen?: number | null
     jaz_kuehlen_grund?: string | null
+    jaz_kuehlen_zaehler_kwh?: number | null
+    jaz_kuehlen_nenner_kwh?: number | null
     gesamt_kaelte_kwh?: number
     // Modus-Split (#263 K-2) — **Teilmengen** von `gesamt_stromverbrauch_kwh`,
     // nie Summanden. Alle vier fehlen gemeinsam, wenn kein Modus erfasst ist:

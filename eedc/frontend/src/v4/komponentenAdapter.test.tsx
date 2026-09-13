@@ -56,7 +56,7 @@ const pvStringsAntwort = (
 })
 
 describe('KOMPONENTEN_ADAPTER', () => {
-  it('Speicher: D2-KPIs + Ladequellen-Aufteilung (PV/Netz aus Arbitrage) + Verlauf', async () => {
+  it('Speicher: D2-KPIs + Ladequellen-Aufteilung (PV/Netz aus Arbitrage)', async () => {
     getSpeicherDashboard.mockResolvedValue([{
       investition: inv({ typ: 'speicher' }),
       zusammenfassung: { vollzyklen: 312, effizienz_prozent: 90, ist_wirkungsgrad_prozent: 92,
@@ -71,12 +71,34 @@ describe('KOMPONENTEN_ADAPTER', () => {
     // bevorzugt ist_wirkungsgrad_prozent (92) vor effizienz_prozent (90)
     expect(g.status[1].value).toBe('92')
     expect(g.aufteilung?.segmente.map((s) => [s.label, s.wert])).toEqual([['PV-Ladung', 4000], ['Netz-Ladung', 500]])
-    // Verlauf chronologisch sortiert (Okt vor Nov), Keys ladung/entladung
-    expect(g.verlauf?.bars.map((b) => b.key)).toEqual(['ladung', 'entladung'])
-    expect(g.verlauf?.rows.map((r) => [r.name, r.ladung])).toEqual([['Okt 25', 80], ['Nov 25', 100]])
-    // Vergleich: Jahressumme Entladung (90 + 70 = 160 in 2025)
-    expect(g.vergleich?.label).toBe('Entladung')
-    expect(g.vergleich?.jahre).toEqual([{ jahr: 2025, summe: 160 }])
+    // N-448: Der Speicher hat einen Registry-Eintrag (`komponentenAnalyse.tsx`) —
+    // die Weiche in `KomponentenTypV4` nimmt IHN, der Adapter-Zweig wäre
+    // unerreichbar. Er ist deshalb entfernt; die Substanz (chronologische
+    // Sortierung, Keys) prüft jetzt die Wallbox-Probe darunter, die als
+    // generischer Typ beide Zweige wirklich rendert.
+    expect(g.verlauf).toBeUndefined()
+    expect(g.vergleich).toBeUndefined()
+  })
+
+  it('Wallbox (generischer Typ): Verlauf chronologisch + Jahresvergleich', async () => {
+    // Die Verlauf-/Vergleich-Substanz aus der Speicher-Probe, umgezogen auf den
+    // Typ, der beide Zweige TATSÄCHLICH rendert (kein Registry-Eintrag, N-448).
+    getWallboxDashboard.mockResolvedValue([{
+      investition: inv({ typ: 'wallbox' }),
+      zusammenfassung: {
+        gesamt_heim_ladung_kwh: 180, pv_anteil_prozent: 60, gesamt_ladevorgaenge: 12,
+        ersparnis_vs_extern_euro: 40, ladung_pv_kwh: 108, ladung_netz_kwh: 72,
+      },
+      monatsdaten: [
+        { jahr: 2025, monat: 11, verbrauch_daten: { ladung_kwh: 100 } },
+        { jahr: 2025, monat: 10, verbrauch_daten: { ladung_kwh: 80 } },
+      ],
+    }])
+    const [g] = await KOMPONENTEN_ADAPTER.wallbox.fetch(1)
+    expect(g.verlauf?.bars.map((b) => b.key)).toEqual(['heim'])
+    expect(g.verlauf?.rows.map((r) => [r.name, r.heim])).toEqual([['Okt 25', 80], ['Nov 25', 100]])
+    expect(g.vergleich?.label).toBe('Heimladung')
+    expect(g.vergleich?.jahre).toEqual([{ jahr: 2025, summe: 180 }])
   })
 
   it('Speicher ① Kennzahlen-Strip + Degradations-/Durchsatz-Alarm + η-Alarm-Farbe', async () => {
@@ -96,6 +118,58 @@ describe('KOMPONENTEN_ADAPTER', () => {
     // Zwei Alarme (Degradation + Durchsatz-Invariante)
     expect(g.hinweise).toHaveLength(2)
     expect(g.hinweise!.every((h) => h.ton === 'warning')).toBe(true)
+  })
+
+  // ── A6 (N-365): „Zyklen/Monat" nennt seinen Divisor ──────────────────────
+  //
+  // Die Kachel zeigte eine Division, deren zweite Zahl NIRGENDS auf der Seite
+  // stand: „Anzahl Monate" ist keine Kachel, keine Zweitzeile, keine Kopfzeile.
+  // `anzahl_monate` liegt fertig in derselben Antwort und ist DERSELBE Wert,
+  // mit dem das Backend `zyklen_pro_monat` bildet (beide `len(monatsdaten)`) —
+  // deshalb nachgerüstet statt als Ausnahme geführt.
+  it('Speicher A6: Zyklen/Monat nennt Vollzyklen und Monate einzeln', async () => {
+    getSpeicherDashboard.mockResolvedValue([{
+      investition: inv({ typ: 'speicher' }),
+      zusammenfassung: { vollzyklen: 99.2, zyklen_pro_monat: 12.4, anzahl_monate: 8,
+        effizienz_prozent: 90, gesamt_entladung_kwh: 4100, gesamt_ladung_kwh: 4500,
+        arbitrage_kwh: 0, ersparnis_euro: 286 },
+      monatsdaten: [{ jahr: 2025, monat: 11, verbrauch_daten: { ladung_kwh: 100, entladung_kwh: 90 } }],
+    }])
+    const [g] = await KOMPONENTEN_ADAPTER.speicher.fetch(1)
+    const zyklen = g.kennzahlen!.kpis.find((k) => k.title === 'Zyklen/Monat')!
+    expect(zyklen.value).toBe('12,4')
+    expect(zyklen.formel).toBe('Vollzyklen ÷ Anzahl Monate')
+    expect(zyklen.berechnung).toBe('99,2 Vollzyklen ÷ 8 Monate')
+  })
+
+  it('Speicher A6: ohne Vollzyklen steht keine Rechnung da', async () => {
+    // Zweite Regelhälfte: ohne gepflegte Kapazität sperrt das Backend
+    // Vollzyklen UND Zyklen/Monat (N127/P4). Eine Rechnung aus „—" wäre
+    // Rauschen — der Grund steht als Hinweis daneben.
+    getSpeicherDashboard.mockResolvedValue([{
+      investition: inv({ typ: 'speicher' }),
+      zusammenfassung: { vollzyklen: null, zyklen_pro_monat: null, anzahl_monate: 8,
+        kapazitaet_fehlt: true, effizienz_prozent: 90, gesamt_entladung_kwh: 4100,
+        gesamt_ladung_kwh: 4500, arbitrage_kwh: 0, ersparnis_euro: 286 },
+      monatsdaten: [{ jahr: 2025, monat: 11, verbrauch_daten: { ladung_kwh: 100, entladung_kwh: 90 } }],
+    }])
+    const [g] = await KOMPONENTEN_ADAPTER.speicher.fetch(1)
+    const zyklen = g.kennzahlen!.kpis.find((k) => k.title === 'Zyklen/Monat')!
+    expect(zyklen.formel).toBe('Vollzyklen ÷ Anzahl Monate')
+    expect(zyklen.berechnung).toBeUndefined()
+  })
+
+  it('Speicher A6: EIN Monat heißt „Monat", nicht „Monate"', async () => {
+    getSpeicherDashboard.mockResolvedValue([{
+      investition: inv({ typ: 'speicher' }),
+      zusammenfassung: { vollzyklen: 3, zyklen_pro_monat: 3, anzahl_monate: 1,
+        effizienz_prozent: 90, gesamt_entladung_kwh: 100, gesamt_ladung_kwh: 110,
+        arbitrage_kwh: 0, ersparnis_euro: 7 },
+      monatsdaten: [{ jahr: 2025, monat: 11, verbrauch_daten: { ladung_kwh: 100, entladung_kwh: 90 } }],
+    }])
+    const [g] = await KOMPONENTEN_ADAPTER.speicher.fetch(1)
+    expect(g.kennzahlen!.kpis.find((k) => k.title === 'Zyklen/Monat')!.berechnung)
+      .toBe('3,0 Vollzyklen ÷ 1 Monat')
   })
 
   // ⚠ Radiocarbonat (T89667 #294): Der Satz nannte genau EINE Ursache
@@ -171,16 +245,22 @@ describe('KOMPONENTEN_ADAPTER', () => {
   })
 
   it('Vergleich: Jahressummen über mehrere Jahre, chronologisch', async () => {
-    getSpeicherDashboard.mockResolvedValue([{
-      investition: inv({ typ: 'speicher' }),
-      zusammenfassung: { vollzyklen: 1, effizienz_prozent: 90, gesamt_entladung_kwh: 0, gesamt_ladung_kwh: 0, arbitrage_kwh: 0, ersparnis_euro: 0 },
+    // Gegenstand ist `jahresSummen`. Er lief bis zum 13.09.2026 über den
+    // Speicher — dessen Zweig ist mit N-448 als unerreichbar entfallen; der
+    // Helfer selbst ist unverändert und wird von der Wallbox real gerendert.
+    getWallboxDashboard.mockResolvedValue([{
+      investition: inv({ typ: 'wallbox' }),
+      zusammenfassung: {
+        gesamt_heim_ladung_kwh: 0, pv_anteil_prozent: 0, gesamt_ladevorgaenge: 0,
+        ersparnis_vs_extern_euro: 0, ladung_pv_kwh: 0, ladung_netz_kwh: 0,
+      },
       monatsdaten: [
-        { jahr: 2024, monat: 6, verbrauch_daten: { ladung_kwh: 10, entladung_kwh: 50 } },
-        { jahr: 2025, monat: 1, verbrauch_daten: { ladung_kwh: 10, entladung_kwh: 30 } },
-        { jahr: 2025, monat: 2, verbrauch_daten: { ladung_kwh: 10, entladung_kwh: 40 } },
+        { jahr: 2024, monat: 6, verbrauch_daten: { ladung_kwh: 50 } },
+        { jahr: 2025, monat: 1, verbrauch_daten: { ladung_kwh: 30 } },
+        { jahr: 2025, monat: 2, verbrauch_daten: { ladung_kwh: 40 } },
       ],
     }])
-    const [g] = await KOMPONENTEN_ADAPTER.speicher.fetch(1)
+    const [g] = await KOMPONENTEN_ADAPTER.wallbox.fetch(1)
     expect(g.vergleich?.jahre).toEqual([{ jahr: 2024, summe: 50 }, { jahr: 2025, summe: 70 }])
   })
 
@@ -579,6 +659,67 @@ describe('KOMPONENTEN_ADAPTER — spezifische Blöcke (Inc. 3b)', () => {
     expect(g.kennzahlen!.kpis[0].subtitle).toBe('vs. fossile Heizung')
   })
 
+  // ── A6 (N-365): die drei Arbeitszahlen je Funktion nennen ihre Zahlen ────
+  //
+  // Es ist die Kachel-Familie des Melders, dessen unmögliche Arbeitszahl von
+  // 0,7 den Fund ausgelöst hat: „Heizwärme ÷ Strom Heizen" ohne die beiden
+  // Zahlen ist keine Auskunft. Zähler und Nenner kommen aus dem Layer und
+  // werden hier NICHT gebildet — der Layer entscheidet auch, ob es sie gibt.
+  const wpMitFunktionsJaz = (over: Record<string, unknown> = {}) => ({
+    investition: inv({ typ: 'waermepumpe' }),
+    zusammenfassung: {
+      durchschnitt_cop: 3.8, gesamt_waerme_kwh: 1150, gesamt_stromverbrauch_kwh: 300,
+      gesamt_heizenergie_kwh: 1000, gesamt_warmwasser_kwh: 150, ersparnis_euro: 500,
+      jaz_heizen: 4.0, jaz_heizen_zaehler_kwh: 1000, jaz_heizen_nenner_kwh: 250,
+      jaz_warmwasser: 3.0, jaz_warmwasser_zaehler_kwh: 150, jaz_warmwasser_nenner_kwh: 50,
+      jaz_kuehlen: 3.5, jaz_kuehlen_zaehler_kwh: 350, jaz_kuehlen_nenner_kwh: 100,
+      ...over,
+    },
+    monatsdaten: [{ jahr: 2025, monat: 11, verbrauch_daten: { heizenergie_kwh: 1000 } }],
+  })
+
+  const sekundaer = (g: { sekundaer?: { kpis: { title: string; formel?: string; berechnung?: string; subtitle?: string }[] } }, titel: string) => {
+    const k = g.sekundaer!.kpis.find((x) => x.title === titel)
+    expect(k, `Kachel „${titel}" muss es geben`).toBeDefined()
+    return k!
+  }
+
+  it('WP A6: JAZ Heizen/Warmwasser/Kühlen nennen Zähler und Nenner einzeln', async () => {
+    getWaermepumpeDashboard.mockResolvedValue([wpMitFunktionsJaz()])
+    const [g] = await KOMPONENTEN_ADAPTER.waermepumpe.fetch(1)
+    const heizen = sekundaer(g, 'JAZ Heizen')
+    expect(heizen.formel).toBe('Heizwärme ÷ Strom Heizen')
+    expect(heizen.berechnung).toBe('1.000,0 kWh ÷ 250,0 kWh')
+    expect(sekundaer(g, 'JAZ Warmwasser').berechnung).toBe('150,0 kWh ÷ 50,0 kWh')
+    expect(sekundaer(g, 'JAZ Kühlen').berechnung).toBe('350,0 kWh ÷ 100,0 kWh')
+  })
+
+  it('WP A6: ohne Nenner bleibt die Herleitung leer, die Formel steht weiter da', async () => {
+    // Zweite Regelhälfte: eine halbe Rechnung ist keine. Die Kachel selbst
+    // bleibt sichtbar — sie hat ja einen Wert.
+    getWaermepumpeDashboard.mockResolvedValue([wpMitFunktionsJaz({
+      jaz_heizen_nenner_kwh: null,
+    })])
+    const [g] = await KOMPONENTEN_ADAPTER.waermepumpe.fetch(1)
+    const heizen = sekundaer(g, 'JAZ Heizen')
+    expect(heizen.formel).toBe('Heizwärme ÷ Strom Heizen')
+    expect(heizen.berechnung).toBeUndefined()
+    // Gegenprobe in derselben Antwort: Warmwasser trägt seine Rechnung weiter.
+    expect(sekundaer(g, 'JAZ Warmwasser').berechnung).toBe('150,0 kWh ÷ 50,0 kWh')
+  })
+
+  it('WP A6: eine gesperrte Arbeitszahl bleibt ihr Grund, ohne Rechnung', async () => {
+    getWaermepumpeDashboard.mockResolvedValue([wpMitFunktionsJaz({
+      jaz_heizen: null, jaz_heizen_grund: 'Wärme ist gerechnet, nicht gemessen',
+      jaz_heizen_zaehler_kwh: null, jaz_heizen_nenner_kwh: null,
+    })])
+    const [g] = await KOMPONENTEN_ADAPTER.waermepumpe.fetch(1)
+    const heizen = sekundaer(g, 'JAZ Heizen')
+    expect(heizen.berechnung).toBeUndefined()
+    expect(heizen.formel).toBeUndefined()
+    expect(heizen.subtitle).toBe('Wärme ist gerechnet, nicht gemessen')
+  })
+
   it('WP B3/N-391: ohne Warmwasser-Achse gibt es keine Ein-Segment-Aufteilung', async () => {
     // F6 — ein Gesamt-Wärmemengenzähler: „Wärme nach Zweck: Heizung 100 %" wäre
     // die Behauptung, alles sei Heizung — das weiß eedc nicht (N-391, Lage B).
@@ -590,7 +731,10 @@ describe('KOMPONENTEN_ADAPTER — spezifische Blöcke (Inc. 3b)', () => {
     }])
     const [g] = await KOMPONENTEN_ADAPTER.waermepumpe.fetch(1)
     expect(g.aufteilung).toBeUndefined()
-    expect(g.verlauf?.bars.map((b) => b.label)).toEqual(['Wärme'])
+    // N-448: Die WP hat einen Registry-Eintrag; der Adapter-Verlauf war
+    // unerreichbar und ist entfernt. Die Aussage „ohne Warmwasser-Achse KEINE
+    // Ein-Segment-Aufteilung" — der Gegenstand dieser Probe — bleibt oben.
+    expect(g.verlauf).toBeUndefined()
   })
 
   it('WP: keine Sekundär ohne getrennte/238-Daten', async () => {

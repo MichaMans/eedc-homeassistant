@@ -247,6 +247,11 @@ class MonatsAuswertungResponse(BaseModel):
     autarkie_prozent: Optional[float] = None
     eigenverbrauch_prozent: Optional[float] = None
     performance_ratio_avg: Optional[float] = None
+    #: Anzahl der Tage, über die `performance_ratio_avg` gemittelt ist (A6: ein Ø
+    #: ohne genannte Grundgesamtheit ist keine Auskunft). ⛔ NICHT `tage_mit_daten`
+    #: — das sind die Tage mit irgendwelchen Daten; hier zählen nur die Tage mit
+    #: einer Performance Ratio, also mit Einstrahlungsdaten.
+    performance_ratio_tage: Optional[int] = None
     batterie_vollzyklen_summe: Optional[float] = None
 
     # Erweiterte Analyse-KPIs

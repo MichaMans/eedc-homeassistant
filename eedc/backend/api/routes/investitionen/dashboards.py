@@ -1485,6 +1485,19 @@ async def get_waermepumpe_dashboard(
                 round(_az_kuehlen.wert, 2) if _az_kuehlen.wert is not None else None
             )
             zusammenfassung['jaz_kuehlen_grund'] = _az_kuehlen.grund
+            # A6 (N-365): die beiden Zahlen, aus denen die Arbeitszahl
+            # ENTSTANDEN ist — aus demselben Layer-Objekt wie der Wert, nicht
+            # aus den Anzeigefeldern daneben. Sie sind `None`, wo es keinen
+            # Wert gibt (der Layer setzt sie nur mit `wert`), und der Grund
+            # steht dann weiterhin allein da.
+            zusammenfassung['jaz_kuehlen_zaehler_kwh'] = (
+                round(_az_kuehlen.zaehler_kwh, 1)
+                if _az_kuehlen.zaehler_kwh is not None else None
+            )
+            zusammenfassung['jaz_kuehlen_nenner_kwh'] = (
+                round(_az_kuehlen.nenner_kwh, 1)
+                if _az_kuehlen.nenner_kwh is not None else None
+            )
             zusammenfassung['gesamt_kaelte_kwh'] = round(gesamt_kaelte, 1)
 
         # W-4 (SOLL §4.1): Arbeitszahl je Funktion, wenn separate Strommessung
@@ -1548,6 +1561,23 @@ async def get_waermepumpe_dashboard(
                 if _az_funktion.warmwasser.wert is not None else None
             )
             zusammenfassung['jaz_warmwasser_grund'] = _az_funktion.warmwasser.grund
+            # A6 (N-365) — wie beim Kühlen: Zähler und Nenner aus DEMSELBEN
+            # Layer-Objekt. ⛔ Nicht aus `gesamt_heizung_getrennt` /
+            # `gesamt_strom_heizen` nachgebaut — nicht wegen eines Abzugs (den
+            # gibt es je Funktion bewusst nicht, SOLL-§9-E7), sondern weil der
+            # Layer entscheidet, OB es eine Zahl geben darf: bei abgeleiteter
+            # Wärme oder Abgrenzungs-Störung stehen beide Rohsummen weiter in
+            # dieser Antwort, und eine daraus gebaute Herleitung zeigte genau
+            # die Rechnung, die es nicht geben darf (Konzept §3.5).
+            # Probe: `test_a6_arbeitszahl_je_funktion_herleitung.py`.
+            for _fn, _az in (('heizen', _az_funktion.heizen),
+                             ('warmwasser', _az_funktion.warmwasser)):
+                zusammenfassung[f'jaz_{_fn}_zaehler_kwh'] = (
+                    round(_az.zaehler_kwh, 1) if _az.zaehler_kwh is not None else None
+                )
+                zusammenfassung[f'jaz_{_fn}_nenner_kwh'] = (
+                    round(_az.nenner_kwh, 1) if _az.nenner_kwh is not None else None
+                )
 
         dashboards.append(WaermepumpeDashboardResponse(
             investition=wp,

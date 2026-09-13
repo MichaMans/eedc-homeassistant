@@ -1664,6 +1664,9 @@ async def get_monatsauswertung(
 
     pr_werte = [t.performance_ratio for t in tag_rows if t.performance_ratio is not None]
     pr_avg = round(sum(pr_werte) / len(pr_werte), 3) if pr_werte else None
+    # A6: der Nenner des Ø gehört mit ausgeliefert — er ist `len(pr_werte)` und
+    # NICHT `tage_mit_daten` (das zählt Tage mit irgendwelchen Daten).
+    pr_tage = len(pr_werte) if pr_werte else None
 
     # Börsenpreis / Negativpreis (§51 EEG)
     boersen_werte = [t.boersenpreis_avg_cent for t in tag_rows if t.boersenpreis_avg_cent is not None]
@@ -1769,6 +1772,7 @@ async def get_monatsauswertung(
         autarkie_prozent=autarkie,
         eigenverbrauch_prozent=eigenverbrauch,
         performance_ratio_avg=pr_avg,
+        performance_ratio_tage=pr_tage,
         batterie_vollzyklen_summe=zyklen_summe,
         grundbedarf_kw=grundbedarf,
         batterie_ladung_kwh=round(batt_lade_sum, 2) if batt_lade_sum > 0 else None,

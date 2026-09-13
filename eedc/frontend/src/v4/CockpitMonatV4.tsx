@@ -384,7 +384,7 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
     // werden im Strip ausgeblendet. Sind ALLE geparkt → Block-Hülle ausblenden
     // (Gernot-Abnahme 2026-06-25, Entscheidung 2).
     const kpiItems = monatData
-      ? baueMonatKpis(monatData, vormonatAgg, monatAusw?.performance_ratio_avg).map((k) => ({
+      ? baueMonatKpis(monatData, vormonatAgg, monatAusw?.performance_ratio_avg, monatAusw?.performance_ratio_tage).map((k) => ({
           ...k,
           parkId: `kpi:${k.title.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}`,
         }))

@@ -356,6 +356,9 @@ export interface MonatsAuswertung {
   autarkie_prozent: number | null
   eigenverbrauch_prozent: number | null
   performance_ratio_avg: number | null
+  /** Tage mit Einstrahlungsdaten, über die `performance_ratio_avg` mittelt (A6).
+   *  NICHT `tage_mit_daten` — das ist ein anderer Nenner. */
+  performance_ratio_tage?: number | null
   batterie_vollzyklen_summe: number | null
   grundbedarf_kw: number | null
   batterie_ladung_kwh: number | null

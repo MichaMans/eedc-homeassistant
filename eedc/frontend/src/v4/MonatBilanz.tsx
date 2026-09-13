@@ -51,11 +51,13 @@ const fmt = (v: number | null | undefined, dec = 0) => fmtCalc(v, dec, '—')
  *  `prAvg` (Monats-Ø der Performance Ratio, aus `getMonat.performance_ratio_avg`,
  *  M1-Wiederherstellung 2026-07-19): eine zusätzliche neutrale Kachel, nur wenn
  *  gesetzt — die Datenquelle ist die Auswertung, nicht das Monats-Aggregat, daher
- *  als eigener Parameter durchgereicht statt aus `d` gelesen. */
+ *  als eigener Parameter durchgereicht statt aus `d` gelesen. `prTage` ist die
+ *  Grundgesamtheit dieses Ø (dieselbe Antwort, `performance_ratio_tage`). */
 export function baueMonatKpis(
   d: AktuellerMonatResponse,
   vm: AggregierteMonatsdaten | null,
   prAvg?: number | null,
+  prTage?: number | null,
 ): KpiStripItem[] {
   // N-69: im laufenden Monat trägt `soll_pv_kwh` nur die abgelaufenen Tage. Die
   // Zweitzeile ist `truncate` und fasst keine Fensterangabe mehr — die steht
@@ -108,6 +110,16 @@ export function baueMonatKpis(
       title: 'Netto-Ertrag', value: fmtCalc(d.netto_ertrag_euro, 2, '—'), unit: '€', color: 'blue', icon: DATENROLLEN_ICONS.nettoErtrag,
       subtitle: 'vor Betriebskosten',
       formel: 'Einspeise-Erlös + Eigenverbrauchs-Ersparnis',
+      // A6: die beiden Summanden aus DERSELBEN Antwort, die auch den Wert
+      // daneben trägt (`netto_ertrag_euro = einspeise_erloes + ev_ersparnis`,
+      // `aktueller_monat.py`). Kein `?? 0`: fehlt einer der beiden, bleibt die
+      // Herleitung leer, statt eine Rechnung aus „—" zu bauen.
+      berechnung: (d.einspeise_erloes_euro != null && d.ev_ersparnis_euro != null)
+        ? `${fmtCalc(d.einspeise_erloes_euro, 2)} € Einspeise-Erlös + ${fmtCalc(d.ev_ersparnis_euro, 2)} € Eigenverbrauchs-Ersparnis`
+        : undefined,
+      ergebnis: (d.einspeise_erloes_euro != null && d.ev_ersparnis_euro != null && d.netto_ertrag_euro != null)
+        ? `= ${fmtCalc(d.netto_ertrag_euro, 2)} €`
+        : undefined,
     },
     {
       title: 'Monatsergebnis',
@@ -115,6 +127,13 @@ export function baueMonatKpis(
       color: monatsergebnis != null && monatsergebnis < 0 ? 'red' : 'green', icon: DATENROLLEN_ICONS.ergebnis,
       subtitle: 'nach Betriebskosten',
       formel: 'Gesamt-Nettoertrag − Betriebskosten + Sonstiges',
+      // A6: dieselben drei Felder, aus denen `monatsergebnis` oben entsteht —
+      // derselbe Guard (`gesamtnettoertrag_euro != null`), damit die Rechnung
+      // nicht neben einem „—" steht.
+      berechnung: d.gesamtnettoertrag_euro != null
+        ? `${fmtCalc(d.gesamtnettoertrag_euro, 2)} € − ${fmtCalc(d.betriebskosten_anteilig_euro ?? 0, 2)} € + ${fmtCalc(d.sonstige_netto_euro ?? 0, 2)} €`
+        : undefined,
+      ergebnis: monatsergebnis != null ? `= ${fmtCalc(monatsergebnis, 2)} €` : undefined,
     },
     // Performance Ratio Ø des Monats (M1-Wiederherstellung) — neutrale Kachel, nur
     // wenn ableitbar. Physikalische Kennzahl (keine Datenrolle) → raw Gauge-Icon
@@ -128,6 +147,13 @@ export function baueMonatKpis(
           // bewusst KEINE eigene Einstrahlungszahl: der Monats-Ø mittelt Tages-PRs,
           // er teilt nicht selbst. Die Zahl steht in Cockpit → Tag.
           formel: 'Ø der täglichen Performance Ratio (Ertrag ÷ Einstrahlung auf die Modulfläche × kWp)',
+          // A6: ein Ø ohne genannte Grundgesamtheit ist keine Auskunft. Die Zahl
+          // ist der Nenner, mit dem der Layer gemittelt hat (`performance_ratio_tage`
+          // = `len(pr_werte)`) — NICHT `tage_mit_daten`, das zählt Tage mit
+          // irgendwelchen Daten und stünde neben einer anderen Rechnung.
+          berechnung: prTage != null && prTage > 0
+            ? `Ø aus ${prTage} ${prTage === 1 ? 'Tag' : 'Tagen'} mit Einstrahlungsdaten`
+            : undefined,
         }]
       : []),
     ...baueNetzKostenKpis(d),

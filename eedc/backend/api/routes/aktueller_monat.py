@@ -175,6 +175,11 @@ class InvestitionFinancialDetail(BaseModel):
     bezeichnung: str
     typ: str
     betriebskosten_monat_euro: float = 0.0
+    #: Der Jahresbetrag, aus dem `betriebskosten_monat_euro` der Zwölftel ist
+    #: (A6: die Kachel nennt „Betriebskosten/Jahr ÷ 12", der Jahreswert stand
+    #: bis 2026-09-13 auf keiner Fläche). Quelle ist dieselbe wie oben —
+    #: `Investition.betriebskosten_jahr`; der Client teilt NICHT selbst.
+    betriebskosten_jahr_euro: float = 0.0
     erloes_euro: Optional[float] = None      # z.B. BKW-Einspeisung
     #: Herleitung der Erlös-Zeile. Sie ist NICHT für alle Typen dieselbe: beim
     #: BKW rechnet eedc `Einspeisung × Vergütung`, bei einem sonstigen Erzeuger
@@ -183,6 +188,15 @@ class InvestitionFinancialDetail(BaseModel):
     #: Fall eine Rechnung behauptet, die niemand angestellt hat (Regel A6:
     #: Formel **+ eingesetzte Werte**). Wer den Wert bildet, beschreibt ihn.
     erloes_formel: Optional[str] = None
+    #: Die **eingesetzten Werte** zur Formel darüber (Style-Guide A6: Formel sagt
+    #: WAS gerechnet wird, die Berechnung WOMIT). Bis 2026-09-13 standen beide in
+    #: `erloes_formel` in EINER Zeile („Einspeisung × Einspeisevergütung — 123,4
+    #: kWh × 8,20 ct/kWh") und damit unter der Überschrift „Formel" — an jeder
+    #: anderen Kachel stehen sie getrennt. `None` bei den **gepflegten** Erlösen:
+    #: dort gibt es keine Rechnung, nur eine Herkunftsangabe (Konzept §9 Weg 2).
+    #: ⛔ Der Wert wird hier gebildet, nicht im Client — eine im Client
+    #: nachgerechnete Herleitung führt auf eine andere Zahl als die Zeile daneben.
+    erloes_berechnung: Optional[str] = None
     #: Anzeigename der Erlös-Zeile („{Gerät} — {erloes_label}"). Kommt aus dem
     #: Backend statt aus dem Client, weil ihn die **Kategorie** entscheidet:
     #: ein Gerät der Kategorie *Abgabe an Dritte* trägt keinen Einspeise-Erlös,
@@ -544,6 +558,12 @@ class AktuellerMonatResponse(BaseModel):
 
     # Betriebskosten (anteilig, Σ betriebskosten_jahr / 12 aller aktiven Investitionen)
     betriebskosten_anteilig_euro: Optional[float] = None
+    #: Die beiden Summanden der Zeile darüber (A6). Die T-Konto-Zeile
+    #: „Betriebskosten (anteilig)" erscheint GENAU DANN, wenn es keine
+    #: Per-Investition-Zeilen gibt — der Anwender sieht die Summanden also
+    #: nirgends sonst und braucht die Herleitung dort am nötigsten.
+    betriebskosten_anteilig_jahr_euro: Optional[float] = None
+    betriebskosten_anteilig_anzahl: Optional[int] = None
 
     # Per-Investition Finanzdetails (für T-Konto)
     investitionen_financials: list[InvestitionFinancialDetail] = []
@@ -1215,6 +1235,7 @@ def _baue_investition_financial(
     inv_sonstige_ausgaben = round(inv_sonstige["ausgaben_euro"], 2)
     inv_erloes: Optional[float] = None
     inv_erloes_formel: Optional[str] = None
+    inv_erloes_berechnung: Optional[str] = None
     #: Default „Einspeisung" — die Abgabe-Kategorie überschreibt ihn unten.
     inv_erloes_label = ERLOES_LABEL_EINSPEISUNG
 
@@ -1233,8 +1254,11 @@ def _baue_investition_financial(
             inv_berechnung = f"{ev_kwh:.1f} kWh × {netz_p:.2f} ct/kWh"
         if einsp_kwh and einsp_kwh > 0:
             inv_erloes = round(einsp_kwh * einsp_p / 100, 2)
-            inv_erloes_formel = (
-                f"Einspeisung × Einspeisevergütung — "
+            # A6: Formel und eingesetzte Werte in GETRENNTE Felder — beides in
+            # einem Satz stand unter der Überschrift „Formel", während jede
+            # andere Kachel „Berechnung" daneben führt. Kein Wert ändert sich.
+            inv_erloes_formel = "Einspeisung × Einspeisevergütung"
+            inv_erloes_berechnung = (
                 f"{einsp_kwh:.1f} kWh × {einsp_p:.2f} ct/kWh"
             )
 
@@ -1419,8 +1443,10 @@ def _baue_investition_financial(
             bezeichnung=inv.bezeichnung,
             typ=inv.typ,
             betriebskosten_monat_euro=bk_monat,
+            betriebskosten_jahr_euro=round(float(inv.betriebskosten_jahr or 0), 2),
             erloes_euro=inv_erloes,
             erloes_formel=inv_erloes_formel,
+            erloes_berechnung=inv_erloes_berechnung,
             erloes_label=inv_erloes_label,
             ersparnis_euro=inv_ersparnis,
             ersparnis_label=inv_label,
@@ -2044,13 +2070,21 @@ async def get_aktueller_monat(
 
     # ── Betriebskosten anteilig ──
     betriebskosten_anteilig = None
-    bk_summe = sum(
-        (i.betriebskosten_jahr or 0) / 12
+    betriebskosten_anteilig_jahr = None
+    betriebskosten_anteilig_anzahl = None
+    # A6: dieselbe Filtermenge trägt Σ Monatsanteil UND Σ Jahresbetrag/Anzahl —
+    # ein zweiter Durchlauf mit anderem Filter wäre eine Herleitung, die auf
+    # eine andere Zahl führt als die Zeile daneben.
+    bk_jahre = [
+        (i.betriebskosten_jahr or 0)
         for i in investitionen
         if (i.betriebskosten_jahr or 0) > 0
-    )
+    ]
+    bk_summe = sum(j / 12 for j in bk_jahre)
     if bk_summe > 0:
         betriebskosten_anteilig = round(bk_summe, 2)
+        betriebskosten_anteilig_jahr = round(sum(bk_jahre), 2)
+        betriebskosten_anteilig_anzahl = len(bk_jahre)
 
     # ── Sonstige Erträge / Ausgaben über alle Investitionen aggregieren ──
     # Pro Investition gehen Detail-Zeilen ins T-Konto (siehe
@@ -2893,6 +2927,8 @@ async def get_aktueller_monat(
         anlage_sonstige_ausgaben_euro=anlage_sonstige_ausgaben,
         gesamtnettoertrag_euro=gesamtnettoertrag,
         betriebskosten_anteilig_euro=betriebskosten_anteilig,
+        betriebskosten_anteilig_jahr_euro=betriebskosten_anteilig_jahr,
+        betriebskosten_anteilig_anzahl=betriebskosten_anteilig_anzahl,
         # Tarif-Info
         netzbezug_preis_cent=netzbezug_preis_cent if allgemein_tarif else None,
         netzbezug_preis_herkunft=netzbezug_preis_herkunft,
