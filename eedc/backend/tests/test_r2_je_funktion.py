@@ -178,9 +178,20 @@ async def test_a5_zeigt_je_funktion_in_monat_und_jahr(db):
     m = await _monat(db, a.id)
     assert m.wp_jaz_heizen == pytest.approx(3.0) and m.wp_jaz_heizen_grund is None
     assert m.wp_jaz_warmwasser == pytest.approx(2.5) and m.wp_jaz_warmwasser_grund is None
-    # ⚠ Die ANLAGENWEITE Zahl bleibt gesperrt, und das ist richtig: sie mischt
-    # den Strom beider Geräte mit der Wärme eines.
-    assert m.wp_jaz is None and m.wp_jaz_grund == GRUND_BAUARTEN_GEMISCHT
+    # ⚠ **Die ANLAGENWEITE Zahl ist KEINE Geräte-Kennzahl** — sie mischt den
+    # Strom beider Geräte mit der Wärme eines. Die Substanz dieser Zeile ist
+    # unverändert; ihr Wortlaut nicht: Seit **E1b** (14.09.2026) steht statt
+    # eines Strichs mit Grund eine **untere Schranke**, die genau das sagt.
+    # 3400 kWh Wärme ÷ 1400 kWh Strom = 2,43 — der wahre Wert der Wärmepumpe
+    # liegt darüber, weil die 200 kWh der Klimaanlage im Nenner stehen.
+    assert m.wp_jaz == pytest.approx(3400 / 1400)
+    assert m.wp_jaz_ist_schranke is True
+    assert m.wp_jaz_schranke_hinweis == (
+        "Klimaanlage: Strom ohne Wärmemessung enthalten"
+    )
+    # ⛔ **Und deshalb KEIN Grund mehr an dieser Kachel**: Ein Grund hieße „es
+    # gibt die Zahl nicht", und es gibt sie.
+    assert m.wp_jaz_grund is None
 
     j = await _jahr(db, a.id)
     assert j.wp_jaz_heizen == pytest.approx(3.0)
@@ -486,7 +497,14 @@ def test_hub_hilft_nur_bei_gruenden_die_der_hub_beantwortet():
 
 @pytest.mark.asyncio
 async def test_a5_bekommt_den_weg_zum_hub(db):
-    """Die anlagenweite Gesamtzahl bleibt gesperrt — und sagt jetzt, wo sie steht."""
+    """Die anlagenweite Zahl ist eine Schranke — und der Weg zum Hub bleibt.
+
+    ⭐ **Wortlaut umgestellt, Substanz gehalten** (E1b, 14.09.2026): Geprüft war
+    *„die Gesamtzahl bleibt gesperrt UND der Link erscheint"*. Die erste Hälfte
+    gibt es nicht mehr — die Zahl erscheint als Schranke. Die zweite Hälfte ist
+    die eigentliche Aussage des Falls und gilt unverändert: Bei gemischten
+    Bauarten führt ein Weg in den Hub, weil dort **jedes Gerät für sich** steht.
+    """
     a = await _anlage(db, "A5 Hub-Link")
     await _geraet(db, a, "Wärmepumpe", dict(_WP), {
         "strom_heizen_kwh": 800.0, "heizenergie_kwh": 2400.0,
@@ -494,7 +512,8 @@ async def test_a5_bekommt_den_weg_zum_hub(db):
     await _geraet(db, a, "Klimaanlage", dict(_KLIMA), {"stromverbrauch_kwh": 200.0})
     await db.commit()
     m = await _monat(db, a.id)
-    assert m.wp_jaz is None and m.wp_jaz_grund == GRUND_BAUARTEN_GEMISCHT
+    assert m.wp_jaz is not None and m.wp_jaz_ist_schranke is True
+    assert m.wp_jaz_grund is None
     assert m.wp_hub_hilft is True
     j = await _jahr(db, a.id)
     assert j.wp_hub_hilft is True

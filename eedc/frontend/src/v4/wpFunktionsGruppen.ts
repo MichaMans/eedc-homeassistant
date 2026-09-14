@@ -21,12 +21,22 @@
  * Reine Funktion, damit sie ohne Render prüfbar ist (Bauform `verlaufRestZeilen`).
  */
 import type { AktuellerMonatResponse } from '../api/aktuellerMonat'
+import { GROESSE, imKasten, type GroessenName } from './waermeKlimaSicht'
 
 export type WpFunktion = 'heizen' | 'warmwasser' | 'kuehlen'
 
 export type FunktionsZeile =
   | { art: 'strom' | 'nutzenergie'; label: string; kwh: number }
-  | { art: 'arbeitszahl'; label: string; wert: number | null; grund: string | null }
+  /** ⛔ **Ohne sichtbaren `grund`** — seit der D-Sicht (14.09.2026) trägt eine
+   *  Arbeitszahl-Zeile entweder eine Zahl oder ein „—" ohne Text. Ein
+   *  **Ausstattungs**-Grund steht im Kasten „Was noch möglich wäre".
+   *
+   *  ⭐ **Ein ZEITRAUM-Grund steht im `tooltip`** (Entscheid Fable, 14.09.2026,
+   *  Gegenlesung zu A-4): Er gehört in keinen Kasten — es gibt nichts zu tun —,
+   *  aber er soll auch nicht verschwinden. **S3 bleibt damit erfüllt: der Grund
+   *  ist da, eine Geste entfernt**, ohne dass der Block wieder mit Texten
+   *  vollläuft. */
+  | { art: 'arbeitszahl'; label: string; wert: number | null; tooltip?: string }
 
 export interface FunktionsGruppe {
   funktion: WpFunktion
@@ -36,8 +46,6 @@ export interface FunktionsGruppe {
 
 export interface FunktionsGruppen {
   gruppen: FunktionsGruppe[]
-  /** Funktionen ohne Menge, die trotzdem etwas zu sagen haben (ihren Grund). */
-  ohneMenge: FunktionsZeile[]
 }
 
 type Zahl = number | null | undefined
@@ -48,6 +56,9 @@ interface Definition {
   strom: [string, Zahl]
   nutzenergie: [string, Zahl]
   arbeitszahl: [string, Zahl, string | null | undefined]
+  /** Unter welchem Bezeichner diese Arbeitszahl im Kasten „Was noch möglich
+   *  wäre" stehen kann (D-Sicht). */
+  kasten: GroessenName
 }
 
 /** Die Namen der Mengen sind die des Formulars (S1: *Strom Heizen*, *Heizwärme*,
@@ -59,12 +70,14 @@ function definitionen(d: AktuellerMonatResponse): Definition[] {
       strom: ['Strom Heizen', d.wp_strom_heizen_kwh],
       nutzenergie: ['Heizwärme', d.wp_heizung_kwh],
       arbeitszahl: ['Arbeitszahl · Heizen', d.wp_jaz_heizen, d.wp_jaz_heizen_grund],
+      kasten: GROESSE.heizen,
     },
     {
       funktion: 'warmwasser', titel: 'Warmwasser',
       strom: ['Strom Warmwasser', d.wp_strom_warmwasser_kwh],
       nutzenergie: ['Warmwasser-Wärme', d.wp_warmwasser_kwh],
       arbeitszahl: ['Arbeitszahl · Warmwasser', d.wp_jaz_warmwasser, d.wp_jaz_warmwasser_grund],
+      kasten: GROESSE.warmwasser,
     },
     {
       // Kühlen: Betriebsart = Funktion, der Strom ist derselbe wie im Segment
@@ -73,23 +86,49 @@ function definitionen(d: AktuellerMonatResponse): Definition[] {
       strom: ['Strom Kühlen', d.wp_modus_strom_kuehlen_kwh],
       nutzenergie: ['Kälte', d.wp_kaelte_kwh],
       arbeitszahl: ['Arbeitszahl · Kühlen', d.wp_jaz_kuehlen, d.wp_jaz_kuehlen_grund],
+      kasten: GROESSE.kuehlen,
     },
   ]
 }
 
 export function wpFunktionsGruppen(d: AktuellerMonatResponse): FunktionsGruppen {
   const gruppen: FunktionsGruppe[] = []
-  const ohneMenge: FunktionsZeile[] = []
+  const moeglich = d.wp_moeglich ?? []
   for (const def of definitionen(d)) {
     const [azLabel, azWert, azGrund] = def.arbeitszahl
-    // ⚠ Auch das gesperrte „—" erscheint, mit seinem Grund (S3) — ohne Wert UND
-    // ohne Grund gibt es keine Auskunft, also keine Zeile (N-348).
-    const az: FunktionsZeile | null = (azWert != null || azGrund)
-      ? { art: 'arbeitszahl', label: azLabel, wert: azWert ?? null, grund: azGrund ?? null }
+    // ── D-Sicht (Konzept §6, 14.09.2026) ────────────────────────────────────
+    //
+    // ⛔ **Hier stand bis dahin: „Auch das gesperrte ‚—' erscheint, mit seinem
+    // Grund (S3)."** Das war richtig und trotzdem der Grund, warum dieser Block
+    // aus Strichen bestand: Ein einziger fehlender Zähler erzeugte zwei bis drei
+    // Zeilen, die alle denselben Satz trugen.
+    //
+    // Jetzt entscheidet der **Layer** über die Klasse des Grundes, und diese
+    // Liste liest nur das Ergebnis:
+    //
+    //   • Grund im Kasten (**Ausstattung**) ⇒ die Zeile entfällt; der Satz steht
+    //     einmal am Blockende, mit dem Handgriff daneben.
+    //   • Grund **nicht** im Kasten (**Zeitraum**) ⇒ „—" ohne Text, wie bei
+    //     einer Heizzahl im Juni: Es gibt nichts zu tun.
+    //
+    // ⚠ **Die Mengen-Zeilen bleiben unberührt** (K1). Gesperrt wird eine
+    // Kennzahl, nie eine Messung.
+    const azImKasten = azWert == null && imKasten(moeglich, def.kasten)
+    const az: FunktionsZeile | null = (azWert != null || (azGrund && !azImKasten))
+      ? {
+          art: 'arbeitszahl', label: azLabel, wert: azWert ?? null,
+          // D-Sicht 2: ein Zeitraum-Grund zeigt „—" ohne sichtbaren Text — und
+          // nennt sich beim Überfahren. Bei vorhandener Zahl gibt es nichts zu
+          // erklären.
+          tooltip: (azWert == null && azGrund) ? azGrund : undefined,
+        }
       : null
     const hatMenge = (def.strom[1] ?? 0) > 0 || (def.nutzenergie[1] ?? 0) > 0
     if (!hatMenge) {
-      if (az) ohneMenge.push(az)
+      // ⛔ **Eine Zeile ohne Menge und ohne Grund-Text hat nichts zu sagen.**
+      // Bis zur D-Sicht war sie der Träger des Grundes; der steht jetzt im
+      // Kasten. Ein nacktes „Arbeitszahl · Heizen —" wäre genau die
+      // Strich-Zeile, gegen die das Paket gebaut ist.
       continue
     }
     const zeilen: FunktionsZeile[] = []
@@ -103,7 +142,7 @@ export function wpFunktionsGruppen(d: AktuellerMonatResponse): FunktionsGruppen 
     if (az) zeilen.push(az)
     gruppen.push({ funktion: def.funktion, titel: def.titel, zeilen })
   }
-  return { gruppen, ohneMenge }
+  return { gruppen }
 }
 
 /** E3 (b): Zeigen die Gruppen einen **getrennt gemessenen** Strom (F5), stehen im

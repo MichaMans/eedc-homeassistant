@@ -2117,6 +2117,17 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # durch `lade_monats_fakten` zu führen, hieße ihn zur Energiegröße zu
     # machen — die Bewegung, gegen die das ganze Vorhaben gebaut ist.
     "backend/services/zaehlerstaende.py::_gepflegte_monatsstaende",
+    # WK-16a (2026-09-14): die Kennzahl JE GERÄT für Cockpit Monat/Jahr.
+    # **Dieselbe Begründung wie `get_waermepumpe_dashboard` weiter oben**, und
+    # zwar wörtlich: Die Schicht liefert die **anlagenweite** Monatszeile; eine
+    # Arbeitszahl je Gerät lässt sich daraus strukturell nicht ablesen — genau
+    # dafür gibt es diese Kategorie.
+    #
+    # ⭐ **Der Eintrag ersetzt keinen zweiten, er verhindert ihn.** Bis hierher
+    # stand die Faltung IN `get_waermepumpe_dashboard`; der Cockpit-Block hätte
+    # sie ein zweites Mal gebraucht. Jetzt lädt **eine** Funktion, und Hub,
+    # Monat und Jahr lesen dasselbe Ergebnis.
+    "backend/services/waermepumpe_kennzahlen_je_geraet.py::lade_kennzahlen_je_geraet",
 })
 
 #: **Offene Schuld.** Diese Funktionen falten eine ANLAGEN-weite Monatszeile

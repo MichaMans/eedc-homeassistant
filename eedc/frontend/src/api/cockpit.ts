@@ -5,6 +5,7 @@
  */
 
 import { api } from './client'
+import type { WpGeraetZeile, WpMoeglichZeile } from './aktuellerMonat'
 
 // =============================================================================
 // Types
@@ -58,6 +59,17 @@ export interface CockpitUebersicht {
   wp_jaz_warmwasser_grund?: string | null
   wp_jaz_kuehlen?: number | null
   wp_jaz_kuehlen_grund?: string | null
+  /** E1b — siehe {@link WpGeraetZeile}. */
+  wp_cop_ist_schranke?: boolean | null
+  /** Der EINE Satz unter der Schranke: „Klimaanlage: Strom ohne Wärmemessung
+   *  enthalten". Fertig formuliert aus dem Layer. */
+  wp_cop_schranke_hinweis?: string | null
+  /** D-Sicht 3: die Kennzahlen **je Gerät**, im Block selbst. */
+  wp_geraete?: WpGeraetZeile[] | null
+  /** D-Sicht 1: was die Ausstattung nicht hergibt — **einmal je Sicht**, mit
+   *  Handgriff. Eine Größe, deren Grund hier steht, bekommt **keine** Kachel
+   *  mit „—"; eine Größe mit einem Zeitraum-Grund bleibt als „—" ohne Text. */
+  wp_moeglich?: WpMoeglichZeile[] | null
   /** Bauschnitt 8: Kältemenge des Jahres aus dem Layer (> 0, sonst `null`). */
   wp_kaelte_kwh?: number | null
   wp_modus_strom_heizen_kwh?: number | null

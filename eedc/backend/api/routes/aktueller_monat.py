@@ -11,13 +11,23 @@ from datetime import date, datetime
 from typing import NamedTuple, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.core.exceptions import not_found
 from backend.api.deps import get_db
+from backend.services.waermepumpe_kennzahlen_je_geraet import (
+    lade_kennzahlen_je_geraet,
+)
+from backend.services.waerme_klima_block import (
+    WpGeraetZeile,
+    WpMoeglichZeile,
+    geraete_zeilen,
+    schranken_eingang,
+    was_noch_moeglich,
+)
 from backend.models.anlage import Anlage
 from backend.models.investition import Investition, InvestitionMonatsdaten
 from backend.models.monatsdaten import Monatsdaten
@@ -37,7 +47,7 @@ from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, hub_hilft,
     abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
-    waerme_gesamt_kwh,
+    systemarbeitszahl, waerme_gesamt_kwh,
 )
 from backend.core.berechnungen import (
     sonstiges_richtung,
@@ -425,6 +435,34 @@ class AktuellerMonatResponse(BaseModel):
     #: Quotient über einen Zeitraum.
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: **E1b (14.09.2026): die anlagenweite Zahl darf eine untere SCHRANKE sein.**
+    #: ``True`` ⇒ ``wp_jaz`` ist ein **Mindestwert** („≥ 3,25"), weil im Nenner
+    #: Strom steht, dem keine gemessene Wärme gegenübersteht (Klimaanlage ohne
+    #: Wärmemengenzähler, Heizstab). Mehr Strom im Nenner kann den Quotienten
+    #: nur kleiner machen — die Aussage bleibt wahr (ADR-002/**P4** verbietet
+    #: falsche Zahlen, nicht wahre Schranken).
+    #:
+    #: ⛔ **Der Client rechnet daraus nichts** — er setzt ein „≥" davor
+    #: (``check:cop-roh``). Die Entscheidung, ob eine Schranke vorliegt, gehört
+    #: in den Layer; im Client wäre sie eine zweite Regel über denselben
+    #: Sachverhalt.
+    wp_jaz_ist_schranke: bool = False
+    #: Der EINE Satz unter der Schranke: *„Klimaanlage: Strom ohne Wärmemessung
+    #: enthalten"*. Er nennt die Ursache, er bewertet nicht.
+    wp_jaz_schranke_hinweis: Optional[str] = None
+    #: **D-Sicht 3: die Kennzahlen JE GERÄT stehen im Block selbst.** Bis
+    #: 14.09.2026 gab es sie nur im Komponenten-Hub, und der Block verwies mit
+    #: einem Link dorthin — bei gemischter Ausstattung blieb der Anwender damit
+    #: vor vier Strichen stehen, obwohl jedes seiner Geräte eine saubere Zahl
+    #: hat. Quelle ist **dieselbe** Rechenstelle wie im Hub
+    #: (``services/waermepumpe_kennzahlen_je_geraet.py``).
+    wp_geraete: list[WpGeraetZeile] = Field(default_factory=list)
+    #: **D-Sicht 1: was die Ausstattung nicht hergibt — einmal je Sicht.**
+    #: Größen ohne Zahl erscheinen nicht mehr als Kachel mit „—", sondern hier,
+    #: mit dem Handgriff und dem Weg dorthin. Ein Grund der Klasse *Zeitraum*
+    #: („kein Heizbetrieb in diesem Zeitraum") steht **nicht** darin — dort gibt
+    #: es nichts zu tun, und die Kachel zeigt ein „—" ohne Text.
+    wp_moeglich: list[WpMoeglichZeile] = Field(default_factory=list)
     #: Bauschnitt 6b: die **gemessene Kälte** des Monats — dieselbe Menge, die
     #: die Arbeitszahl Kühlen daneben als Zähler benutzt. ``None`` statt 0,0,
     #: wo kein Kältemengenzähler etwas gemeldet hat: die Monats-Fakten füllen
@@ -2175,11 +2213,45 @@ async def get_aktueller_monat(
         monats_fakt.wp.modus_strom_funktionsfremd_abzug_kwh
         if monats_fakt is not None else 0.0
     )
-    wp_arbeitszahl = arbeitszahl(
+    # ── E1b: die ANLAGENWEITE Zahl, als Schranke statt als Strich ──────────
+    #
+    # ⭐ **Entscheid Gernot, 14.09.2026.** Hier stand `arbeitszahl(...)` mit
+    # `wp_abgrenzung_verletzt` — und damit sperrten **zwei** Lagen die Zahl, die
+    # sie gar nicht falsch machen, sondern nur zu **klein**: gemischte Bauarten
+    # (`GRUND_BAUARTEN_GEMISCHT`) und Geräte ohne Wärmemeldung
+    # (`GRUND_GERAETE_OHNE_WAERME`). In beiden steht Strom im Nenner, dem keine
+    # gemessene Wärme gegenübersteht; der Quotient ist dann eine **untere
+    # Schranke** — und die ist eine wahre Aussage.
+    #
+    # ⚠ **Die übrigen Gründe sperren weiter, und das ist der Kern der
+    # Unterscheidung:** Fremdanteil-Angabe, Zeitraum-Versatz, „Wärme und Strom
+    # von verschiedenen Geräten" und „… aus verschiedenen Monaten" kippen die
+    # Zahl nach **oben** oder in unbekannte Richtung. Eine untere Schranke wäre
+    # dort eine Falschaussage. Deshalb dieselbe Kette ein zweites Mal — ohne die
+    # beiden Glieder, die zur Schranke werden.
+    _wp_invs_fuer_block = [i for i in investitionen if i.typ == "waermepumpe"]
+    _wp_kennzahlen_je_geraet = await lade_kennzahlen_je_geraet(
+        db, anlage_id, _wp_invs_fuer_block, von=(jahr, monat), bis=(jahr, monat),
+    )
+    _wp_strom_ohne_waerme, _wp_geraete_ohne_waerme = schranken_eingang(
+        _wp_kennzahlen_je_geraet,
+    )
+    wp_abgrenzung_sperrt = abgrenzungs_grund(
+        abgrenzung_stoerung=(
+            monats_fakt.wp.abgrenzung_stoerung if monats_fakt is not None else None
+        ),
+        zeitraum_versetzt=_wp_seiten_teilzeitraum == 1,
+        geraete_verschieden=(
+            monats_fakt is not None and monats_fakt.wp.geraete_verschieden
+        ),
+    )
+    wp_arbeitszahl = systemarbeitszahl(
         wp_waerme, wp_strom,
         waerme_abgeleitet_kwh=wp_waerme_abgeleitet_kwh,
-        strom_funktionsfremd_kwh=wp_strom_funktionsfremd_kwh,
-        abgrenzung_verletzt=wp_abgrenzung_verletzt,
+        kuehlstrom_kwh=wp_strom_funktionsfremd_kwh,
+        strom_ohne_waerme_kwh=_wp_strom_ohne_waerme,
+        geraete_ohne_waerme=_wp_geraete_ohne_waerme,
+        abgrenzung_verletzt=wp_abgrenzung_sperrt,
     )
     # B4 (C-2): Herkunft und Vorbehalt — der Faktor nur bei EINER Wärmepumpe
     # (bei mehreren gibt es keinen einen Faktor, der Text nennt dann die Regel).
@@ -2564,6 +2636,20 @@ async def get_aktueller_monat(
         abgrenzung_verletzt=wp_abgrenzung_verletzt,
         abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion,
     )
+
+    # ── D-Sicht: die Tabelle je Gerät und der EINE Kasten ──────────────────
+    #
+    # Die Gründe werden **hier** gesammelt, weil erst hier alle vier vorliegen;
+    # welche davon in den Kasten gehören, entscheidet die Klasse an der
+    # Grund-Konstante (`grund_klasse`), nicht diese Route und erst recht nicht
+    # der Client.
+    wp_block_geraete = geraete_zeilen(_wp_kennzahlen_je_geraet)
+    wp_block_moeglich = was_noch_moeglich([
+        ("Arbeitszahl", wp_arbeitszahl.grund),
+        ("Arbeitszahl Heizen", wp_az_funktion.heizen.grund),
+        ("Arbeitszahl Warmwasser", wp_az_funktion.warmwasser.grund),
+        ("Arbeitszahl Kühlen", wp_az_kuehlen.grund),
+    ])
 
     # E-Mobilität: PV/Netz/Extern-Split + V2H
     emob_pv = get_val("emob_pv_ladung_kwh")
@@ -3023,6 +3109,7 @@ async def get_aktueller_monat(
             wp_az_funktion.heizen.grund,
             wp_az_funktion.warmwasser.grund,
             wp_az_kuehlen.grund,
+            ist_schranke=wp_arbeitszahl.ist_schranke,
         ),
         # Die Menge nur, wo es überhaupt Wärme gibt — sonst stünde eine 0
         # neben einem „—" und sähe aus wie „nichts gerechnet" statt „nichts
@@ -3044,6 +3131,10 @@ async def get_aktueller_monat(
         wp_jaz_warmwasser_grund=wp_az_funktion.warmwasser.grund,
         wp_jaz_kuehlen=wp_az_kuehlen.wert,
         wp_jaz_kuehlen_grund=wp_az_kuehlen.grund,
+        wp_jaz_ist_schranke=wp_arbeitszahl.ist_schranke,
+        wp_jaz_schranke_hinweis=wp_arbeitszahl.schranke_hinweis,
+        wp_geraete=wp_block_geraete,
+        wp_moeglich=wp_block_moeglich,
         wp_kaelte_kwh=(
             round(mf_wp.nutzenergie_kuehlen_kwh, 2)
             if mf_wp is not None and mf_wp.nutzenergie_kuehlen_kwh > 0 else None

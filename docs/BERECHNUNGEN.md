@@ -1269,6 +1269,48 @@ SoT: `core/berechnungen/modus_split.py` (rein) · `services/energie_profil/modus
 > einer Zahl, die zu klein sein kann, und einer, die einen Tag mit 36 Stunden behauptet, ist die
 > Wahl keine Geschmacksfrage.
 
+#### 3.5b-E1b Die **Systemarbeitszahl der Wärmeerzeugung** — die Zahl der ANLAGE (14.09.2026)
+
+Neben der Arbeitszahl **eines Geräts** gibt es seit v4.0.45 eine zweite, anders
+benannte Größe für die **Anlage**:
+
+```text
+Systemarbeitszahl = Σ gemessene Wärme aller Wärmeerzeuger
+                  ÷ (Σ Strom aller Wärmeerzeuger − Kühlstrom)
+```
+
+SoT: `core/berechnungen/waermepumpe_kennzahl.py::systemarbeitszahl`, unmittelbar
+neben `arbeitszahl` und mit **denselben** Wortlauten für ihre Sperren (zwei
+Sprachen für einen Sachverhalt wären die N-327-Klasse). Der Kühlstrom-Abzug ist
+derselbe wie dort — **E7/Option A**, also der **Abzug** und nicht die Menge.
+
+> ⭐ **Warum es sie gibt, und warum sie ein „≥" tragen darf.** Trägt ein Gerät
+> Strom bei, dem **keine** gemessene Wärme gegenübersteht (Split-Klimaanlage
+> ohne Wärmemengenzähler, Heizstab auf eigenem Zähler), steht im Nenner mehr,
+> als der Zähler abdeckt — der Quotient kann dann nur **zu klein** sein. Das
+> Ergebnis ist eine **untere Schranke** und wird so gezeigt: **„≥ 3,25"**, mit
+> dem Satz *„<Gerät>: Strom ohne Wärmemessung enthalten"*. ADR-002/**P4**
+> verbietet eine *falsche* Zahl, nicht eine *wahre Schranke*.
+>
+> **Nachgerechnet am Melder-Fall** (dietmar1968, 14.09.2026): AZ Heizung 3,94 ×
+> 1188 kWh + AZ Warmwasser 2,84 × 843 kWh = **7075 kWh** Wärme; Gesamtstrom
+> **2193 kWh**, davon **17 kWh** Klima-Kühlen ⇒ 7075 ÷ 2176 = **3,25** — genau
+> die Zahl, die sein eigenes Dashboard nennt.
+>
+> ⛔ **In der Gegenrichtung gibt es keine Schranke.** Steht im **Zähler** Wärme,
+> deren Strom fehlt, kippt die Zahl nach **oben**; dort sperren
+> `GRUND_GERAETE_VERSCHIEDEN`, `GRUND_FREMDWAERME` und
+> `GRUND_GERAETE_VERSCHIEDENE_MONATE` unverändert. Ebenso `GRUND_ZEITRAUM`: Die
+> Richtung ist unbekannt, und eine Schranke ohne bekannte Richtung ist keine.
+>
+> ⛔ **Der PDF-Jahresbericht liest weiterhin `arbeitszahl`** — eine Zahl ohne
+> sichtbares „≥" im Druck wäre genau das, was P4 verbietet.
+>
+> ⚠ **E1 ist damit nicht aufgeweicht:** Eine Kennzahl **eines Geräts** entsteht
+> unverändert nur, wo Zähler und Nenner dasselbe Gerät und dieselbe Funktion
+> meinen. Die Systemzahl ist eine dritte Größe mit eigenem Namen, und im Block
+> steht die Zahl **je Gerät** direkt daneben.
+
 #### 3.5c Abgeleitete Heizwärme und die JAZ-Sperre (#263 K-2, Konzept §3.4/§3.5)
 
 Ohne Wärmemengenzähler wird die Heizwärme aus dem modus-aufgeteilten Strom gerechnet:

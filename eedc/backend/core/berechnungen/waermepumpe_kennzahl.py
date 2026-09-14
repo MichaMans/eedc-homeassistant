@@ -26,9 +26,19 @@ Layer, damit ihre Bedingungen mitwandern — nicht nur ihr Rechenweg.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Set as AbstractSet
+from collections.abc import Mapping, Sequence, Set as AbstractSet
 from dataclasses import dataclass
 from typing import Optional
+
+# ⚠ **Ein Text-Modul, keine Registry** — die Layer-Regel aus ADR-001 hält.
+# Die drei Tages-Zustände (W-18) erscheinen als Grund unter derselben
+# Kachel wie die Gründe dieser Datei; ihre Klassifizierung gehört deshalb
+# in DIESELBE Tabelle. Sie danebenzuschreiben wäre die W-3-Klasse.
+from backend.core.tageswert_grund import (
+    GRUND_KEINE_ZAEHLERSTAENDE,
+    GRUND_ZAEHLER_RUECKSPRUNG,
+    TAGESWERT_GRUND_KURZ,
+)
 
 #: Unterhalb dieser Arbeitszahl bekommt die Zahl einen erklärenden Satz
 #: (SOLL §2.2.1, Fall **H-B**). Die Grenze ist bewusst großzügig: Eine
@@ -202,8 +212,33 @@ def geraete_mit_gesamtwaerme(
 GRUND_KEIN_HEIZBETRIEB = "kein Heizbetrieb in diesem Zeitraum"
 GRUND_KEINE_WARMWASSERBEREITUNG = "keine Warmwasserbereitung in diesem Zeitraum"
 
+#: Für den Zeitraum liegt **überhaupt kein** Strom vor.
+#:
+#: ⚠ **Er stand bis zum 14.09.2026 als Literal in** ``arbeitszahl`` **und wurde
+#: nur deshalb hier zur Konstante**: Die D-Sicht (Konzept §6) muss jeden Grund
+#: **einer** Klasse zuordnen — Ausstattung oder Zeitraum —, und eine Zeichenkette
+#: ohne Namen lässt sich nicht zuordnen, ohne sie ein zweites Mal zu tippen.
+#: Der Wortlaut ist unverändert; das Handbuch zitiert ihn weiterhin wörtlich.
+GRUND_KEIN_STROM = "kein Stromverbrauch erfasst"
+
+#: Der ganze Strom ging in eine Funktion ohne bewertete Nutzenergie.
+GRUND_NUR_KUEHLBETRIEB = "nur Kühlbetrieb in diesem Zeitraum"
+
+#: Es liegt keine gemessene Wärme vor und der Aufrufer kennt keinen genaueren
+#: Grund (**W-18**-Default).
+GRUND_KEINE_WAERMEMESSUNG = "kein Wärmemengenzähler zugeordnet"
+
+#: Die Wärme kam aus ``Strom × JAZ``; ein Quotient daraus gäbe genau den Faktor
+#: zurück, mit dem gerechnet wurde (Konzept §3.5).
+GRUND_WAERME_ABGELEITET = "Wärme ist gerechnet, nicht gemessen"
+
 #: Grund für die Abgrenzungs-Sperre, wenn der Block Strom von Geräten trägt,
 #: deren Wärme fehlt (SOLL §4.2 Fall 1). Kurz — er steht sichtbar auf der Kachel.
+#:
+#: ⭐ **Seit E1b (14.09.2026) sperrt er die ANLAGENWEITE Zahl nicht mehr** —
+#: dort wird er zur unteren **Schranke** ({@link systemarbeitszahl}). Als Grund
+#: **je Funktion** und als Auskunft im Hub bleibt er unverändert: R2 gilt je
+#: Gerät und je Funktion weiter.
 GRUND_GERAETE_OHNE_WAERME = "nicht alle Geräte melden Wärme"
 
 #: **R2/W-7 — Fall H-C:** Der Strom eines fremden Verbrauchers (typisch ein
@@ -556,7 +591,7 @@ GRUENDE_HUB_HILFT: frozenset[str] = frozenset({
 })
 
 
-def hub_hilft(*gruende: Optional[str]) -> bool:
+def hub_hilft(*gruende: Optional[str], ist_schranke: bool = False) -> bool:
     """Würde der Komponenten-Hub mindestens einen dieser Gründe beantworten?
 
     Der Aufrufer wirft alle Gründe seines Wärme/Klima-Blocks hinein (Gesamtzahl,
@@ -567,8 +602,18 @@ def hub_hilft(*gruende: Optional[str]) -> bool:
     ⚠ **Die Entscheidung gehört hierher, nicht in den Client.** Dort müsste er
     Grund-**Texte** vergleichen; dieselbe Aussage stünde dann an zwei Orten und
     liefe beim nächsten Wortlaut auseinander (ADR-001/S1 — die W-3-Klasse).
+
+    Args:
+        ist_schranke: **E1b (14.09.2026).** Die anlagenweite Zahl ist eine
+            untere Schranke. ⭐ **Auch dann hilft der Hub, und gemessen mehr
+            als vorher:** Die Schranke sagt *„mindestens 2,43"*, der Hub sagt
+            *„diese Wärmepumpe: 3,0"*. Ohne dieses Argument verschwände der Weg
+            genau in der Lage, für die er gebaut wurde — denn die Gründe, die
+            ihn bisher auslösten (``GRUND_BAUARTEN_GEMISCHT``,
+            ``GRUND_GERAETE_OHNE_WAERME``), sind jetzt **die** Schranke und
+            stehen nicht mehr als Grund da.
     """
-    return any(g in GRUENDE_HUB_HILFT for g in gruende if g)
+    return ist_schranke or any(g in GRUENDE_HUB_HILFT for g in gruende if g)
 
 
 def abgrenzung_je_funktion(
@@ -808,12 +853,29 @@ def arbeitszahl(
     # Aufrufer, die ihre Zahlen aus einer anderen Quelle ziehen.
     e = e_gesamt - min(max(strom_funktionsfremd_kwh, 0.0), max(e_gesamt, 0.0))
     if e_gesamt <= 0:
-        return Arbeitszahl(None, "kein Stromverbrauch erfasst")
+        # ⭐ **F-5 (14.09.2026): gemessene 0 ist kein fehlender Zähler — auch im
+        # NENNER nicht.** Bis hierher hat W-18/ef696c1c genau diese
+        # Unterscheidung für den **Zähler** gebaut (``q == 0`` ⇒ „kein
+        # Heizbetrieb in diesem Zeitraum"), für den Nenner nicht. Wer seinen
+        # Heizstrom getrennt misst, las im Juni „kein Stromverbrauch erfasst"
+        # unter einer Anlage, die ihren Heizstrom sehr wohl erfasst — sie hat
+        # nur nicht geheizt. Spiegelbildlich zu ``GRUND_KEIN_KUEHLBETRIEB``,
+        # den ``arbeitszahl_kuehlen`` bei ``e <= 0`` **unbedingt** nennt.
+        #
+        # ⚠ **Dieselben zwei Riegel wie beim Zähler**: ein gemessener Wert
+        # (``strom_kwh is not None``, exakt ``0``) UND ein Aufrufer, der
+        # „gemessen 0" von „nie erfasst" unterscheiden kann (er reicht dafür
+        # ``kein_betrieb_grund`` herein). Summen-Pfade tun das nicht — ``sum()``
+        # liefert 0, ob gemessen oder nie erfasst.
+        if (kein_betrieb_grund and strom_kwh is not None
+                and float(strom_kwh) == 0.0):
+            return Arbeitszahl(None, kein_betrieb_grund)
+        return Arbeitszahl(None, GRUND_KEIN_STROM)
     if e <= 0:
         # Der ganze Strom ging ins Kühlen: es gibt Verbrauch, aber keinen, der
         # zu einer Wärmemenge gehört. „Kein Stromverbrauch" wäre hier die
         # falsche Auskunft — der Zähler lief, nur nicht fürs Heizen.
-        return Arbeitszahl(None, "nur Kühlbetrieb in diesem Zeitraum")
+        return Arbeitszahl(None, GRUND_NUR_KUEHLBETRIEB)
     if q <= 0:
         # W-18: Die Sperre stimmt, ihre Begründung war geraten. „Kein
         # Wärmemengenzähler zugeordnet" ist nur EINER von drei Gründen, aus
@@ -845,10 +907,10 @@ def arbeitszahl(
             if kein_betrieb_grund:
                 return Arbeitszahl(None, kein_betrieb_grund)
         return Arbeitszahl(
-            None, waerme_fehlt_grund or "kein Wärmemengenzähler zugeordnet",
+            None, waerme_fehlt_grund or GRUND_KEINE_WAERMEMESSUNG,
         )
     if waerme_abgeleitet_kwh > 0:
-        return Arbeitszahl(None, "Wärme ist gerechnet, nicht gemessen")
+        return Arbeitszahl(None, GRUND_WAERME_ABGELEITET)
     if abgrenzung_verletzt:
         return Arbeitszahl(None, abgrenzung_verletzt)
     wert = q / e
@@ -857,6 +919,177 @@ def arbeitszahl(
         hinweis=HEIZSTAB_HINWEIS if wert < JAZ_HEIZSTAB_SCHWELLE else None,
         # `e`, nicht `e_gesamt` — die Herleitung zeigt den Nenner, mit dem
         # gerechnet wurde, sonst ginge die Division sichtbar nicht auf.
+        zaehler_kwh=q,
+        nenner_kwh=e,
+    )
+
+
+@dataclass(frozen=True)
+class Systemarbeitszahl:
+    """Die **anlagenweite** Arbeitszahl der Wärmeerzeugung — **E1b**.
+
+    Sie ist etwas anderes als {@link Arbeitszahl}, und der Unterschied steht im
+    Feld ``ist_schranke``: Diese Zahl darf einen Nenner tragen, der **mehr**
+    Strom enthält, als im Zähler gemessene Wärme gegenübersteht. Das Ergebnis
+    ist dann keine Arbeitszahl mehr, sondern eine **untere Schranke** — und als
+    solche wird sie gezeigt („≥ 3,25").
+    """
+
+    wert: Optional[float]
+    #: ``True`` ⇒ der wahre Wert ist **mindestens** ``wert``. Die Anzeige setzt
+    #: dann „≥" davor; der Client rechnet nichts nach (ADR-002/P12, der Client
+    #: liest ein Flag).
+    ist_schranke: bool = False
+    #: Der EINE Satz, der die Schranke erklärt — er nennt das Gerät, dessen
+    #: Strom ohne Wärmemessung im Nenner steht.
+    schranke_hinweis: Optional[str] = None
+    #: ⛔ **Dasselbe Feld wie an {@link Arbeitszahl}, und mit Absicht dieselbe
+    #: Bedeutung:** der Heizstab-Satz unter {@link JAZ_HEIZSTAB_SCHWELLE}. Er
+    #: gehört NICHT mit der Schranke zusammen — eine Anlage, die viel direkt
+    #: elektrisch heizt, bekommt ihn auch ohne Schranke, und eine Schranke von
+    #: 3,25 braucht ihn nicht. Beide in **ein** Feld zu falten hieße, zwei
+    #: verschiedene Aussagen unter einem Namen zu führen; die Route liefert
+    #: sie deshalb als ``wp_jaz_hinweis`` und ``wp_jaz_schranke_hinweis``
+    #: getrennt aus.
+    hinweis: Optional[str] = None
+    #: Warum es die Zahl nicht gibt (wie bei {@link Arbeitszahl}).
+    grund: Optional[str] = None
+    zaehler_kwh: Optional[float] = None
+    nenner_kwh: Optional[float] = None
+
+    @property
+    def belastbar(self) -> bool:
+        return self.wert is not None
+
+
+#: Der Satz unter einer Schranke. Er nennt die Geräte, deren Strom im Nenner
+#: steht, ohne dass ihre Wärme in den Zähler kommt — **Ursache, kein Vorwurf**
+#: ([[feedback_eedc_ist_nicht_die_strom_polizei]]).
+SCHRANKE_HINWEIS_MUSTER = "{geraete}: Strom ohne Wärmemessung enthalten"
+
+
+def schranke_hinweis(geraete: Sequence[str]) -> Optional[str]:
+    """„Klimaanlage: Strom ohne Wärmemessung enthalten" — oder ``None``.
+
+    Mehrere Geräte stehen mit „ · " nebeneinander, wie überall sonst in dieser
+    Fläche (``ersparnis_vorbehalt``, ``GeraeteHinweis``). Ohne Namen — der
+    Aufrufer kennt sie nicht immer — bleibt der allgemeine Satz übrig, denn die
+    Aussage gilt auch dann: irgendein Strom im Nenner hat keine Wärmemessung.
+    """
+    namen = [n for n in geraete if n]
+    if not namen:
+        return "Strom ohne Wärmemessung enthalten"
+    return SCHRANKE_HINWEIS_MUSTER.format(geraete=" · ".join(namen))
+
+
+def systemarbeitszahl(
+    waerme_gemessen_kwh: Optional[float],
+    strom_kwh: Optional[float],
+    *,
+    kuehlstrom_kwh: float = 0.0,
+    strom_ohne_waerme_kwh: float = 0.0,
+    geraete_ohne_waerme: Sequence[str] = (),
+    waerme_abgeleitet_kwh: float = 0.0,
+    abgrenzung_verletzt: Optional[str] = None,
+    waerme_fehlt_grund: Optional[str] = None,
+) -> Systemarbeitszahl:
+    """Σ gemessene Wärme ÷ (Σ Strom − Kühlstrom) — die **Systemarbeitszahl** (E1b).
+
+    ⭐ **Warum es diese Zahl gibt** (Entscheid Gernot, 14.09.2026, nach dem
+    Vergleich mit dietmar1968s eigenem Dashboard): Sein Jahr zeigt
+    *AZ Heizung 3,94 × 1188 kWh + AZ Warmwasser 2,84 × 843 kWh = 7075 kWh*
+    Wärme, Gesamtstrom **2193** kWh, davon **17** kWh Klima-Kühlen —
+    ``7075 ÷ (2193 − 17) = 3,25``. eedc sagte an derselben Stelle „—" mit dem
+    Grund *„Wärmepumpe und Klimaanlage in einer Zahl"*, weil seine
+    Split-Klimaanlage Heizstrom ohne Wärmemessung beisteuert.
+
+    **Beide hatten recht, und genau deshalb braucht es zwei Größen.** Als
+    *Arbeitszahl eines Geräts* wäre 3,25 falsch — sie mischt Zähler und Nenner
+    verschiedener Geräte (E1/R2, unverändert gültig). Als **untere Schranke der
+    Anlage** ist sie **wahr**: Mehr Strom im Nenner als gemessene Wärme im
+    Zähler kann den Quotienten nur **kleiner** machen. ADR-002/**P4** verbietet
+    eine *falsche* Zahl, nicht eine *wahre Schranke* — und ein Strich mit
+    Grund-Text ist keine bessere Auskunft als „mindestens 3,25".
+
+    ⛔ **Sie ersetzt {@link arbeitszahl} nicht.** Der Komponenten-Hub, der
+    HA-Export-Sensor und jede Kennzahl **je Gerät** rufen weiterhin dort an; dort
+    gilt R2 ohne Ausnahme. Diese Funktion beantwortet die **andere** Frage:
+    *„Wie effizient erzeugt diese Anlage insgesamt Wärme?"*
+
+    Args:
+        waerme_gemessen_kwh: Σ der **gemessenen** Wärme aller Wärmeerzeuger.
+            Eine abgeleitete Menge gehört nicht hinein — sie käme aus dem
+            Nenner und gäbe ihren eigenen Faktor zurück (deshalb der eigene
+            Eingang ``waerme_abgeleitet_kwh``, der wie in ``arbeitszahl``
+            **sperrt** statt abzuziehen).
+        strom_kwh: Σ Strom aller Wärmeerzeuger.
+        kuehlstrom_kwh: der Anteil, der in eine Funktion **ohne bewertete
+            Nutzenergie** ging (Kühlen · Lüften · Entfeuchten). **E7/Option A**,
+            dieselbe Größe und dieselbe Begründung wie
+            ``arbeitszahl(strom_funktionsfremd_kwh=…)`` — und dieselbe, die
+            dietmar1968 in seiner eigenen Rechnung abzieht.
+        strom_ohne_waerme_kwh: der Teil des Nenners, dem **keine gemessene
+            Wärme** gegenübersteht (Klimaanlage ohne Wärmemengenzähler,
+            Heizstab auf eigenem Zähler). ``> 0`` ⇒ ``ist_schranke``.
+            ⚠ Die **Menge** ändert die Zahl nicht — sie steckt ohnehin im
+            Nenner. Sie entscheidet allein, **ob** die Zahl eine Schranke ist.
+        geraete_ohne_waerme: deren Namen, für den einen Hinweis-Satz.
+        abgrenzung_verletzt: die Gründe, die **weiterhin sperren**. ⛔ *Nicht*
+            darunter: ``GRUND_BAUARTEN_GEMISCHT`` und
+            ``GRUND_GERAETE_OHNE_WAERME`` — genau sie werden hier zur Schranke.
+            Der Aufrufer reicht sie nicht mehr herein (siehe
+            {@link GRUENDE_ZUR_SCHRANKE}).
+
+    ⚠ **Die Gegenrichtung bleibt eine Sperre, und das ist der Kern.** Steht im
+    **Zähler** Wärme, deren Strom fehlt (``GRUND_GERAETE_VERSCHIEDEN``,
+    ``GRUND_FREMDWAERME``, ``GRUND_GERAETE_VERSCHIEDENE_MONATE``), kippt die
+    Zahl nach **oben** — eine untere Schranke wäre dort eine Falschaussage.
+    Ebenso ``GRUND_ZEITRAUM``: Bei versetzten Messzeiträumen ist die Richtung
+    **unbekannt**, und eine Schranke ohne bekannte Richtung ist keine.
+
+    Grenzfälle, ausgeschrieben:
+
+    * ``Q = 0`` ⇒ **Grund statt Zahl** (``waerme_fehlt_grund`` oder
+      ``GRUND_KEINE_WAERMEMESSUNG``). Eine Schranke „≥ 0" ist wahr und sagt
+      nichts; sie sähe aus wie eine Bewertung.
+    * ``Nenner ≤ 0`` ⇒ ``GRUND_KEIN_STROM`` bzw. — wenn Strom floss, aber
+      vollständig ins Kühlen — ``GRUND_NUR_KUEHLBETRIEB``. Beide Wortlaute sind
+      die von ``arbeitszahl``; zwei Sprachen für einen Sachverhalt wären die
+      N-327-Klasse.
+    * **Nur ein Gerät**, dessen Wärme gemessen ist ⇒ ``strom_ohne_waerme_kwh``
+      ist 0, ``ist_schranke`` bleibt ``False`` — die gewohnte Arbeitszahl, ohne
+      „≥". Die Schranke ist ein Zusatz für gemischte Anlagen, keine neue
+      Darstellung für alle.
+    """
+    e_gesamt = float(strom_kwh or 0.0)
+    q = float(waerme_gemessen_kwh or 0.0)
+    # Derselbe Klemmbereich wie in `arbeitszahl` — für Aufrufer, die ihre Zahlen
+    # aus einer anderen Quelle ziehen.
+    e = e_gesamt - min(max(kuehlstrom_kwh, 0.0), max(e_gesamt, 0.0))
+    if e_gesamt <= 0:
+        return Systemarbeitszahl(None, grund=GRUND_KEIN_STROM)
+    if e <= 0:
+        return Systemarbeitszahl(None, grund=GRUND_NUR_KUEHLBETRIEB)
+    if q <= 0:
+        return Systemarbeitszahl(
+            None, grund=waerme_fehlt_grund or GRUND_KEINE_WAERMEMESSUNG,
+        )
+    if waerme_abgeleitet_kwh > 0:
+        return Systemarbeitszahl(None, grund=GRUND_WAERME_ABGELEITET)
+    if abgrenzung_verletzt:
+        return Systemarbeitszahl(None, grund=abgrenzung_verletzt)
+    ist_schranke = strom_ohne_waerme_kwh > 0
+    wert = q / e
+    return Systemarbeitszahl(
+        wert,
+        ist_schranke=ist_schranke,
+        schranke_hinweis=(
+            schranke_hinweis(geraete_ohne_waerme) if ist_schranke else None
+        ),
+        # Der Heizstab-Satz gilt hier wie bei `arbeitszahl` — dieselbe Schwelle,
+        # dieselbe Begründung. Ihn hier wegzulassen hieße, eine Anlage mit viel
+        # Direktheizung in der einen Sicht zu erklären und in der anderen nicht.
+        hinweis=HEIZSTAB_HINWEIS if wert < JAZ_HEIZSTAB_SCHWELLE else None,
         zaehler_kwh=q,
         nenner_kwh=e,
     )
@@ -1186,3 +1419,139 @@ def arbeitszahl_kuehlen(
     # selbst (kein `strom_funktionsfremd_kwh`-Abzug, s. Docstring), muss die
     # benutzten Zahlen deshalb auch selbst mitgeben. Sie erbt sie nicht.
     return Arbeitszahl(q / e, zaehler_kwh=q, nenner_kwh=e)
+
+
+# =============================================================================
+# D-Sicht — welche Gründe in den Kasten gehören und welche nur ein „—" sind
+# =============================================================================
+
+#: Die Ausstattung gibt diese Größe **nicht her** — kein Kältemengenzähler,
+#: keine getrennte Strommessung, ein gemeinsamer Wärmemengenzähler, eine
+#: gemeldete Abgrenzungs-Störung. Solche Gründe erscheinen **einmal je Sicht**
+#: im Kasten *„Was noch möglich wäre"*, mit dem Handgriff daneben — nicht als
+#: Kachel mit „—" (Konzept Wärme/Klima §6, **D-Sicht**, Entscheid Gernot
+#: 14.09.2026).
+GRUND_KLASSE_AUSSTATTUNG = "ausstattung"
+
+#: Die Ausstattung gibt die Größe her, **dieser Zeitraum** ist leer — die
+#: Arbeitszahl Heizen im Juni, der Kühlbetrieb im Januar. Dafür steht ein „—"
+#: **ohne Text**: Es gibt nichts zu tun, und ein Satz daneben legte nahe, dass
+#: doch etwas fehlt.
+GRUND_KLASSE_ZEITRAUM = "zeitraum"
+
+#: Jeder Grund dieser Fläche → seine Klasse. **Genau einmal, an der Konstante**
+#: (D-Sicht 2) — der Client vergleicht keine Grund-Texte, sonst stünde dieselbe
+#: Aussage an zwei Orten und liefe beim nächsten Wortlaut auseinander (die
+#: W-3-Klasse, dieselbe Begründung wie bei {@link GRUENDE_HUB_HILFT}).
+#:
+#: ⚠ **``GRUND_ZEITRAUM`` steht unter AUSSTATTUNG, und das ist kein Tippfehler.**
+#: Der Name meint *„die beiden Zähler messen verschieden lange Zeiträume"* —
+#: eine Erfassungslücke mit Handgriff (*Lücken im Monatsabschluss schließen*),
+#: nicht ein leerer Zeitraum. Die Klasse fragt: *Gibt es etwas zu tun?* — nicht:
+#: *Steht „Zeitraum" im Namen?*
+#:
+#: ⚠ **Ein Grund ohne Eintrag gilt als AUSSTATTUNG** ({@link grund_klasse}).
+#: Das ist die vorsichtige Richtung: Ein neuer Grund landet dann im Kasten, wo
+#: ihn jemand liest, statt als stummes „—" zu verschwinden.
+GRUND_KLASSE: dict[str, str] = {
+    # ── Zeitraum: die Ausstattung ist da, der Zeitraum ist leer ──────────────
+    GRUND_KEIN_HEIZBETRIEB: GRUND_KLASSE_ZEITRAUM,
+    GRUND_KEINE_WARMWASSERBEREITUNG: GRUND_KLASSE_ZEITRAUM,
+    GRUND_KEIN_KUEHLBETRIEB: GRUND_KLASSE_ZEITRAUM,
+    GRUND_KEINE_KAELTE_ABGEGEBEN: GRUND_KLASSE_ZEITRAUM,
+    GRUND_NUR_KUEHLBETRIEB: GRUND_KLASSE_ZEITRAUM,
+    # ── Ausstattung: es gibt einen Handgriff ────────────────────────────────
+    GRUND_KEIN_STROM: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_KEINE_WAERMEMESSUNG: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_KEINE_KAELTEMENGE: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_WAERME_ABGELEITET: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_STROM_NICHT_JE_FUNKTION: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_WAERME_NICHT_JE_FUNKTION: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_FREMDSTROM: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_FREMDWAERME: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_ZEITRAUM: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_BAUARTEN_GEMISCHT: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_GERAETE_OHNE_WAERME: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_GERAETE_VERSCHIEDEN: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_GERAETE_VERSCHIEDENE_MONATE: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_FUNKTION_NICHT_DECKUNGSGLEICH: GRUND_KLASSE_AUSSTATTUNG,
+    GRUND_FUNKTION_VERSCHIEDENE_MONATE: GRUND_KLASSE_AUSSTATTUNG,
+}
+
+#: Der **Handgriff** je Ausstattungs-Grund — was der Anwender tun kann, damit
+#: die Größe entsteht. Quelle ist die Spalte *„Was du tun kannst"* aus
+#: ``docs/HANDBUCH_WAERME_KLIMA.md`` §4; er steht hier, damit Cockpit und
+#: Handbuch denselben Rat geben (S1).
+#:
+#: ⛔ **Nicht jeder Ausstattungs-Grund hat einen.** *„Wärme und Strom stammen
+#: aus verschiedenen Monaten"* hat keinen allgemeingültigen Weg — dort bleibt
+#: die Zeile mit ihrem Grund und ohne Rat stehen. Einen zu erfinden wäre die
+#: Klasse, die W-18 ausgelöst hat: ein Rat, der ins Leere führt.
+HANDGRIFF_JE_GRUND: dict[str, str] = {
+    GRUND_KEIN_STROM: "Stromzähler zuordnen oder den Monatswert pflegen",
+    GRUND_KEINE_WAERMEMESSUNG: (
+        "Wärmemengenzähler zuordnen — oder die gepflegte Arbeitszahl nutzen "
+        "(die Wärme ist dann geschätzt)"
+    ),
+    GRUND_KEINE_KAELTEMENGE: "Kältemengenzähler zuordnen",
+    GRUND_WAERME_ABGELEITET: (
+        "Wärmemengenzähler zuordnen — dann ist die Wärme gemessen statt "
+        "gerechnet"
+    ),
+    GRUND_STROM_NICHT_JE_FUNKTION: (
+        "Getrennte Strommessung einschalten und beide Zähler zuordnen"
+    ),
+    GRUND_WAERME_NICHT_JE_FUNKTION: (
+        "Einen zweiten Wärmemengenzähler setzen und Heizwärme und "
+        "Warmwasser-Wärme getrennt pflegen"
+    ),
+    GRUND_FREMDSTROM: "Angabe „Fremdanteil auf den Zählern“ am Gerät prüfen",
+    GRUND_FREMDWAERME: "Angabe „Fremdanteil auf den Zählern“ am Gerät prüfen",
+    GRUND_ZEITRAUM: "Lücken im Monatsabschluss schließen",
+    GRUND_BAUARTEN_GEMISCHT: "Jedes Gerät einzeln im Komponenten-Hub ansehen",
+    GRUND_GERAETE_OHNE_WAERME: "Jedes Gerät einzeln im Komponenten-Hub ansehen",
+    GRUND_GERAETE_VERSCHIEDEN: (
+        "Im Komponenten-Hub steht je Gerät, welche Seite fehlt"
+    ),
+    GRUND_FUNKTION_NICHT_DECKUNGSGLEICH: (
+        "Getrennte Strommessung am zweiten Gerät einschalten und zuordnen, "
+        "wenn es sie gibt"
+    ),
+    GRUND_GERAETE_VERSCHIEDENE_MONATE: "Die fehlenden Monatswerte nachpflegen",
+    GRUND_FUNKTION_VERSCHIEDENE_MONATE: "Die fehlenden Monatswerte nachpflegen",
+}
+
+
+#: ⭐ **Die beiden TAGES-Gründe gehören dazu, und zwar als AUSSTATTUNG** (über
+#: den Default von {@link grund_klasse}). Sie sagen nicht *„dieser Tag war
+#: leer"*, sondern *„für diesen Tag fehlt die Messung"* — und genau dafür gibt
+#: es W-18: Ein stummes „—" war die Auskunft, gegen die der Melder sich
+#: beschwert hat (dietmar1968, T89667 #210). Sie hier zu verschlucken hieße,
+#: W-18 rückgängig zu machen; sie bekommen deshalb einen Handgriff.
+HANDGRIFF_JE_GRUND.update({
+    TAGESWERT_GRUND_KURZ[GRUND_KEINE_ZAEHLERSTAENDE]: (
+        "Den Tag in der Reparatur-Werkbank nachrechnen "
+        "(Einstellungen → Daten)"
+    ),
+    TAGESWERT_GRUND_KURZ[GRUND_ZAEHLER_RUECKSPRUNG]: (
+        "Den Zähler im Daten-Checker prüfen (Einstellungen → Daten)"
+    ),
+})
+
+
+def grund_klasse(grund: Optional[str]) -> Optional[str]:
+    """Die Klasse eines Grundes — ``None`` ohne Grund.
+
+    ⚠ **Ein unbekannter Grund gilt als Ausstattung.** Das ist die vorsichtige
+    Richtung: Er landet im Kasten *„Was noch möglich wäre"*, wo ihn jemand
+    liest, statt als stummes „—" zu verschwinden. Die Gegenrichtung wäre ein
+    still verschluckter Hinweis — genau das, was die D-Sicht abschaffen soll.
+    """
+    if not grund:
+        return None
+    return GRUND_KLASSE.get(grund, GRUND_KLASSE_AUSSTATTUNG)
+
+
+def ist_ausstattungs_grund(grund: Optional[str]) -> bool:
+    """Gehört dieser Grund in den Kasten *„Was noch möglich wäre"*?"""
+    return grund_klasse(grund) == GRUND_KLASSE_AUSSTATTUNG

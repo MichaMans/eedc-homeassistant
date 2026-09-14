@@ -569,10 +569,18 @@ async def test_p17_die_geraete_kreuzung_ueber_monate_nennt_die_geraete(db):
 
     jb = await _jahr(db, b.id)
 
-    assert jb.wp_cop is None
-    assert jb.wp_cop_grund == GRUND_GERAETE_OHNE_WAERME, (
-        "hier ist der gerichtete Satz der richtige — nicht der neutrale"
-    )
+    # ⭐ **Wortlaut umgestellt, Substanz gehalten (E1b, 14.09.2026).** Geprüft
+    # war: *„hier ist der gerichtete Satz der richtige — nicht der neutrale"*.
+    # Genau diese Unterscheidung misst der Fall weiterhin, nur an der **Folge**
+    # statt am Satz: Die gerichtete Lage ``W ⊊ S`` macht den Nenner zu groß und
+    # den Quotienten damit zu **klein** ⇒ **Schranke** (1800 ÷ 900 = 2,0, wahr
+    # ist 3,0). Die neutrale Kreuzung darüber und unten kippt in unbekannte
+    # bzw. die andere Richtung ⇒ sie **sperrt weiter**. Das ist der Kern von
+    # E1b, und dieser Fall trennt beide Hälften in einem Test.
+    assert jb.wp_cop == pytest.approx(2.0)
+    assert jb.wp_cop_ist_schranke is True
+    assert jb.wp_cop_schranke_hinweis == "Klima B: Strom ohne Wärmemessung enthalten"
+    assert jb.wp_cop_grund is None
 
     # Dritte Lage: vertauschte Geräte in zwei Monaten. Die VEREINIGUNGEN sind
     # gleich ({A, B} auf beiden Seiten) — nur die je-Monat-Faltung sieht es.
@@ -657,8 +665,13 @@ async def test_p19_die_kuehlzahl_spricht_nicht_von_waerme(db):
     assert j.wp_jaz_kuehlen is None
     assert "Wärme" not in j.wp_jaz_kuehlen_grund
     assert j.wp_jaz_kuehlen_grund == GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
-    # Der Block-Satz selbst bleibt, wo er stimmt.
-    assert j.wp_cop_grund == GRUND_GERAETE_OHNE_WAERME
+    # ⭐ **Die Aussage des Tests ist die KÜHL-Zeile**, und sie ist unverändert.
+    # Die Block-Zeile daneben trägt seit E1b keinen Satz mehr, sondern die
+    # Schranke — dass die Lage „nicht alle Geräte melden Wärme" vorliegt, misst
+    # jetzt das Flag. Substanz gehalten: Der Block-Satz darf nicht unter der
+    # Kältezahl stehen, und er tut es nicht.
+    assert j.wp_cop_ist_schranke is True
+    assert j.wp_cop_grund is None
 
 
 @pytest.mark.asyncio

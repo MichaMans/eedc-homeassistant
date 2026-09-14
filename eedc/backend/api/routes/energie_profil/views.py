@@ -798,13 +798,19 @@ async def get_tag_detail(
     #
     from backend.core.berechnungen import waermepumpe_kwh_je_investition
     from backend.core.berechnungen.tages_stapel import (
-        beitraege_des_tages, falte_tages_stapel,
+        beitrag_abzug_kwh, beitraege_des_tages, falte_tages_stapel,
     )
     from backend.core.berechnungen.waermepumpe_kennzahl import (
         GRUND_FUNKTION_NICHT_DECKUNGSGLEICH, abgrenzungs_grund,
         ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
         arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
-        deckung_aus_geraeten, waerme_gesamt_je_geraet,
+        deckung_aus_geraeten, systemarbeitszahl, waerme_gesamt_je_geraet,
+    )
+    from backend.services.waermepumpe_kennzahlen_je_geraet import (
+        kennzahlen_aus_mengen, mengen_aus_tageswerten,
+    )
+    from backend.services.waerme_klima_block import (
+        geraete_zeilen, schranken_eingang, was_noch_moeglich,
     )
     from backend.core.investition_parameter import (
         abgrenzung_stoerung, ist_luft_luft_waermepumpe,
@@ -1061,7 +1067,91 @@ async def get_tag_detail(
         geraete_ohne_waerme=_geraete_ohne_waerme_monat,
         deckung_je_funktion=_deckung_je_funktion_tag,
     )
-    wp_jaz_tag = arbeitszahl(
+    # ── E1b: die anlagenweite Tageszahl als Schranke statt als Strich ─────
+    #
+    # ⭐ Dieselbe Entscheidung wie in Monat und Jahr (14.09.2026): Der Grund
+    # *„nicht alle Geräte melden Wärme"* sperrte hier eine Zahl, die er nur zu
+    # **klein** macht — der Strom eines Geräts ohne Wärmemessung steht im
+    # Nenner, seine Nutzenergie in keinem Zähler. Das ist eine untere Schranke
+    # und als solche wahr (ADR-002/P4). Die Gegenrichtung — Wärme ohne den
+    # zugehörigen Strom — sperrt weiter.
+    # ⛔ **Die Gegenrichtung wird am TAG gezählt, nicht aus dem Monat genähert —
+    # und das ist gemessen (r28, Demo-Anlage, 15.06.2026).** Dort trägt die
+    # Daikin die Wärme des Tages, aber keinen Strom (kein Tages-Zähler), während
+    # der Multisplit Strom trägt und keine Wärme. Die Monats-Näherung sieht die
+    # Kreuzung nicht (im Monat decken sich die Geräte); mit ihr allein stand
+    # **30,0** als Schranke im Block — Wärme des einen geteilt durch den Strom
+    # des anderen. Eine untere Schranke ist das nicht: Der Zähler ist zu groß,
+    # die Zahl kippt nach **oben**.
+    #
+    # ⭐ **Der Tag kann es seit N-391b exakt** — er führt die Wärme je Gerät
+    # (`_wp_waerme_je_geraet`) und den Strom je Gerät (`wp_strom_je_inv`). Die
+    # Rest-Unschärfe, die der Kommentar an `_geraete_ohne_waerme_monat` oben
+    # benennt, gilt damit nur noch für die **andere** Richtung — und die wird
+    # zur Schranke, wo sie zutrifft, statt zu sperren.
+    _wp_strom_geraete_tag = {i for i, kwh in wp_strom_je_inv.items() if kwh}
+    _wp_waerme_geraete_tag = {
+        i for i, kwh in _wp_waerme_je_geraet.items() if kwh and kwh > 0
+    }
+    _wp_abgrenzung_sperrt_tag = abgrenzungs_grund(
+        abgrenzung_stoerung=next(
+            (
+                stoerung
+                for inv_id_str, kwh in wp_strom_je_inv.items()
+                if kwh
+                for stoerung in (
+                    abgrenzung_stoerung(investitionen_by_id.get(inv_id_str)),
+                )
+                if stoerung
+            ),
+            None,
+        ),
+        geraete_verschieden=bool(_wp_waerme_geraete_tag - _wp_strom_geraete_tag),
+    )
+    # ── D-Sicht 3: die Mengen je Gerät des TAGES ──────────────────────────
+    #
+    # ⚠ **Die zweite Mengen-Herkunft** (s. Modulkopf des Dienstes): Der Tag
+    # faltet Snapshots, nicht IMD-Zeilen — die **Kennzahl** entsteht trotzdem in
+    # derselben Funktion wie im Hub, im Monat und im Jahr.
+    _wp_kaelte_je_inv = _tagesdetail.werte_je_inv.get("wp_kaelte_kwh") or {}
+    _wp_heizung_je_inv = _tagesdetail.werte_je_inv.get("wp_heizung_kwh") or {}
+    _wp_ww_je_inv = _tagesdetail.werte_je_inv.get("wp_warmwasser_kwh") or {}
+    _wp_gesamtwaerme_je_inv = _tagesdetail.werte_je_inv.get("wp_waerme_kwh") or {}
+    _wp_strom_heizen_je_inv = _tagesdetail.werte_je_inv.get("wp_strom_heizen_kwh") or {}
+    _wp_strom_ww_je_inv = _tagesdetail.werte_je_inv.get("wp_strom_warmwasser_kwh") or {}
+    _wp_beitrag_je_inv = {b.inv_id: b for b in beitraege_tag}
+    _wp_kennzahlen_je_geraet = []
+    for _inv_id_str, _inv_strom in wp_strom_je_inv.items():
+        _inv = investitionen_by_id.get(_inv_id_str)
+        if _inv is None:
+            continue
+        _b = _wp_beitrag_je_inv.get(_inv_id_str)
+        _wp_kennzahlen_je_geraet.append(kennzahlen_aus_mengen(
+            mengen_aus_tageswerten(
+                _inv,
+                strom_kwh=float(_inv_strom or 0.0),
+                waerme_kwh=float(_wp_waerme_je_geraet.get(_inv_id_str, 0.0)),
+                heizung_kwh=float(_wp_heizung_je_inv.get(_inv_id_str, 0.0)),
+                warmwasser_kwh=float(_wp_ww_je_inv.get(_inv_id_str, 0.0)),
+                strom_heizen_kwh=float(_wp_strom_heizen_je_inv.get(_inv_id_str, 0.0)),
+                strom_warmwasser_kwh=float(_wp_strom_ww_je_inv.get(_inv_id_str, 0.0)),
+                kaelte_kwh=float(_wp_kaelte_je_inv.get(_inv_id_str, 0.0)),
+                modus_strom_kuehlen_kwh=(_b.kuehlen_kwh if _b else 0.0),
+                funktionsfremd_abzug_kwh=(beitrag_abzug_kwh(_b) if _b else 0.0),
+                waerme_ist_gesamt=bool(_wp_gesamtwaerme_je_inv.get(_inv_id_str)),
+            ),
+        ))
+    _wp_strom_ohne_waerme_tag, _wp_geraete_ohne_waerme_tag = schranken_eingang(
+        _wp_kennzahlen_je_geraet,
+    )
+    # W-18, als Eingang für BEIDES: die Sperre der Arbeitszahl und die Zeile im
+    # Kasten. ⚠ **Die Kurzform, nicht die Langform** — der Kasten trägt Sätze
+    # neben einem Handgriff; der Absatz aus `_tageswert_grund_kombiniert` steht
+    # weiterhin unter der Wärme-Kachel, wo er hingehört.
+    _wp_waerme_grund_kurz_tag = _tageswert_grund_kurz_kombiniert(
+        _grund, ("wp_heizung_kwh", "wp_warmwasser_kwh"),
+    )
+    wp_jaz_tag = systemarbeitszahl(
         wp_waerme_tag, wp_strom_tag,
         # W-14 + E4: Strom in Funktionen ohne bewertete Nutzenergie. Am Tag
         # wiegt der Effekt am schwersten: ein Sommertag kann fast reiner
@@ -1075,16 +1165,16 @@ async def get_tag_detail(
         # `strom_heizen + strom_warmwasser`, er stellt nichts daneben). Der
         # Stapel entscheidet das **je Gerät**; die drei Summanden daneben
         # bleiben unverändert und tragen weiter die Balken (K1).
-        strom_funktionsfremd_kwh=stapel.funktionsfremd_abzug_kwh,
-        abgrenzung_verletzt=wp_abgrenzung_tag,
+        kuehlstrom_kwh=stapel.funktionsfremd_abzug_kwh,
+        strom_ohne_waerme_kwh=_wp_strom_ohne_waerme_tag,
+        geraete_ohne_waerme=_wp_geraete_ohne_waerme_tag,
+        abgrenzung_verletzt=_wp_abgrenzung_sperrt_tag,
         # W-18: Die Sperre „kein Wärmemengenzähler zugeordnet" ist im Tag
         # regelmäßig falsch — der Zähler kann zugeordnet und für DIESEN Tag
         # trotzdem leer sein (Snapshots entstehen erst ab der Zuordnung; der
         # Monatswert kommt aus der HA-Langzeitstatistik und steht deshalb da).
         # Der Erhebungspfad weiß es, der Layer kann es nicht wissen.
-        waerme_fehlt_grund=_tageswert_grund_kurz_kombiniert(
-            _grund, ("wp_heizung_kwh", "wp_warmwasser_kwh"),
-        ),
+        waerme_fehlt_grund=_wp_waerme_grund_kurz_tag,
     )
 
     # ── Arbeitszahl JE FUNKTION — der dritte Aufrufer desselben SoT (N-348) ─
@@ -1243,6 +1333,23 @@ async def get_tag_detail(
         # Quotienten den Tag nie erreichte (N-348).
         wp_jaz_kuehlen=wp_az_kuehlen_tag.wert,
         wp_jaz_kuehlen_grund=wp_az_kuehlen_tag.grund,
+        wp_jaz_ist_schranke=wp_jaz_tag.ist_schranke,
+        wp_jaz_schranke_hinweis=wp_jaz_tag.schranke_hinweis,
+        wp_geraete=geraete_zeilen(_wp_kennzahlen_je_geraet),
+        # D-Sicht 1: Der Tag kennt einen Grund mehr als Monat und Jahr — den
+        # der **Wärme** (W-18: „für diesen Tag keine Zählerstände"). Er gehört
+        # in denselben Kasten; welche Klasse er trägt, entscheidet die
+        # Grund-Konstante, nicht diese Route.
+        wp_moeglich=was_noch_moeglich([
+            ("Arbeitszahl", wp_jaz_tag.grund),
+            (
+                "Wärme erzeugt",
+                _wp_waerme_grund_kurz_tag if wp_waerme_tag is None else None,
+            ),
+            ("Arbeitszahl Heizen", wp_az_funktion_tag.heizen.grund),
+            ("Arbeitszahl Warmwasser", wp_az_funktion_tag.warmwasser.grund),
+            ("Arbeitszahl Kühlen", wp_az_kuehlen_tag.grund),
+        ]),
         # Bauschnitt 8: derselbe Wert, den die Kühlzahl eben als Zähler bekam.
         wp_kaelte_kwh=(
             round(detail["wp_kaelte_kwh"], 2)

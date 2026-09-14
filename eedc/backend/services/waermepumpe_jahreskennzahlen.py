@@ -69,6 +69,18 @@ class WpJahreskennzahlen:
     warmwasser_kwh: float
     waerme_abgeleitet_kwh: float
     abgrenzung: Optional[str]
+    #: **E1b (14.09.2026): die Gründe, die die ANLAGENWEITE Zahl weiterhin
+    #: sperren** — dieselbe Kette wie ``abgrenzung``, **ohne** die beiden
+    #: Glieder, die zur unteren Schranke werden (gemischte Bauarten · Geräte
+    #: ohne Wärmemeldung). Beide machen den Nenner zu groß und den Quotienten
+    #: damit zu klein; die übrigen kippen ihn nach oben oder in unbekannte
+    #: Richtung, und eine Schranke wäre dort eine Falschaussage.
+    #:
+    #: ⚠ **``abgrenzung`` bleibt daneben stehen und behält seine Bedeutung** —
+    #: der PDF-Jahresbericht und die Kennzahl je Funktion lesen es unverändert.
+    #: Zwei Fragen, zwei Felder: *„darf es eine Geräte-Kennzahl geben?"* gegen
+    #: *„darf es eine Anlagen-Schranke geben?"*
+    abgrenzung_sperrt: Optional[str]
     abgrenzung_stoerung: Optional[str]
     arbeitszahl: Arbeitszahl
     hat_split: bool
@@ -77,6 +89,11 @@ class WpJahreskennzahlen:
     je_funktion: ArbeitszahlJeFunktion
     kaelte_kwh: float
     kuehlen: Arbeitszahl
+    #: **E7/Option A** — Σ der monatlichen Nenner-Abzüge (Kühlen · Lüften ·
+    #: Entfeuchten), genau der Wert, mit dem ``arbeitszahl`` oben gerechnet hat.
+    #: Er steht hier, damit die Systemarbeitszahl denselben Abzug benutzt statt
+    #: ihn nachzubauen (S1).
+    funktionsfremd_abzug_kwh: float
     hat_modus: bool
     betriebsarten: WpBetriebsarten
     abgeleitet: bool
@@ -216,14 +233,21 @@ def waermepumpe_jahreskennzahlen(
         deckung_je_funktion=_deckung_je_funktion,
         perioden_je_funktion={f: _perioden_lage(f) for f in ARBEITSZAHL_FUNKTIONEN},
     )
+    # E1b: dieselbe Kette ohne die beiden Glieder, die zur Schranke werden.
+    abgrenzung_sperrt = abgrenzungs_grund(
+        abgrenzung_stoerung=stoerung,
+        geraete_verschieden=_geraete_verschieden_jahr,
+        perioden_versetzt=_perioden_versetzt_jahr,
+    )
+    # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge — die Monats-Fakten
+    # haben ihn je Gerät entschieden (F5 + abgeleiteter Split ⇒ 0).
+    funktionsfremd_abzug = sum(
+        f.wp.modus_strom_funktionsfremd_abzug_kwh for f in fakten
+    )
     az = arbeitszahl(
         waerme, strom,
         waerme_abgeleitet_kwh=waerme_abgeleitet,
-        # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge — die Monats-Fakten
-        # haben ihn je Gerät entschieden (F5 + abgeleiteter Split ⇒ 0).
-        strom_funktionsfremd_kwh=sum(
-            f.wp.modus_strom_funktionsfremd_abzug_kwh for f in fakten
-        ),
+        strom_funktionsfremd_kwh=funktionsfremd_abzug,
         abgrenzung_verletzt=abgrenzung,
     )
     hat_split = any(f.wp.hat_split for f in fakten)
@@ -275,6 +299,7 @@ def waermepumpe_jahreskennzahlen(
         warmwasser_kwh=warmwasser,
         waerme_abgeleitet_kwh=waerme_abgeleitet,
         abgrenzung=abgrenzung,
+        abgrenzung_sperrt=abgrenzung_sperrt,
         abgrenzung_stoerung=stoerung,
         arbeitszahl=az,
         hat_split=hat_split,
@@ -283,6 +308,7 @@ def waermepumpe_jahreskennzahlen(
         je_funktion=je_funktion,
         kaelte_kwh=kaelte,
         kuehlen=kuehlen,
+        funktionsfremd_abzug_kwh=funktionsfremd_abzug,
         hat_modus=any(f.wp.hat_modus_split for f in fakten),
         betriebsarten=betriebsarten,
         abgeleitet=abgeleitet,

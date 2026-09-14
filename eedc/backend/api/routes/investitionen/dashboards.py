@@ -71,6 +71,9 @@ from backend.core.investition_parameter import abgrenzung_stoerung, ist_dienstli
 from backend.services.emob_ladeanteil import reichere_monatszeilen_an
 from backend.services.mitteltemperatur import lade_heizgradtage_je_monat
 from backend.services.monats_fakten import lade_monats_fakten
+from backend.services.waermepumpe_kennzahlen_je_geraet import (
+    kennzahlen_aus_monatszeilen,
+)
 from backend.core.berechnungen.speicher_wirtschaftlichkeit import (
     aggregiere_speicher_ist,
     berechne_speicher_ersparnis,
@@ -889,330 +892,58 @@ async def get_waermepumpe_dashboard(
             if wp.ist_aktiv_im_monat(md.jahr, md.monat)
         ]
 
-        gesamt_strom = 0
-        gesamt_strom_heizen = 0
-        gesamt_strom_warmwasser = 0
-        gesamt_heizung = 0
-        gesamt_warmwasser = 0
-        hat_getrennte_strom = False
-        # N-379: Haengt am GERAET, nicht an der Monatszeile — einmal fragen.
-        # Eine Split-Klimaanlage hat keinen Warmwasserkreis (N-304); die Achse
-        # verschwindet dort samt Spalte, Balken und Legende (SOLL §3.3/S2).
-        _hat_warmwasser = groesse_gibt_es_am_geraet(
-            "waermepumpe", "warmwasser_kwh", wp.parameter
-        )
-        # #404 (8ear) / SOLL §3.2a **R1** — die zweite Haelfte derselben Regel:
-        # *„was ein Geraet liefern kann, sagt der zugeordnete Zaehler, nicht
-        # seine Bauart — wer keinen zuordnet, sieht die Achse nicht."*
-        # `_hat_warmwasser` allein beantwortet nur die Bauart-Frage und stand
-        # deshalb an JEDER Luft-Wasser-WP auf True, auch an einer, die nie
-        # Warmwasser gemessen hat: Balken, Spalte und Legende zeigten dort
-        # dauerhaft eine Null. 8ear hat dafuer ein zweites Geraet (eine
-        # Brauchwasser-WP), sein Fall ist also echt und kein Erfassungsloch.
+        # ⭐ **WK-16a (14.09.2026): die Faltung steht nicht mehr hier.**
+        # Sie ist wortgleich nach `services/waermepumpe_kennzahlen_je_geraet.py`
+        # gehoben — **eine** Rechenstelle für die Kennzahl je Gerät, die der
+        # Komponenten-Hub UND der Cockpit-Block *Wärme/Klima* rufen (D-Sicht 3).
+        # Bis dahin gab es die Gerätezahlen nur hier; das Cockpit verwies mit
+        # einem Link darauf. Sie dort neu zu rechnen wäre die W-3-Klasse
+        # gewesen — dieselbe Kennzahl an zwei Orten —, und diese Funktion hat
+        # sie schon dreimal erlebt (W-3 · W-15 · N-397).
         #
-        # ⚑ **Eine ZWEITE Groesse, und zwar aus Absicht — nicht aus Not.** Unten
-        # bei `arbeitszahl_je_funktion` (je Monatszeile) ist die Bauart-Frage
-        # die richtige: Ob ein ANDERER Monat Warmwasser trug, geht die Kennzahl
-        # dieses Monats nichts an.
+        # ⚠ **Der Zeitfilter bleibt hier**: `monatsdaten` ist bereits über
+        # `ist_aktiv_im_monat` geschnitten (#153/#236). Der Dienst faltet, was
+        # er bekommt — Hub und Cockpit filtern verschieden (Lebensdauer gegen
+        # Zeitfenster), die Faltung selbst ist dieselbe.
+        _kz, _faltung = kennzahlen_aus_monatszeilen(wp, monatsdaten)
+        _mengen = _kz.mengen
+        gesamt_strom = _mengen.strom_kwh
+        gesamt_strom_heizen = _mengen.strom_heizen_kwh
+        gesamt_strom_warmwasser = _mengen.strom_warmwasser_kwh
+        gesamt_heizung = _mengen.heizung_kwh
+        gesamt_warmwasser = _mengen.warmwasser_kwh
+        hat_getrennte_strom = _mengen.hat_getrennte_strommessung
+        gesamt_heizung_getrennt = _mengen.heizung_getrennt_kwh
+        gesamt_warmwasser_getrennt = _mengen.warmwasser_getrennt_kwh
+        waerme_ist_gesamt_getrennt = _mengen.waerme_ist_gesamt_getrennt
+        waerme_abgeleitet = _mengen.waerme_abgeleitet
+        gesamt_waerme = _mengen.waerme_kwh
+        gesamt_kaelte = _mengen.kaelte_kwh
+        gesamt_modus_heizen = _faltung.modus_heizen_kwh
+        gesamt_modus_kuehlen = _faltung.modus_kuehlen_kwh
+        gesamt_modus_warmwasser = _faltung.modus_warmwasser_kwh
+        gesamt_modus_lueften = _faltung.modus_lueften_kwh
+        gesamt_modus_entfeuchten = _faltung.modus_entfeuchten_kwh
+        gesamt_modus_funktionsfremd_abzug = _mengen.funktionsfremd_abzug_kwh
+        gesamt_modus_abdeckung_h = _faltung.modus_abdeckung_h
+        gesamt_modus_bezug = _faltung.modus_bezug_kwh
+        modus_gemessen = _faltung.modus_gemessen
+        jaz_je_monat = _faltung.jaz_je_monat
+        # N-379 / #404 (8ear) — die Achsen-Frage. `_hat_warmwasser` ist die
+        # Bauart-Frage (R1, erste Hälfte), `_ww_je_erfasst` die Zähler-Frage
+        # (zweite Hälfte): *„was ein Gerät liefern kann, sagt der zugeordnete
+        # Zähler, nicht seine Bauart"*. Beides gehört zur **Anzeige** des Hubs,
+        # nicht zur Kennzahl — deshalb bleibt es hier.
         #
-        # ⛔ **Hier stand: „wer `_hat_warmwasser` dort gegen dieses Flag
-        # tauscht, verschiebt eine Kennzahl statt einer Achse." Das ist
-        # GEMESSEN FALSCH** (Sprengsatz 05.09.2026, blieb stumm): An jener
-        # Stelle sind beide Ausdruecke **aequivalent**, weil `_ww_je_erfasst`
-        # drei Zeilen ueber ihr aus DEMSELBEN Wert gesetzt wird — ist der Wert
-        # da, ist das Flag True; fehlt er, liefert `d.get(...)` ohnehin `None`.
-        # Es gibt keine Belegung, in der sie auseinanderlaufen.
-        #
-        # Die Trennung bleibt trotzdem, aber mit dem ehrlichen Grund: Die beiden
-        # Stellen beantworten **verschiedene Fragen** (*darf diese Achse
-        # erscheinen?* gegen *hat dieses Geraet diese Groesse?*), und die
-        # heutige Aequivalenz ist ein Zufall der Reihenfolge, kein Vertrag. Wer
-        # `_ww_je_erfasst` einmal vor die Schleife zieht, bricht sie.
-        #
-        # ⚠ **Nur der Total-Fall** (Entscheid 29.08.): unterdrueckt wird, was
-        # NIE gemessen wurde. Ein einziger gepflegter Monat — auch mit 0 —
-        # laesst die Achse stehen, denn dann ist die 0 der uebrigen Monate eine
-        # Messung und keine Leerstelle.
-        _ww_je_erfasst = False
+        # ⚠ **Nur der Total-Fall** (Entscheid 29.08.): unterdrückt wird, was NIE
+        # gemessen wurde. Ein einziger gepflegter Monat — auch mit 0 — lässt die
+        # Achse stehen, denn dann ist die 0 der übrigen Monate eine Messung.
+        _hat_warmwasser = _mengen.hat_warmwasser_groesse
+        _ww_je_erfasst = _faltung.warmwasser_je_erfasst
         _ww_hat_quelle = inv_feld_hat_quelle(
             anlage.sensor_mapping, wp.id, "warmwasser_kwh"
         )
-
-        gesamt_heizung_getrennt = 0.0  # Heizung nur für Monate mit getrennter Strommessung
-        gesamt_warmwasser_getrennt = 0.0  # Warmwasser nur für Monate mit getrennter Strommessung
-        # N-391: Trug einer dieser Monate einen gemeinsamen Wärmemengenzähler?
-        # Dann ist die Wärme dieser Summen nicht die je Funktion.
-        waerme_ist_gesamt_getrennt = False
-        # #263 K-2 (Konzept §3.5): Wärme, die aus `Strom × JAZ` abgeleitet
-        # wurde, darf in keine JAZ/COP eingehen — heraus käme exakt die
-        # gepflegte JAZ. Dieser Endpoint liest die IMD-Zeilen direkt und wertet
-        # die Herkunft deshalb selbst aus (die Fakten-Schicht trägt sie sonst
-        # als `WpFakten.waerme_abgeleitet_kwh`).
-        waerme_abgeleitet = False
-        # #263 K-2 (S4): der Modus-Split. Teilmengen von `gesamt_strom` — sie
-        # werden ausgewiesen, nie addiert (Konzept §3.1).
-        gesamt_modus_heizen = 0.0
-        gesamt_modus_kuehlen = 0.0
-        # N-336: nur aus dem abgeleiteten Split — die Gegenrichtung zu E4.
-        gesamt_modus_warmwasser = 0.0
-        # E4 (Konzept §2.3): nur aus gemessenen Zählern — der abgeleitete Split
-        # kann sie nicht und lässt sie bei 0.
-        gesamt_modus_lueften = 0.0
-        gesamt_modus_entfeuchten = 0.0
-        # ⭐ **SOLL-§9-E7/Option A: der Nenner-Abzug ist NICHT die Summe der
-        # drei Mengen darüber.** Bei getrennter Strommessung mit nur
-        # abgeleiteter Aufteilung ist er 0 — die Verteilung kürzt keinen
-        # gemessenen Nenner. Entschieden wird je Zeile über den Layer.
-        gesamt_modus_funktionsfremd_abzug = 0.0
-        gesamt_kaelte = 0.0
-        gesamt_modus_abdeckung_h = 0.0
-        gesamt_modus_bezug = 0.0
-        # #263 — mindestens ein Monat bringt die Aufteilung GEMESSEN mit.
-        modus_gemessen = False
-        # ADR-002/P12 (02.09.2026): Die Arbeitszahl **je Monat**, aus dem Layer.
-        # Bis dahin rechnete der Client sie aus den Rohzeilen selbst — an drei
-        # Stellen (`WaermepumpeVergleich` 2×, `AussichtTeile::monatsCop`), und
-        # keine davon kannte den funktionsfremden Strom, die Anwender-Angabe
-        # oder die abgeleitete Wärme. Gerade die letzte wiegt hier: Eine aus
-        # `Strom × JAZ` gerechnete Wärme durch denselben Strom geteilt gibt die
-        # **gepflegte JAZ** zurück — eine Zahl, die nichts misst und in einem
-        # Jahresvergleich wie eine Messreihe aussieht.
-        jaz_je_monat: list[dict] = []
-        # N-441: (Wärme, Strom) je Monatszeile — die Grundlage der Perioden-Lage
-        # der **Gesamt**zahl unten. Sie entsteht erst ÜBER die Zeilen und ist an
-        # einer einzelnen nicht sichtbar.
-        _hub_zeilen: list[tuple[float, float]] = []
-        #: ⛔ **N-462 (13.09.2026): die Lage steht NICHT mehr vor der Schleife.**
-        #: SOLL-§9-E7/Option A fragt „steckt der funktionsfremde Anteil im
-        #: Nenner?", und das entscheidet die **Stufe der Monatszeile** (K3), nicht
-        #: das Kennzeichen des Geräts — ein Monat mit vollständiger feiner Achse
-        #: und der nächste ohne beantworten es verschieden.
-        for md in monatsdaten:
-            d = md.verbrauch_daten or {}
-            # **Gemessen schlägt abgeleitet** (ADR-002/P8), je Monatszeile.
-            # `None` heißt „kein Zähler" und lässt die Ableitung stehen; eine
-            # gemessene 0 ist dagegen eine echte Null.
-            # ⭐ **Der SoT statt einer nachgebauten Weiche** (F-56). Hier stand
-            # bis zum 26.08.2026 dieselbe Regel ein zweites Mal ausgeschrieben —
-            # genau die Bauform, vor der der Docstring von `modus_strom_zeile`
-            # warnt: *„eine Regel, die an zwei Stellen nachgebaut wird,
-            # driftet."* Sie ist prompt gedriftet: Als E4 die Betriebsarten
-            # Lüften und Entfeuchten in die Aufteilung holte, zog diese Kopie
-            # nicht mit und hätte für dieselbe Anlage eine andere Restmenge
-            # ausgewiesen als Cockpit und Komponenten-Hub.
-            _zeile = modus_strom_zeile(d)
-            _zeile_gemessen = _zeile.gemessen
-            modus_gemessen = modus_gemessen or _zeile_gemessen
-            gesamt_modus_heizen += _zeile.heizen_kwh
-            gesamt_modus_kuehlen += _zeile.kuehlen_kwh
-            gesamt_modus_warmwasser += _zeile.warmwasser_kwh
-            gesamt_modus_lueften += _zeile.lueften_kwh
-            gesamt_modus_entfeuchten += _zeile.entfeuchten_kwh
-            _zeile_abzug = funktionsfremd_abzug_kwh(
-                _zeile, hat_split=nenner_ist_feine_summe(d, wp.parameter),
-            )
-            gesamt_modus_funktionsfremd_abzug += _zeile_abzug
-            # W-5: die Kältemenge — nur gemessen, nie abgeleitet.
-            gesamt_kaelte += betriebsart_nutzenergie_kwh(d, BM_KUEHLEN_W5) or 0.0
-            _m_abdeckung = d.get(MODUS_ABDECKUNG_FELD, 0) or 0
-            gesamt_modus_abdeckung_h += _m_abdeckung
-            if _m_abdeckung > 0 or _zeile_gemessen:
-                gesamt_modus_bezug += get_wp_strom_kwh(d, wp.parameter)
-            # W-15: **dieselbe** Strom-Definition wie in den Monats-Fakten.
-            # Vorher stand hier der Rohwert `stromverbrauch_kwh`, während
-            # `monats_fakten` über `get_wp_strom_kwh` geht — bei getrennter
-            # Strommessung sind das zwei verschiedene Mengen (#183), und der
-            # Hub wies damit einen anderen Verbrauch aus als das Cockpit.
-            gesamt_strom += get_wp_strom_kwh(d, wp.parameter)
-            # ⚠ **Der EINZELwert, nicht die Wärme des Geräts** (N-391): Er
-            # trägt die Kachel *Heizwärme* und den Zähler der Heiz-Arbeitszahl.
-            # Ein gemeinsamer Wärmemengenzähler gehört in keine der beiden —
-            # seine Menge erreicht `gesamt_waerme` unten über D1.
-            gesamt_heizung += d.get('heizenergie_kwh', 0)
-            # N-379: die eine Lesetuer statt des Rohzugriffs. An dietmars
-            # Klimaanlage standen hier 889 kWh, die das Geraet nicht abgeben
-            # kann — sie trugen "Waerme erzeugt", die JAZ, die Gas-Ersparnis
-            # und die CO2-Zahl (T89667 #295).
-            _ww = get_wp_warmwasser_kwh(d, wp.parameter)
-            gesamt_warmwasser += _ww
-            # Anwesenheit statt Menge — eine gepflegte 0 ist eine Messung.
-            _ww_je_erfasst = _ww_je_erfasst or hat_wp_warmwasser_wert(
-                d, wp.parameter
-            )
-            waerme_abgeleitet = waerme_abgeleitet or heizwaerme_ist_abgeleitet(
-                md.source_provenance
-            )
-            # P12: dieselbe Rechnung wie die Jahreszahl unten, nur je Zeile.
-            # `waerme_abgeleitet` wird **je Monat** gefragt (nicht die
-            # kumulierte Marke): ein einzelner abgeleiteter Monat darf die
-            # übrigen nicht entwerten, und ein gemessener nicht von einem
-            # abgeleiteten profitieren.
-            #
-            # ⭐ **Die Zeile liest ihre Wärme wie der Layer (N-441, Fall K).**
-            # Hier stand bis zum 12.09.2026 `heizenergie + _ww` — ohne den
-            # kanonischen Vorrang „Gesamtwert vor Summanden" (D1). Ein Gerät,
-            # dessen Monat nur `waerme_kwh` trägt (per Import erreichbar), sah
-            # für den Hub aus wie ein Monat ohne Wärme, während der Layer
-            # 1800 kWh las: Cockpit sperrte, der Hub zeigte 3,0. Dieselbe
-            # Klasse wie N-397 — der Hub las roh, was der Layer kanonisch liest.
-            _md_waerme = waerme_gesamt_kwh(
-                d.get('waerme_kwh'), d.get('heizenergie_kwh'), _ww,
-            )
-            _hub_zeilen.append(
-                (_md_waerme, get_wp_strom_kwh(d, wp.parameter)),
-            )
-            _md_az = arbeitszahl(
-                _md_waerme, get_wp_strom_kwh(d, wp.parameter),
-                waerme_abgeleitet_kwh=(
-                    1.0 if heizwaerme_ist_abgeleitet(md.source_provenance) else 0.0
-                ),
-                # SOLL-§9-E7/Option A: der **Abzug**, nicht die Menge.
-                strom_funktionsfremd_kwh=_zeile_abzug,
-                abgrenzung_verletzt=GRUND_JE_ABGRENZUNG.get(
-                    abgrenzung_stoerung(wp) or ""
-                ),
-            )
-            # ⭐ **Zähler und Nenner gehören dazu, nicht nur der Quotient.**
-            # Der Saison-Vergleich im Client bildet Σ Q / Σ E über die Monate
-            # eines Fensters — das ist nach SOLL §5 **richtig** (eine
-            # Arbeitszahl wird neu berechnet, nie gemittelt), setzt aber
-            # **bereinigte** Größen voraus: `nenner_kwh` ist NICHT der
-            # Stromverbrauch, der funktionsfremde Anteil ist schon abgezogen.
-            # Ohne diese beiden Felder müsste der Client wieder mit den
-            # Rohwerten summieren — genau die Bauform, die P12 abschafft.
-            #
-            # ⚠ Beide sind `None`, wo es keine Kennzahl gibt. Ein Monat ohne
-            # Wert darf in keine Saisonsumme eingehen, sonst entsteht dort der
-            # Mischquotient neu, den die Monatszeile gerade verweigert hat.
-            _md_az_funktion = arbeitszahl_je_funktion(
-                heizung_kwh=d.get('heizenergie_kwh'),
-                strom_heizen_kwh=d.get('strom_heizen_kwh'),
-                # N-379: `None` NUR, wenn das Geraet die Groesse nicht hat.
-                # ⛔ Nicht `_ww or None` — das machte aus einer gepflegten 0
-                #   an JEDER Waermepumpe ein "—".
-                warmwasser_kwh=(
-                    d.get('warmwasser_kwh') if _hat_warmwasser else None
-                ),
-                strom_warmwasser_kwh=d.get('strom_warmwasser_kwh'),
-                # Je Zeile gefragt, nicht am Gerät: Die getrennte Strommessung
-                # kann mitten in der Historie eingeschaltet worden sein, und
-                # ohne sie gibt es die Heiz-Arbeitszahl für diesen Monat nicht.
-                hat_split='strom_heizen_kwh' in d,
-                # N-391, ebenfalls je Zeile: EIN gemeinsamer Wärmemengenzähler
-                # liefert keine Wärme je Funktion — die Zeile bekommt den Grund
-                # statt `Gesamtwärme ÷ Heizstrom`.
-                waerme_ist_gesamt=bool(d.get('waerme_kwh')),
-                waerme_abgeleitet_kwh=(
-                    1.0 if heizwaerme_ist_abgeleitet(md.source_provenance) else 0.0
-                ),
-                abgrenzung_verletzt=GRUND_JE_ABGRENZUNG.get(
-                    abgrenzung_stoerung(wp) or ""
-                ),
-            )
-            jaz_je_monat.append({
-                'jahr': md.jahr, 'monat': md.monat,
-                'wert': round(_md_az.wert, 2) if _md_az.wert is not None else None,
-                'grund': _md_az.grund,
-                'zaehler_kwh': _md_az.zaehler_kwh,
-                'nenner_kwh': _md_az.nenner_kwh,
-                # Getrennte Strommessung (#191): der Saison-Zweig vergleicht dann
-                # die Heiz-Arbeitszahl, nicht die Gesamtzahl.
-                'heizen_zaehler_kwh': _md_az_funktion.heizen.zaehler_kwh,
-                'heizen_nenner_kwh': _md_az_funktion.heizen.nenner_kwh,
-                # B3/H-1b: der Stromverbrauch des Monats nach dem SoT — für
-                # Monatstabelle und Monats-/Saisonvergleich, die bis B3 die
-                # Rohspalte lasen und bei getrennter Strommessung leer blieben.
-                # Bewusst hier und nicht in `monatsdaten`: die Zeitreihe aus dem
-                # Layer ist die eine Quelle des Hubs (P12), die Rohzeile nicht.
-                'strom_kwh': round(get_wp_strom_kwh(d, wp.parameter), 1),
-            })
-            # ⚠ `strom_heizen_kwh` heißt hier **getrennte Strommessung** (zwei
-            # physische Zähler), NICHT der Modus-Split von #263 K-2. Der trägt
-            # eigene Feldnamen (`modus_strom_*`, Entscheid E-G) — genau damit
-            # diese Anwesenheitsprüfung nicht mitkippt und die Klimaanlage
-            # unten kein `cop_heizen` aus abgeleiteter Wärme bekommt.
-            if 'strom_heizen_kwh' in d:
-                hat_getrennte_strom = True
-                gesamt_strom_heizen += d.get('strom_heizen_kwh', 0)
-                gesamt_strom_warmwasser += d.get('strom_warmwasser_kwh', 0)
-                # ⚠ Die EINZELwerte, nicht die Wärme des Monats (N-391): Sie
-                # sind Zähler und Nenner **einer Funktion**. Der gemeinsame
-                # Wärmemengenzähler gehört in keinen von beiden — er sperrt sie.
-                gesamt_heizung_getrennt += d.get('heizenergie_kwh', 0)
-                gesamt_warmwasser_getrennt += _ww
-                waerme_ist_gesamt_getrennt = (
-                    waerme_ist_gesamt_getrennt or bool(d.get('waerme_kwh'))
-                )
-
-        # ⭐ **N-391/V-1: die SUMME liest jetzt wie die Zeile** (D1). Hier stand
-        # `gesamt_heizung + gesamt_warmwasser`, während die Zeile darüber seit
-        # N-441 `waerme_gesamt_kwh` ruft — ein Gerät, dessen Monate nur den
-        # gemeinsamen Wärmemengenzähler tragen, hatte für den Hub **keine
-        # Wärme**: `gesamt_waerme_kwh` 0,0, `durchschnitt_cop` None, Ersparnis
-        # None, während *Cockpit → Monat* 3.000 kWh und 3,0 zeigte. Dieselbe
-        # Anlage, zwei Auskünfte — die N-397-Klasse ein zweites Mal, nur eine
-        # Faltungsebene höher.
-        gesamt_waerme = sum(_w for _w, _ in _hub_zeilen)
-        # ⛔ **W-15 (26.08.): Hier stand bis zum 26.08. eine eigene Division**
-        # (`gesamt_waerme / gesamt_strom`). Damit fehlten dem Hub **alle**
-        # R2-Sperren außer der abgeleiteten Wärme — kein Abzug des
-        # funktionsfremden Stroms (W-14/E4), keine Anwender-Angabe
-        # „Fremdanteil auf den Zählern" (W-7), und weder Grund noch
-        # Heizstab-Hinweis (W-6), weil beides nur aus dem Layer kommt.
-        #
-        # ⭐ **Gemessen an einer nachgestellten Anlage** (3000 kWh Wärme ·
-        # 1000 kWh Heizstrom · 300 kWh Kühlstrom): Der Hub sagte **2,31**,
-        # das Cockpit für denselben Monat **3,00**. *Dieselbe Anlage, zwei
-        # Aussagen* — wortgleich die Begründung, mit der W-4 am selben Tag
-        # `cop_heizen`/`cop_warmwasser` auf den Layer gehoben hat. Diese
-        # Kennzahl blieb daneben stehen.
-        #
-        # ⚠ **Der Abzug greift nur, wo die Menge auch im Nenner steht**
-        # (SOLL-§9-E7/Option A, 12.09.2026).
-        #
-        # ⛔ **Hier stand bis dahin: „Der Abzug greift in *beiden*
-        # Split-Zweigen richtig … die Menge steckt also so oder so im
-        # Nenner."** Das gilt für den **nicht**-getrennten Zweig: dort ist der
-        # Nenner `stromverbrauch_kwh`, der Zählerstand des ganzen Geräts, und
-        # der Kühlbetrieb steckt darin — egal, ob seine Aufteilung gemessen
-        # oder abgeleitet ist. **Für den F5-Zweig war es zu weit gefasst:**
-        # `get_wp_strom_kwh` addiert nur den **gemessenen** funktionsfremden
-        # Strom (W-16); ein **abgeleiteter** Anteil ist eine Verteilung von
-        # `strom_heizen + strom_warmwasser` und wurde nie addiert. Ihn
-        # abzuziehen kürzte den Nenner um eine nie hinzugekommene Menge —
-        # gemessen 4,24 statt 3,79 an derselben Anlage, die mit Kühlzähler
-        # 3,79 zeigt.
-        #
-        # Die Unterscheidung trifft jetzt `funktionsfremd_abzug_kwh` je Zeile.
-        # ⭐ **N-441: die Perioden-Lage erreicht die Hub-Gesamtzahl.** Ein Monat
-        # trägt Wärme ohne Strom, ein anderer trägt Strom — die Summe nimmt
-        # beide Seiten mit. Gemessen an EINEM Gerät (März 1800 kWh Wärme ohne
-        # Strom, Juli 1800/600): der Hub zeigte **6,0 ohne Grund**, wortgleich
-        # zu *Cockpit → Jahr*, das dieselbe Lage nicht sah.
-        #
-        # ⚠ **Und deshalb steht hier jetzt die Kette statt `GRUND_JE_ABGRENZUNG`.**
-        # Ein zweiter Weg neben `abgrenzungs_grund` wäre genau der Turm, den
-        # W-15 an dieser Zeile schon einmal abgetragen hat; die Anwender-Angabe
-        # bleibt vorn, weil die Kette sie zuerst fragt.
-        #
-        # ⚑ **Warum sperren und nicht „zeilenweise wie je Funktion"?** Die
-        # Gesamtzahl summiert alle Zeilen; sie zeilenweise zu machen wäre ein
-        # **neuer** Rechenweg neben der Cockpit-Jahreszahl. SOLL §3.3/**S1**
-        # verlangt denselben Wert für dieselbe Größe — und die Kette gibt es
-        # schon. (Hub **je Funktion** bleibt zeilenweise, Entscheid E5 a.)
-        _wp_abgrenzung_gesamt = abgrenzungs_grund(
-            abgrenzung_stoerung=abgrenzung_stoerung(wp),
-            perioden_versetzt=(
-                any(w > 0 and e == 0 for w, e in _hub_zeilen)
-                and any(e > 0 for _, e in _hub_zeilen)
-            ),
-        )
-        _az_gesamt = arbeitszahl(
-            gesamt_waerme, gesamt_strom,
-            waerme_abgeleitet_kwh=1.0 if waerme_abgeleitet else 0.0,
-            strom_funktionsfremd_kwh=gesamt_modus_funktionsfremd_abzug,
-            abgrenzung_verletzt=_wp_abgrenzung_gesamt,
-        )
+        _az_gesamt = _kz.gesamt
         durchschnitt_cop = _az_gesamt.wert
 
         # Drift-Audit Domäne A1 / Issue #178: vorher las dieser Endpoint
@@ -1509,10 +1240,9 @@ async def get_waermepumpe_dashboard(
         # Klimaanlage hat oft genau diese Zähler und nie eine getrennte
         # Strommessung — sie hier mit einzusperren hieße, die Zahl genau dem
         # Gerätetyp vorzuenthalten, für den sie gebaut ist.
-        _az_kuehlen = arbeitszahl_kuehlen(
-            gesamt_kaelte, gesamt_modus_kuehlen,
-            abgrenzung_verletzt=GRUND_JE_ABGRENZUNG.get(abgrenzung_stoerung(wp) or ""),
-        )
+        # WK-16a: aus dem Dienst, nicht daneben gerechnet — dieselbe Eingabe,
+        # dieselbe Sperre, derselbe Wert.
+        _az_kuehlen = _kz.kuehlen
         if _az_kuehlen.wert is not None or gesamt_modus_kuehlen > 0:
             zusammenfassung['jaz_kuehlen'] = (
                 round(_az_kuehlen.wert, 2) if _az_kuehlen.wert is not None else None
@@ -1568,23 +1298,15 @@ async def get_waermepumpe_dashboard(
             # Zeitraum-Versatz kennt nur die Vier-Quellen-Auflösung in
             # `aktueller_monat`. Beides ist keine Lücke, sondern die Reichweite
             # dieser Sicht (dieselbe Begründung wie in `cockpit/komponenten.py`).
-            _wp_abgrenzung = GRUND_JE_ABGRENZUNG.get(
-                abgrenzung_stoerung(wp) or ""
-            )
             zusammenfassung['gesamt_strom_heizen_kwh'] = round(gesamt_strom_heizen, 1)
             zusammenfassung['gesamt_strom_warmwasser_kwh'] = round(gesamt_strom_warmwasser, 1)
             zusammenfassung['gesamt_heizung_getrennt_kwh'] = round(gesamt_heizung_getrennt, 1)
             zusammenfassung['gesamt_warmwasser_getrennt_kwh'] = round(gesamt_warmwasser_getrennt, 1)
-            _az_funktion = arbeitszahl_je_funktion(
-                heizung_kwh=gesamt_heizung_getrennt,
-                strom_heizen_kwh=gesamt_strom_heizen,
-                warmwasser_kwh=gesamt_warmwasser_getrennt,
-                strom_warmwasser_kwh=gesamt_strom_warmwasser,
-                hat_split=True,
-                waerme_ist_gesamt=waerme_ist_gesamt_getrennt,
-                waerme_abgeleitet_kwh=1.0 if waerme_abgeleitet else 0.0,
-                abgrenzung_verletzt=_wp_abgrenzung,
-            )
+            # WK-16a: aus dem Dienst. ⚠ Der `if hat_getrennte_strom`-Riegel
+            # darüber bleibt — er entscheidet, ob die Zahlen ÜBERHAUPT in die
+            # Antwort gehören; der Dienst rechnet sie ohnehin nur mit
+            # `hat_split` und liefert sonst den Grund.
+            _az_funktion = _kz.je_funktion
             zusammenfassung['jaz_heizen'] = (
                 round(_az_funktion.heizen.wert, 2)
                 if _az_funktion.heizen.wert is not None else None

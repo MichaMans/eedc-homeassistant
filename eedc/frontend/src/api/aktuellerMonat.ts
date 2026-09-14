@@ -62,6 +62,37 @@ export interface SonstigesGeraet {
   erloes_euro?: number | null
 }
 
+/** Eine Zeile der Tabelle „Zahlen je Gerät" im Wärme/Klima-Block (D-Sicht 3).
+ *  Aus **derselben** Rechenstelle wie der Komponenten-Hub. */
+export interface WpGeraetZeile {
+  investition_id: number
+  name: string
+  strom_kwh?: number | null
+  waerme_kwh?: number | null
+  jaz?: number | null
+  jaz_grund?: string | null
+  jaz_heizen?: number | null
+  jaz_heizen_grund?: string | null
+  jaz_warmwasser?: number | null
+  jaz_warmwasser_grund?: string | null
+  jaz_kuehlen?: number | null
+  jaz_kuehlen_grund?: string | null
+}
+
+/** Eine Zeile des Kastens „Was noch möglich wäre" (D-Sicht 1) — **eine je
+ *  Grund**, nicht je Kachel. `groesse` nennt alle betroffenen Größen. */
+export interface WpMoeglichZeile {
+  /** Die betroffenen Größen als **Bezeichner** — womit der Client abfragt,
+   *  ob eine Kachel in den Kasten gewandert ist. Ein Bezeichner ist ein
+   *  Schlüssel, ein Grund-Satz ist eine Formulierung. */
+  groessen: string[]
+  /** Dieselben Größen als Anzeigetext („A · B"). */
+  groesse: string
+  grund: string
+  handgriff?: string | null
+  link?: string | null
+}
+
 export interface AktuellerMonatResponse {
   anlage_id: number
   anlage_name: string
@@ -190,6 +221,17 @@ export interface AktuellerMonatResponse {
    *  Quotient über einen Zeitraum. */
   wp_jaz_kuehlen?: number | null
   wp_jaz_kuehlen_grund?: string | null
+  /** E1b — siehe {@link WpGeraetZeile}. */
+  wp_jaz_ist_schranke?: boolean | null
+  /** Der EINE Satz unter der Schranke: „Klimaanlage: Strom ohne Wärmemessung
+   *  enthalten". Fertig formuliert aus dem Layer. */
+  wp_jaz_schranke_hinweis?: string | null
+  /** D-Sicht 3: die Kennzahlen **je Gerät**, im Block selbst. */
+  wp_geraete?: WpGeraetZeile[] | null
+  /** D-Sicht 1: was die Ausstattung nicht hergibt — **einmal je Sicht**, mit
+   *  Handgriff. Eine Größe, deren Grund hier steht, bekommt **keine** Kachel
+   *  mit „—"; eine Größe mit einem Zeitraum-Grund bleibt als „—" ohne Text. */
+  wp_moeglich?: WpMoeglichZeile[] | null
   /** Bauschnitt 6b: gemessene **Kälte** des Monats — der Zähler der
    *  Arbeitszahl Kühlen daneben. `null`, wo kein Kältemengenzähler etwas
    *  gemeldet hat (keine 0 ohne Messung). */

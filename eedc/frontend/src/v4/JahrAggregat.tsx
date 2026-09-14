@@ -408,6 +408,13 @@ export function baueJahrAlsMonat(
     wp_jaz_warmwasser_grund: k?.wp_jaz_warmwasser_grund ?? null,
     wp_jaz_kuehlen: k?.wp_jaz_kuehlen ?? null,
     wp_jaz_kuehlen_grund: k?.wp_jaz_kuehlen_grund ?? null,
+    // E1b + D-Sicht: alles NUR aus der Route (P12). Ohne sie bleibt der Block
+    // wie bisher — die Schranke ist ein Flag des Layers, und die Tabelle je
+    // Gerät entsteht dort, wo die Kennzahl entsteht.
+    wp_jaz_ist_schranke: k?.wp_cop_ist_schranke ?? false,
+    wp_jaz_schranke_hinweis: k?.wp_cop_schranke_hinweis ?? null,
+    wp_geraete: k?.wp_geraete ?? [],
+    wp_moeglich: k?.wp_moeglich ?? [],
     // Bauschnitt 8: Die Kältemenge kommt aus dem Layer (`WpJahreskennzahlen`).
     // Die Σ der Monatsantworten ist nur der Rückfall OHNE Route — wie bei
     // Heizwärme und Strom daneben, damit die Gruppe Kühlen dann nicht Strom

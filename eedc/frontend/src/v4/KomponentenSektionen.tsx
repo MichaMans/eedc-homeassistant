@@ -14,7 +14,8 @@
  */
 import { useState, type ReactNode } from 'react'
 import { Battery, TrendingUp, TrendingDown, Plug, Power, Clock, ExternalLink } from 'lucide-react'
-import { fmtCalc, SegmentControl } from '../components/ui'
+import { fmtCalc, CollapsibleSection, SegmentControl, Table, TableHead, TableBody } from '../components/ui'
+import { ZELLE, KOPF_ZELLE } from '../components/ui/tabelleMasse'
 import FormelTooltip from '../components/ui/FormelTooltip'
 import QuelleBadge from '../components/ui/QuelleBadge'
 import { KpiStrip, VerteilungsBalken, GeraeteHinweis, type Block, type KpiStripItem } from '../components/blocks'
@@ -30,13 +31,16 @@ import {
 import {
   wpFunktionsGruppen, zeigtStromJeFunktion, type FunktionsGruppen, type FunktionsZeile,
 } from './wpFunktionsGruppen'
+import { GROESSE, imKasten, jazAnzeige, kennzahlUntertitel } from './waermeKlimaSicht'
 import {
   KOMPONENTEN_IDENTITAET, INVESTITION_TYP_ORDER, SONSTIGES_ERZEUGER_FARBE, ROLLEN_BG,
   SPEICHER_KPI, WP_KPI, EAUTO_KPI, BKW_KPI,
   SONSTIGES_ERZEUGER_KPI, SONSTIGES_VERBRAUCHER_KPI,
   ersparnisAnzeige,
 } from '../lib'
-import type { AktuellerMonatResponse, SonstigesGeraet } from '../api/aktuellerMonat'
+import type {
+  AktuellerMonatResponse, SonstigesGeraet, WpGeraetZeile, WpMoeglichZeile,
+} from '../api/aktuellerMonat'
 
 const fmt = (v: number | null | undefined, dec = 0) => fmtCalc(v, dec, '—')
 const hat = (v: number | null | undefined) => v != null
@@ -156,7 +160,15 @@ function GeraeteSektionen({ prefix, geraete, kpisVon, park }: {
 
 /** Detail-/Vergleichszeilen unter dem Status-Strip (periodensinnvolle IST-Werte,
  *  E-Gegencheck). Dieselbe dl-Bildsprache wie der Finanz-Teaser. */
-type DetailZeile = { label: ReactNode; wert: ReactNode; akzent?: string }
+type DetailZeile = {
+  label: ReactNode
+  wert: ReactNode
+  akzent?: string
+  /** Erklärt einen Strich beim Überfahren (D-Sicht 2, Gegenlesung A-4). Native
+   *  `title`-Beschriftung wie an den Balken in `SpeicherPotentialIST` und den
+   *  gekürzten Namen in `KomponentenTypV4` — **keine zweite Tooltip-Bauform**. */
+  titel?: string
+}
 
 function DetailListe({ rows }: { rows: DetailZeile[] }) {
   if (rows.length === 0) return null
@@ -165,7 +177,8 @@ function DetailListe({ rows }: { rows: DetailZeile[] }) {
       {rows.map((r, i) => (
         <div key={i} className="flex justify-between gap-3">
           <dt className="text-gray-500 dark:text-gray-400">{r.label}</dt>
-          <dd className={`tabular-nums ${r.akzent ?? 'text-gray-800 dark:text-gray-200'}`}>{r.wert}</dd>
+          <dd className={`tabular-nums ${r.akzent ?? 'text-gray-800 dark:text-gray-200'}`}
+              title={r.titel}>{r.wert}</dd>
         </div>
       ))}
     </dl>
@@ -179,8 +192,11 @@ function FunktionsGruppenListe({ fg }: { fg: FunktionsGruppen }) {
   const zeile = (z: FunktionsZeile): DetailZeile => ({
     label: z.label,
     wert: z.art === 'arbeitszahl'
-      ? (z.wert != null ? fmtCalc(z.wert, 2, '—') : `— (${z.grund})`)
+      ? fmtCalc(z.wert, 2, '—')
       : `${fmt(z.kwh)} kWh`,
+    // Nur der Strich einer Arbeitszahl trägt eine Erklärung — eine Menge
+    // erklärt sich selbst.
+    titel: z.art === 'arbeitszahl' ? z.tooltip : undefined,
   })
   return (
     <div className="space-y-4">
@@ -190,8 +206,114 @@ function FunktionsGruppenListe({ fg }: { fg: FunktionsGruppen }) {
           <DetailListe rows={g.zeilen.map(zeile)} />
         </div>
       ))}
-      {fg.ohneMenge.length > 0 && <DetailListe rows={fg.ohneMenge.map(zeile)} />}
     </div>
+  )
+}
+
+/** **D-Sicht 3: die Kennzahlen JE GERÄT im Block selbst** (Konzept §6,
+ *  14.09.2026). Bis dahin stand hier nur ein Link in den Komponenten-Hub — bei
+ *  gemischter Ausstattung blieb der Anwender vor Strichen stehen, obwohl jedes
+ *  seiner Geräte eine saubere Zahl hat.
+ *
+ *  ⛔ **Der Client rechnet keine Arbeitszahl** (ADR-002/P12, `check:cop-roh`):
+ *  Die Zeilen kommen fertig aus derselben Rechenstelle, die auch den Hub
+ *  speist. Eine Zelle ohne Zahl zeigt „—" — ihr Grund steht, wenn es einen
+ *  Handgriff dazu gibt, einmal im Kasten darunter.
+ *
+ *  Tabellen-SoT wie überall: `Table`/`TableHead`/`TableBody`, `ZELLE`/
+ *  `KOPF_ZELLE`, Header-Farbe `text-gray-500 dark:text-gray-400`, Einheit in
+ *  RUNDEN Klammern (Style-Guide B2, `check:tabellen`). */
+function GeraeteKennzahlen({ zeilen, istSchranke }: {
+  zeilen: WpGeraetZeile[]
+  istSchranke?: boolean | null
+}) {
+  const z2 = (v: number | null | undefined) => fmtCalc(v, 2, '—')
+  return (
+    <div className="space-y-2">
+      <Table flaeche="karte">
+        <TableHead>
+          <tr className="text-gray-500 dark:text-gray-400">
+            <th className={`${KOPF_ZELLE} text-left`}>Gerät</th>
+            <th className={`${KOPF_ZELLE} text-right`}>Wärme (kWh)</th>
+            <th className={`${KOPF_ZELLE} text-right`}>Strom (kWh)</th>
+            <th className={`${KOPF_ZELLE} text-right`}>Arbeitszahl</th>
+            <th className={`${KOPF_ZELLE} text-right`}>Heizen</th>
+            <th className={`${KOPF_ZELLE} text-right`}>Warmwasser</th>
+            <th className={`${KOPF_ZELLE} text-right`}>Kühlen</th>
+          </tr>
+        </TableHead>
+        <TableBody>
+          {zeilen.map((g) => (
+            <tr key={g.investition_id} className="border-b border-gray-100 dark:border-gray-800">
+              <td className={`${ZELLE} text-gray-700 dark:text-gray-300`}>{g.name}</td>
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(g.waerme_kwh)}</td>
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(g.strom_kwh)}</td>
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz)}</td>
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz_heizen)}</td>
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz_warmwasser)}</td>
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz_kuehlen)}</td>
+            </tr>
+          ))}
+        </TableBody>
+      </Table>
+      {/* Der Satz, der die Kachel oben mit dieser Tabelle verbindet: Warum die
+          anlagenweite Zahl ein „≥" trägt und die Gerätezahl daneben nicht. */}
+      {istSchranke && (
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          Die Zahl oben ist ein Mindestwert für die ganze Anlage; hier steht jedes
+          Gerät für sich.
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** **D-Sicht 1: der Kasten „Was noch möglich wäre"** — einmal je Sicht.
+ *
+ *  ⭐ **Der Grund bleibt, seine Wiederholung nicht.** W-18 hat dafür gesorgt,
+ *  dass eedc den zutreffenden Grund nennt statt eines falschen; die D-Sicht
+ *  sorgt dafür, dass er **einmal** dasteht statt an vier Kacheln. Daneben steht
+ *  der Handgriff und der Weg dorthin — der Daten-Checker bleibt der Ort für
+ *  Reparatur-Hinweise, dieser Kasten verweist nur.
+ *
+ *  Einklappbar wie die Erklärungen dieser Fläche (`ModusSplitErklaerung`) und
+ *  parkbar wie jedes Block-Element (Park-Doktrin). */
+function WasNochMoeglich({ zeilen }: { zeilen: WpMoeglichZeile[] }) {
+  return (
+    // ⭐ **Vorbelegt OFFEN, und das ist S3.** Der Kasten TRÄGT die Gründe, die
+    // bis zur D-Sicht unter den Kacheln standen; eingeklappt wären sie wieder
+    // das, was S3 verbietet — eine Auskunft, die man erst aufklappen muss („ein
+    // Tooltip ist auf dem Telefon keine Auskunft"). Einklappen kann sie, wer
+    // sie gelesen hat; `CollapsibleSection` merkt sich die Entscheidung.
+    //
+    // ⛔ **SoT-Komponente statt eines rohen Schalt-Elements** (Regel 0a / B15,
+    // `check:buttons` · `check:roh-controls`): Ein aufklappbarer Abschnitt ist
+    // ein bestehendes Pattern; eine zweite Bauform daneben wäre genau der Fall,
+    // gegen den die Regel steht.
+    <CollapsibleSection storageKey="wp-was-noch-moeglich" title="Was noch möglich wäre"
+      className="shadow-none">
+      <ul className="space-y-3">
+        {zeilen.map((z) => (
+          <li key={z.grund} className="text-sm">
+            <div className="text-gray-800 dark:text-gray-200">{z.groesse}</div>
+            <div className="text-gray-500 dark:text-gray-400">{z.grund}</div>
+            {z.handgriff && (
+              <div className="mt-0.5 text-gray-600 dark:text-gray-300">
+                {z.link
+                  ? (
+                    <a href={z.link}
+                       className="inline-flex items-center gap-1 text-primary-700 dark:text-primary-300 hover:underline">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {z.handgriff}
+                    </a>
+                  )
+                  : z.handgriff}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </CollapsibleSection>
   )
 }
 
@@ -500,13 +622,60 @@ export function baueKomponentenBloecke(
     // (Layer), nicht als Client-Vermutung.
     // Der period-spezifische Voraussetzungs-Hinweis bleibt als Tooltip daneben:
     // er sagt, was zu TUN ist (Sensor zuordnen), der Grund sagt, was IST.
-    const jazUntertitel = jaz == null ? (d.wp_jaz_grund ?? undefined) : (d.wp_jaz_hinweis ?? undefined)
+    // ── D-Sicht (Konzept §6, 14.09.2026) ─────────────────────────────────
+    //
+    // ⛔ **Hier stand bis dahin `jaz == null ? d.wp_jaz_grund : d.wp_jaz_hinweis`.**
+    // Der Grund unter einem „—" war seit S3 richtig — und er war auf dieser
+    // Fläche VIERMAL nebeneinander zu lesen (JAZ · AZ Heizen · AZ Warmwasser ·
+    // AZ Kühlen), jedes Mal derselbe fehlende Zähler. Die Aussage „für dich
+    // nicht messbar" gehört einmal auf die Seite, nicht sechsmal auf Kacheln.
+    // Seither: Ausstattungs-Grund ⇒ Kasten am Blockende (die Kachel entfällt),
+    // Zeitraum-Grund ⇒ „—" ohne Text. Welche Klasse ein Grund trägt, entscheidet
+    // der Layer; der Client fragt nur ab, was im Kasten steht.
+    const moeglich = d.wp_moeglich ?? []
+    const jazUntertitel = kennzahlUntertitel(
+      jaz, d.wp_jaz_schranke_hinweis, d.wp_jaz_hinweis,
+    )
     // W-6 (Fall H-B): Eine Arbeitszahl nahe 1 ist die Wahrheit über eine Anlage,
     // die viel direkt elektrisch heizt — keine Fehlfunktion. Der Satz erklärt
     // die Zahl, er bewertet den Anwender nicht, und sein Wortlaut kommt aus dem
     // Layer, damit er nicht je Sicht abweicht.
+    // ── D-Sicht 1: Kacheln nur mit Zahl ──────────────────────────────────
+    //
+    // Eine Kachel ohne Wert entfällt **genau dann**, wenn ihr Grund im Kasten
+    // steht — dort ist er einmal zu lesen, mit dem Handgriff daneben. Ein
+    // Zeitraum-Grund („kein Heizbetrieb in diesem Zeitraum") legt nichts in den
+    // Kasten; seine Kachel bleibt mit „—" stehen, weil es nichts zu tun gibt.
+    const jazEntfaellt = jaz == null && imKasten(moeglich, GROESSE.arbeitszahl)
+    // ⭐ **Der Zeitraum-Grund der JAZ-Kachel — beim Überfahren** (Gegenlesung
+    // A-4, 14.09.2026). Bleibt die Kachel mit „—" stehen, weil ihr Grund NICHT
+    // im Kasten steht, dann ist er ein Zeitraum-Grund: Es gibt nichts zu tun,
+    // aber er soll auch nicht verschwinden (S3).
+    //
+    // ⛔ **Über den bestehenden `hinweis`-Slot, nicht über ein rohes
+    // `title` daneben** (Regel 0a): Die Kachel hat für genau diesen Fall schon
+    // einen — `KpiStripItem.hinweis` heißt wörtlich *„Voraussetzungs-Hinweis
+    // bei fehlendem Wert („—") — Tooltip"*. Eine zweite Bauform daneben wäre
+    // die Klasse, gegen die die Regel steht. Die Detail-**Zeilen** haben keinen
+    // solchen Slot; dort steht das native `title`, wie an den Balken in
+    // `SpeicherPotentialIST`.
+    //
+    // ⚠ **`!jazEntfaellt` ist Gürtel UND Hosenträger, gemessen still** (14.09.):
+    // Ein Sprengsatz, der genau diese Teilbedingung entfernt, bleibt grün —
+    // entfällt die Kachel, wird ihr Hinweis ohnehin nie gezeigt. Sie steht hier
+    // für den Tag, an dem jemand die Kachel doch rendert; **tragend ist sie
+    // nicht.** (Dieselbe Bauform und dieselbe Offenlegung wie bei
+    // `waerme_kwh is not None` in `waermepumpe_kennzahl.arbeitszahl`.)
+    const jazZeitraumGrund = (jaz == null && !jazEntfaellt)
+      ? (d.wp_jaz_grund ?? undefined) : undefined
+    const waermeEntfaellt = !hat(d.wp_waerme_kwh) && imKasten(moeglich, GROESSE.waerme)
     const kpis: KpiStripItem[] = [
-      { ...WP_KPI.jaz, value: fmtCalc(jaz, 2, '—'), formel: jaz != null ? 'JAZ = Wärme ÷ Strom' : undefined,
+      ...(jazEntfaellt ? [] : [{ ...WP_KPI.jaz,
+        // E1b: „≥ 3,25" — die Zahl ist eine untere **Schranke**, weil im Nenner
+        // Strom ohne gemessene Wärme steht. Das Zeichen kommt aus einem Flag
+        // des Layers; der Client rechnet keine Arbeitszahl (`check:cop-roh`).
+        value: jazAnzeige(jaz, d.wp_jaz_ist_schranke, fmtCalc(jaz, 2, '—')),
+        formel: jaz != null ? 'JAZ = Wärme ÷ Strom' : undefined,
         // ⭐ Die Herleitung mit den Zahlen, die der Layer BENUTZT hat.
         //
         // Die symbolische Formel darüber sagt, WAS gerechnet wird; erst die
@@ -534,9 +703,12 @@ export function baueKomponentenBloecke(
           ? `= ${fmtCalc(jaz, 2)}`
           : undefined,
         subtitle: jazUntertitel,
-        hinweis: (jaz == null && d.wp_waerme_grund)
+        // Der Zeitraum-Grund geht dem Tages-Voraussetzungs-Hinweis vor: Er sagt,
+        // was IST, jener sagt, was zu TUN wäre — und wo der Zeitraum leer ist,
+        // gibt es nichts zu tun.
+        hinweis: jazZeitraumGrund ?? ((jaz == null && d.wp_waerme_grund)
           ? undefined
-          : tagHinweis(jaz != null, 'Tages-JAZ = Wärme ÷ Strom — ' + wmz) },
+          : tagHinweis(jaz != null, 'Tages-JAZ = Wärme ÷ Strom — ' + wmz)) }]),
       // W-18: Der Grund steht SICHTBAR unter der Zahl — dieselbe Regel, die
       // die JAZ-Kachel darüber seit S3 befolgt. Er kommt **fertig formuliert**
       // aus dem Backend, weil nur dort bekannt ist, welcher der drei Zustände
@@ -549,18 +721,26 @@ export function baueKomponentenBloecke(
       // stand hier wie eine Messung — nur die gesperrte JAZ verriet es. Jetzt
       // steht die Herkunft aus dem Layer unter der Kachel (dieselben Worte wie
       // im Hub seit B3); gemessene Wärme bleibt ohne Zusatz.
-      { ...WP_KPI.waerme, value: fmt(d.wp_waerme_kwh), unit: 'kWh',
+      // D-Sicht: Ohne Wert steht hier kein Grund mehr — er ist entweder im
+      // Kasten (Ausstattung, mit Handgriff) oder er beschreibt einen leeren
+      // Zeitraum, zu dem es nichts zu tun gibt. **Die Herkunft einer
+      // vorhandenen Zahl bleibt** (B4): „geschätzt: Strom × JAZ 3,5" erklärt
+      // eine Zahl und ist kein Sperrgrund.
+      ...(waermeEntfaellt ? [] : [{ ...WP_KPI.waerme, value: fmt(d.wp_waerme_kwh), unit: 'kWh',
         subtitle: hat(d.wp_waerme_kwh)
           ? (d.wp_waerme_abgeleitet && d.wp_waerme_herkunft ? d.wp_waerme_herkunft : undefined)
-          : (d.wp_waerme_grund ?? undefined),
-        hinweis: d.wp_waerme_grund ? undefined : tagHinweis(hat(d.wp_waerme_kwh), wmz) },
+          : undefined,
+        hinweis: d.wp_waerme_grund ? undefined : tagHinweis(hat(d.wp_waerme_kwh), wmz) }]),
       { ...WP_KPI.strom, value: fmt(d.wp_strom_kwh), unit: 'kWh' },
       // W-10: Ein negativer Betrag ist keine Ersparnis, und „+-49,53 €" ist
       // keine Zahl. Zwei Melder-Screenshots (dietmar1968, 25.08.). Das Plus
       // selbst war nie falsch — falsch war, es **unbesehen** voranzustellen.
       // Titel und Vorzeichen kommen aus derselben Stelle, damit sie nicht
       // auseinanderlaufen können.
-      {
+      // Die Ersparnis folgt aus der Wärme: Steht deren Grund im Kasten und gibt
+      // es keinen Betrag, hat diese Kachel nichts zu sagen — sie entfällt mit
+      // ihr, statt ein zweites „—" neben das erste zu setzen.
+      ...((waermeEntfaellt && wpErsparnis == null) ? [] : [{
         ...WP_KPI.ersparnis,
         ...(wpErsparnis?.istMehrkosten
           ? { title: 'Mehrkosten vs. Alternative', icon: TrendingDown, color: 'red' as const }
@@ -573,14 +753,17 @@ export function baueKomponentenBloecke(
         // B4 (C-2): der Vorbehalt aus dem Layer — geschätzte Wärme oder ein
         // zweiter Erzeuger am Wärmezähler (F12). Er geht dem Tages-Grund vor,
         // weil er auch bei vorhandener Zahl gilt.
+        // D-Sicht: Der Verweis „Folgt aus der Tages-Wärme — <Grund>" entfällt
+        // mit dem Grund darüber. Er war die **zweite** Wiedergabe derselben
+        // Ursache; sie steht jetzt einmal im Kasten. Der Vorbehalt bei
+        // vorhandener Zahl bleibt — er erklärt eine Zahl, er ersetzt keine.
         subtitle: (wpErsparnis != null && d.wp_ersparnis_vorbehalt)
           ? d.wp_ersparnis_vorbehalt
-          : (wpErsparnis == null && d.wp_waerme_grund)
-            ? `Folgt aus der Tages-Wärme — ${d.wp_waerme_grund}` : undefined,
+          : undefined,
         hinweis: d.wp_waerme_grund
           ? undefined
           : tagHinweis(wpErsparnis != null, 'Ersparnis folgt aus der Tages-Wärme — ' + wmz),
-      },
+      }]),
     ]
     // #238 Counter (Verschleiß-/Auslegungs-Indikatoren). Monat: Σ Monat prominent,
     // Max/Tag im Untertitel. Tag: Tagessumme prominent, kein Max/Tag (period-korrekt,
@@ -642,7 +825,7 @@ export function baueKomponentenBloecke(
     //
     // Die ID bleibt `el:wp-detail`, damit ein geparktes Element geparkt bleibt;
     // es versteckt ab jetzt auch Wärme und Kälte je Funktion (Handbuch).
-    if (wpFunktionen.gruppen.length > 0 || wpFunktionen.ohneMenge.length > 0) wpEls.push({
+    if (wpFunktionen.gruppen.length > 0) wpEls.push({
       id: 'el:wp-detail', titel: 'Je Funktion', node: <FunktionsGruppenListe fg={wpFunktionen} />,
     })
     // #263 K-2 (S4): Aufteilung Heizen/Kühlen — nur mit erfasstem Modus.
@@ -725,6 +908,12 @@ export function baueKomponentenBloecke(
     })
     const wpGeraete = geraeteNamen(d, 'waermepumpe')
     if (wpGeraete.length >= 2) wpEls.push({ id: 'el:wp-geraete', titel: 'Geräte-Hinweis', node: <GeraeteHinweis namen={wpGeraete} /> })
+    // ── D-Sicht 3: Zahlen je Gerät, im Block statt nur im Hub ─────────────
+    const wpGeraeteZeilen = d.wp_geraete ?? []
+    if (wpGeraeteZeilen.length > 0) wpEls.push({
+      id: 'el:wp-geraete-zahlen', titel: 'Zahlen je Gerät',
+      node: <GeraeteKennzahlen zeilen={wpGeraeteZeilen} istSchranke={d.wp_jaz_ist_schranke} />,
+    })
     // ── Weg zu den Gerätezahlen (Konzept §4, SOLL §3.3/S3) ────────────────
     // S3 sagt: Eine Sicht, die weniger zeigt, sagt **warum**. Der Link ist die
     // Fortsetzung — sie sagt auch **wo es steht**. Bis hierher hatte die
@@ -736,8 +925,11 @@ export function baueKomponentenBloecke(
     // vergeblicher Weg — schlechter als keiner. Welche Gründe der Hub wirklich
     // beantwortet, entscheidet der Layer (`GRUENDE_HUB_HILFT`); der Client
     // vergleicht keine Grund-Texte, sonst stünde dieselbe Regel an zwei Orten.
-    if (d.wp_hub_hilft) wpEls.push({
-      id: 'el:wp-hub-link', titel: 'Zahlen je Gerät',
+    // ⭐ **D-Sicht 3: „Der Link bleibt."** Er zeigt jetzt auch dann, wenn die
+    // Tabelle darüber steht — dort gibt es **mehr** als die Zahl: Verlauf,
+    // Saison-Vergleich, Wirtschaftlichkeit je Gerät.
+    if (d.wp_hub_hilft || wpGeraeteZeilen.length > 0) wpEls.push({
+      id: 'el:wp-hub-link', titel: 'Mehr je Gerät',
       node: (
         <a href="#/komponenten/waermepumpe"
            className="inline-flex items-center gap-1 text-sm text-primary-700 dark:text-primary-300 hover:underline">
@@ -747,6 +939,17 @@ export function baueKomponentenBloecke(
             : 'Arbeitszahl je Gerät im Komponenten-Hub'} →
         </a>
       ),
+    })
+    // ── D-Sicht 1: der Kasten „Was noch möglich wäre" — ans Blockende ────
+    //
+    // ⚠ **Zuletzt eingehängt, und das ist die Aussage der Reihenfolge:** Erst
+    // steht da, was die Daten hergeben; danach einmal, was noch möglich wäre.
+    // Parkbar wie jedes Element (Park-Doktrin) und einklappbar, weil er eine
+    // Erklärung ist und keine Messung.
+    if (moeglich.length > 0) wpEls.push({
+      id: 'el:wp-moeglich', titel: 'Was noch möglich wäre',
+      titelImNode: true,
+      node: <WasNochMoeglich zeilen={moeglich} />,
     })
     if (!alleGeparkt(park, wpKpis, wpEls)) bloecke.push({
       id: 'k-waermepumpe', title: KOMPONENTEN_IDENTITAET['waermepumpe'].label, ...ident('waermepumpe'), defaultOpen: false,

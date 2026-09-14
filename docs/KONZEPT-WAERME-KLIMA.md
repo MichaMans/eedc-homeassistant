@@ -652,6 +652,44 @@ Antworten desselben Zeitraums. Zwei Abfragen mit denselben Abhängigkeiten, von 
 Vorwert behält und die andere nicht, mischen sonst zwei Tage in einem Bild — auch ohne Cache, schon
 über die Reihenfolge, in der sie auflösen.
 
+**D-Sicht · Der Block zeigt, was die Daten hergeben — und sagt EINMAL, was noch
+möglich wäre** (Entscheid Gernot, 14.09.2026). Anlass war der Vergleich mit
+dietmar1968s selbstgebautem Dashboard: Auf **derselben** Datenlage zeigt es
+überall Zahlen und „–" nur dort, wo wirklich nichts ist, während *Cockpit →
+Monat* aus vier Strichen mit Grund-Texten bestand. Gemessen stimmte beides; der
+Unterschied war die Form.
+
+1. **Kacheln und Zeilen nur mit Zahl.** Eine Größe, die die **Ausstattung** nicht
+   hergibt (kein Kältemengenzähler · keine getrennte Strommessung · ein
+   gemeinsamer Wärmemengenzähler · kein Betriebsart-Zähler …), erscheint **nicht**
+   als Kachel mit „—", sondern **einmal je Sicht** im Kasten **„Was noch möglich
+   wäre"** am Blockende: je Grund eine Zeile mit den betroffenen Größen, dem
+   Handgriff und dem Weg dorthin. Der Kasten ist aufgeklappt (**S3**: eine
+   Auskunft, die man erst aufklappen muss, ist auf dem Telefon keine),
+   einklappbar und parkbar wie jedes Block-Element.
+2. **Eine Größe, die die Ausstattung hergibt, aber in diesem Zeitraum leer ist**
+   (Arbeitszahl Heizen im Juni), zeigt **„—" ohne Text**. Dafür muss der Grund
+   unterscheidbar sein: **Ausstattungs-Grund** (Kasten) gegen **Zeitraum-Grund**
+   („—"). ⛔ **Die Zuordnung steht an der Grund-Konstante im Layer**
+   (`waermepumpe_kennzahl.GRUND_KLASSE`), nicht im Client — dort müsste er
+   Grund-**Texte** vergleichen, und dieselbe Aussage stünde an zwei Orten (die
+   W-3-Klasse). Ein Grund **ohne** Eintrag gilt als Ausstattung: Er landet im
+   Kasten, wo ihn jemand liest, statt als stummes „—" zu verschwinden.
+3. **Kennzahlen je Gerät stehen im Block selbst** — Tabelle *Gerät · Wärme ·
+   Strom · Arbeitszahl · Heizen · Warmwasser · Kühlen*. Der Hub-Link bleibt
+   daneben; er führt jetzt zu *mehr* (Verlauf, Saison, Wirtschaftlichkeit) statt
+   zu dem, was im Block fehlte. ⛔ **Eine Rechenstelle:** Die Kennzahl je Gerät
+   gab es im Komponenten-Hub; sie ist nach
+   `services/waermepumpe_kennzahlen_je_geraet.py` gehoben, und Hub **und**
+   Cockpit lesen dasselbe Ergebnis.
+4. Anlagenweite **Funktions**-Arbeitszahlen zeigt der Block nur, wo alle Geräte
+   sie tragen — R2 je Funktion gilt unverändert.
+
+⚠ **W-18 ist damit nicht zurückgenommen, sondern zu Ende geführt.** Der
+zutreffende Grund bleibt Pflicht; neu ist, dass er **einmal** dasteht statt an
+vier Kacheln — und dass der **Handgriff** danebensteht, den es vorher nirgends
+gab.
+
 **A6 · Eine Kennzahl zeigt, womit sie gerechnet hat.** Wer auf eine Arbeitszahl zeigt, sieht neben
 der Formel die eingesetzten Zahlen — *„210,0 kWh Wärme ÷ 313,6 kWh Strom"*. Damit lässt sich eine
 unplausible Zahl sofort einordnen: Passt eine der beiden nicht zu dem, was das Gerät meldet, liegt
@@ -740,6 +778,46 @@ nebeneinander stehen, eine gemeinsame JAZ nicht.** ⚠ Genauer nach R1: Die Tren
 *Bauart*, sondern die **Abgrenzung** — zwei Geräte teilen sich nur dann eine Kennzahl, wenn Q und E
 beider dieselbe Funktion und denselben Zeitraum tragen. Bei verschiedenen Bauarten ist das
 praktisch nie der Fall, weshalb der Entscheid trägt.
+
+> ### ⭐ **E1b (Entscheid Gernot, 14.09.2026): die Anlage bekommt eine eigene Größe — die Systemarbeitszahl der Wärmeerzeugung**
+>
+> **E1 bleibt unverändert für die Kennzahl EINES Geräts.** Was hinzukommt, ist
+> eine **andere Frage**: nicht *„wie gut ist diese Wärmepumpe?"*, sondern *„wie
+> effizient erzeugt dieses Haus Wärme?"*
+>
+> **Die Formel:** Σ gemessene Wärme aller Wärmeerzeuger ÷ (Σ Strom aller
+> Wärmeerzeuger − Kühlstrom nach [E7/Option A](#53-abgezogen-wird-nur-was-im-nenner-steht)).
+> Sie steht an **einer** Stelle: `core/berechnungen/waermepumpe_kennzahl.py::systemarbeitszahl`,
+> neben `arbeitszahl` und mit denselben Wortlauten für ihre Sperren.
+>
+> **Trägt ein Gerät Strom ohne gemessene Wärme bei** (Split-Klimaanlage ohne
+> Wärmemengenzähler, Heizstab auf eigenem Zähler), ist die Zahl eine **untere
+> Schranke** und wird so gezeigt: **„≥ 3,25"**, mit dem einen Satz *„<Gerät>:
+> Strom ohne Wärmemessung enthalten"*. Ohne solches Gerät ist sie die gewohnte
+> Arbeitszahl, ohne „≥".
+>
+> **Der technische Grund:** Mehr Strom im Nenner als gemessene Wärme im Zähler
+> kann den Quotienten nur **kleiner** machen. ADR-002/**P4** verbietet eine
+> *falsche* Zahl, nicht eine *wahre Schranke* — und ein Strich mit Grund-Text ist
+> keine bessere Auskunft als „mindestens 3,25". **Der Melder rechnet selbst so**
+> (dietmar1968, 14.09.2026: 7075 ÷ [2193 − 17] = 3,25).
+>
+> ⛔ **In der Gegenrichtung gibt es keine Schranke, und das ist der Kern.** Steht
+> im **Zähler** Wärme, deren Strom fehlt (*„Wärme und Strom stammen von
+> verschiedenen Geräten"*, *„zweiter Erzeuger am Wärmezähler"*, *„… aus
+> verschiedenen Monaten"*), kippt die Zahl nach **oben** — dort bleibt die
+> Sperre. Ebenso bei *„Zähler messen verschiedene Zeiträume"*: Die Richtung ist
+> unbekannt, und eine Schranke ohne bekannte Richtung ist keine.
+>
+> ⚠ **Die beiden Gründe, die dadurch aufhören zu sperren**, sind
+> *„Wärmepumpe und Klimaanlage in einer Zahl"* und *„nicht alle Geräte melden
+> Wärme"* — **als Sperre der Anlagenzahl**. Je Funktion und im Hub gelten sie
+> unverändert, und im Kasten *„Was noch möglich wäre"* stehen sie samt Weg in den
+> Hub.
+>
+> ⛔ **Der PDF-Jahresbericht liest weiterhin `arbeitszahl`, nicht die
+> Systemzahl** — eine Zahl ohne sichtbares „≥" im Druck wäre genau das, was P4
+> verbietet. Zwei Fragen, zwei Größen.
 
 **Multisplit: mehrere Innengeräte an einem Außengerät zählen als EIN Gerät für die Kennzahl**; die
 Innengeräte sind eine **Aufteilung darunter**. Innengeräte-eigene Zähler sind als Mengenquelle
@@ -1027,6 +1105,8 @@ oder im Bericht, nicht hier.
 | **Ein Vergleich setzt voraus, dass etwas ersetzt wurde** | `alternativkosten.py::ersetzt_keine_heizung` | `test_wp_ersetzt_nichts_n88.py` | Regression |
 | **E8 — Heizgradtage, eine Definitionsstelle** | `core/berechnungen/heizgradtage.py` (`HEIZGRENZE_C = 15.0`) | `test_berechnungs_layer_konformitaet.py::test_heizgrenze_nur_im_layer` — **zwei Klauseln**: eine zweite Konstante **und** die ausgeschriebene Formel ohne Konstante (die gefährlichere, weil sie keinen Namen trägt) | **Wächter** |
 | **E8 — Größe, Nenner, Achse** | `heizgradtage.py`, `mitteltemperatur.py`, Hub-Vergleich | `test_heizgradtage.py`; `test_mitteltemperatur.py`; `test_wp_hub_wetternormierung.py`; Client `WaermepumpeVergleichNormierung.test.tsx` | Regression |
+| **E1b — die Systemarbeitszahl der Anlage** | `waermepumpe_kennzahl.py::systemarbeitszahl` (die einzige Stelle; Routen Tag · Monat · Jahr rufen sie) | `test_wk16_e1b_d_sicht.py` — 29 Proben: dietmars Rechnung (7075 ÷ [2193 − 17] = 3,25) · **Gegenprobe** ohne Schranke · Kühlstrom-Abzug · Q = 0 ⇒ Grund · Gegenrichtung sperrt weiter · Heizstab-Satz getrennt vom Schranken-Satz · Monat/Jahr/Tag über die Routen · **Tages-Kreuzung** (Wärme von A, Strom von B ⇒ Sperre statt „≥ 30,0") | Regression |
+| **Eine Rechenstelle je Gerät** | `services/waermepumpe_kennzahlen_je_geraet.py` (Hub **und** Cockpit) | `test_wk16_e1b_d_sicht.py::test_der_dienst_ist_die_eine_rechenstelle_fuer_cockpit_und_hub` (mit gemessenem Kühlstrom, damit eine naive Rechnung sichtbar abwiche); dazu die **Hub-Bilanz** der Demo r28 vor/nach dem Umhängen — bitgleich | Regression |
 | **Der Heizstab-Hinweis unter 2,0** | `JAZ_HEIZSTAB_SCHWELLE` | `test_soll_waerme_klima_achse2_abgrenzung.py::test_ii4d_heizstab_schwelle`; `test_soll_waerme_klima_w4_*::test_w4_heizstab_hinweis_erscheint_auch_je_funktion` | Regression |
 
 ### 11.4 Die Sichten
@@ -1041,6 +1121,7 @@ oder im Bericht, nicht hier.
 | **Funktions-Gruppen in der Detail-Liste** | `src/v4/wpFunktionsGruppen.ts`, `KomponentenSektionen.tsx::FunktionsGruppenListe` | `src/v4/wpFunktionsGruppen.test.tsx` (u. a. „keine Überschrift ohne Menge", „gemessene 0 bleibt stehen", „ohne Wert und ohne Grund keine Arbeitszahl-Zeile"); Backend `test_bs8_funktions_gruppen.py` | Regression |
 | **Hub-Link nur, wo der Hub hilft** | `waermepumpe_kennzahl.py::GRUENDE_HUB_HILFT` · `::hub_hilft`; Client liest nur das Flag | `test_n441_geraete_identitaet.py::test_p11_der_hub_link_erscheint_nur_wo_der_hub_hilft`; `test_r2_je_funktion.py::test_hub_hilft_nur_bei_gruenden_die_der_hub_beantwortet` ⚠ **Client-seitig ohne eigene Probe** — der Client vergleicht keine Texte, er liest ein Flag | Regression (Backend) |
 | **A3a — eine Sicht zeigt EINE Periode** | `CockpitTagV4.tsx`, `CockpitMonatV4.tsx`, `CockpitJahrV4.tsx`, `ZaehlerstaendeBlock.tsx` (Marke · Paarung · Beschriftung) | `CockpitTagEinTag.test.tsx`, `CockpitMonatEinePeriode.test.tsx`, `CockpitJahrEinePeriode.test.tsx` ⛔ **maschinelles Gegenstück bewusst keines** — so steht es im Style-Guide | Regression |
+| **D-Sicht — Kacheln nur mit Zahl, ein Kasten je Sicht** | Klasse an der Grund-Konstante (`GRUND_KLASSE`, `HANDGRIFF_JE_GRUND`), Zusammenstellung in `services/waerme_klima_block.py`, Anzeige `src/v4/waermeKlimaSicht.ts` + `KomponentenSektionen.tsx` | Backend `test_wk16_e1b_d_sicht.py` (jeder Grund trägt genau eine Klasse · **jeder Ausstattungs-Grund einen Handgriff** · **kein Zeitraum-Grund einen** · jeder Grund genau einmal im Kasten · Größen-Namen als Vertrag); Client `src/v4/waermeKlimaSicht.test.tsx` (12 Proben: „≥" nur bei Schranke **und Gegenprobe** · Kachel entfällt nur mit Kasten-Eintrag **und Gegenprobe** · Kasten mit Handgriff und Link · Tabelle je Gerät) | **Wächter** (über die Klassen-Tabelle) + Regression |
 | **A6 — eine Kennzahl zeigt ihre eingesetzten Werte** | Kacheln in Cockpit und Hub | `npm run check:formel-herleitung` (Wrapper `src/test/check-formel-herleitung.test.ts`) — TypeScript-AST über `src/**`, zwei Trägerformen (Objektliteral inkl. Shorthand, JSX-Attribut), drei Prüfungen, **abschmelzende** Allowlist mit Pflicht-Begründung; dazu `TKonto.a6-herleitung.test.tsx`, `KomponentenSektionen.jaz-herleitung.test.tsx`, `test_a6_arbeitszahl_je_funktion_herleitung.py` | **Wächter** + Regression |
 | **Keine Inline-Hex-Farben außerhalb des Farb-SoT** | `src/lib/colors.ts` | `npm run check:design` | **Wächter** |
 

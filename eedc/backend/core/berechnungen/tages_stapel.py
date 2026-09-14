@@ -338,18 +338,7 @@ def _falte(beitraege: Sequence[GeraeteBeitrag]) -> TagesStapel:
         # Monatspfad ruft (F-56: eine Regel, zwei Codestellen, eine Drift).
         # ``ModusStromZeile`` ist hier bloß die Übergabeform; ihre Zahlen sind
         # die des Beitrags, ihr ``gemessen`` seine Herkunft.
-        abzug += funktionsfremd_abzug_kwh(
-            ModusStromZeile(
-                heizen_kwh=b.heizen_kwh,
-                kuehlen_kwh=b.kuehlen_kwh,
-                warmwasser_kwh=b.warmwasser_kwh,
-                lueften_kwh=b.lueften_kwh,
-                entfeuchten_kwh=b.entfeuchten_kwh,
-                gemessen=b.gemessen,
-                abdeckung_h=b.abdeckung_h,
-            ),
-            hat_split=b.hat_split,
-        )
+        abzug += beitrag_abzug_kwh(b)
         if not b.gemessen:
             # W-17: Die Schleife läuft über die GERÄTE des Tages. Zwei Wärmepumpen
             # mit je 18 erfassten Stunden ergeben nicht 36 Stunden Erkenntnis,
@@ -368,6 +357,32 @@ def _falte(beitraege: Sequence[GeraeteBeitrag]) -> TagesStapel:
         hat_split=bool(beitraege),
         hat_gemessen=any(b.gemessen for b in beitraege),
         funktionsfremd_abzug_kwh=abzug,
+    )
+
+
+def beitrag_abzug_kwh(b: GeraeteBeitrag) -> float:
+    """Der Nenner-Abzug **eines** Tages-Beitrags — SOLL-§9-E7/Option A.
+
+    ⭐ **Herausgezogen am 14.09.2026 (WK-16a), damit die Tabelle „Zahlen je
+    Gerät" denselben Abzug benutzt wie die Anlagensumme.** Vorher stand die
+    Übergabe-Zeile inline in der Faltung; wer sie je Gerät brauchte, hätte sie
+    abschreiben müssen — die F-56-Klasse (*eine Regel, zwei Codestellen, eine
+    Drift*), und zwar an derselben Größe, an der sie zuletzt zugeschlagen hat.
+
+    ``ModusStromZeile`` ist hier bloß die Übergabeform; ihre Zahlen sind die des
+    Beitrags, ihr ``gemessen`` seine Herkunft.
+    """
+    return funktionsfremd_abzug_kwh(
+        ModusStromZeile(
+            heizen_kwh=b.heizen_kwh,
+            kuehlen_kwh=b.kuehlen_kwh,
+            warmwasser_kwh=b.warmwasser_kwh,
+            lueften_kwh=b.lueften_kwh,
+            entfeuchten_kwh=b.entfeuchten_kwh,
+            gemessen=b.gemessen,
+            abdeckung_h=b.abdeckung_h,
+        ),
+        hat_split=b.hat_split,
     )
 
 

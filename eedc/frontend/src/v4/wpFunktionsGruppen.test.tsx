@@ -42,20 +42,19 @@ describe('wpFunktionsGruppen — je Funktion Strom · Nutzenergie · Arbeitszahl
     expect(fg.gruppen[0].zeilen).toEqual([
       { art: 'strom', label: 'Strom Heizen', kwh: 750 },
       { art: 'nutzenergie', label: 'Heizwärme', kwh: 3000 },
-      { art: 'arbeitszahl', label: 'Arbeitszahl · Heizen', wert: 4.0, grund: null },
+      { art: 'arbeitszahl', label: 'Arbeitszahl · Heizen', wert: 4.0 },
     ])
     expect(fg.gruppen[1].zeilen).toEqual([
       { art: 'strom', label: 'Strom Warmwasser', kwh: 250 },
       { art: 'nutzenergie', label: 'Warmwasser-Wärme', kwh: 600 },
-      { art: 'arbeitszahl', label: 'Arbeitszahl · Warmwasser', wert: 2.4, grund: null },
+      { art: 'arbeitszahl', label: 'Arbeitszahl · Warmwasser', wert: 2.4 },
     ])
     // Die Zeile „Kälte" (Entscheid E4 (a)) — Zähler und Nenner der Kühlzahl.
     expect(fg.gruppen[2].zeilen).toEqual([
       { art: 'strom', label: 'Strom Kühlen', kwh: 300 },
       { art: 'nutzenergie', label: 'Kälte', kwh: 900 },
-      { art: 'arbeitszahl', label: 'Arbeitszahl · Kühlen', wert: 3.0, grund: null },
+      { art: 'arbeitszahl', label: 'Arbeitszahl · Kühlen', wert: 3.0 },
     ])
-    expect(fg.ohneMenge).toEqual([])
   })
 
   it('Split-Klima: keine Überschrift „Warmwasser" — die Funktion gibt es dort nicht (G7)', () => {
@@ -67,8 +66,13 @@ describe('wpFunktionsGruppen — je Funktion Strom · Nutzenergie · Arbeitszahl
     }))
 
     expect(fg.gruppen.map((g) => g.funktion)).toEqual(['kuehlen'])
-    // Die Sichtbarkeit von heute bleibt: die Gründe stehen als Einzelzeilen.
-    expect(fg.ohneMenge.map((z) => z.label)).toEqual(['Arbeitszahl · Heizen', 'Arbeitszahl · Warmwasser'])
+    // ⭐ **Wortlaut umgestellt, Substanz gehalten (D-Sicht, 14.09.2026).**
+    // Geprüft war: *„die Gründe stehen als Einzelzeilen"* — zwei Zeilen aus
+    // Strichen, die beide denselben fehlenden Zähler nannten. Die Auskunft geht
+    // nicht verloren, sie wandert: Der Grund steht **einmal** im Kasten „Was
+    // noch möglich wäre", mit dem Handgriff daneben (`wp_moeglich`). Ohne
+    // Kasten-Angabe bleibt die Zeile — dieser Fall misst genau das.
+    expect(fg.gruppen.length).toBe(1)
   })
 
   it('Heiz-WP im Winter: Kühlstrom 0 ergibt keine Gruppe „Kühlen", nur die Grund-Zeile', () => {
@@ -77,11 +81,10 @@ describe('wpFunktionsGruppen — je Funktion Strom · Nutzenergie · Arbeitszahl
       wp_jaz_kuehlen: null, wp_jaz_kuehlen_grund: 'kein Kühlbetrieb in diesem Zeitraum',
     }))
 
+    // D-Sicht: „kein Kühlbetrieb in diesem Zeitraum" ist ein **Zeitraum**-Grund
+    // — er legt nichts in den Kasten, und ohne Menge hat die Zeile nichts mehr
+    // zu sagen. Sie entfällt; die Gruppen der beiden anderen Funktionen bleiben.
     expect(fg.gruppen.map((g) => g.funktion)).toEqual(['heizen', 'warmwasser'])
-    expect(fg.ohneMenge).toEqual([{
-      art: 'arbeitszahl', label: 'Arbeitszahl · Kühlen', wert: null,
-      grund: 'kein Kühlbetrieb in diesem Zeitraum',
-    }])
   })
 
   it('eine gemessene 0 bleibt in ihrer Gruppe stehen — sie ist nicht „nicht erfasst"', () => {

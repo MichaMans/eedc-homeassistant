@@ -146,6 +146,55 @@ Dieser Abschnitt ist so wichtig wie die Tabelle darüber. **Mehrere Dinge fehlen
 
 Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigste. **Eine plausible falsche Zahl ist schlimmer als ein ehrlicher Strich** — sie landet im Jahresbericht, im Community-Vergleich und in deiner Entscheidung über die nächste Investition.
 
+> ### ⭐ Seit v4.0.45: die Zahl der **Anlage** verschwindet nicht mehr, sie sagt „mindestens"
+>
+> Zwei Dinge, die man auseinanderhalten muss:
+>
+> * **Die Arbeitszahl EINES Geräts** — *„diese Wärmepumpe hat 3,75"*. Sie
+>   verschwindet weiterhin, sobald Zähler und Nenner nicht dasselbe meinen. Alles
+>   unten in diesem Kapitel gilt für sie unverändert.
+> * **Die Zahl der ganzen Anlage** — *„wie effizient erzeugt dieses Haus Wärme?"*.
+>   Sie teilt alle gemessene Wärme durch allen Strom deiner Wärmeerzeuger (ohne
+>   den Kühlstrom). Steckt darin Strom, dem **keine** gemessene Wärme
+>   gegenübersteht — deine Klimaanlage heizt mit, ein Heizstab läuft mit —, dann
+>   ist das Ergebnis **zu klein** und nie zu groß. eedc zeigt es dann als
+>   **Mindestwert: „≥ 3,25"**, mit dem Satz *„Klimaanlage: Strom ohne
+>   Wärmemessung enthalten"* darunter.
+>
+> **Warum das keine Aufweichung ist:** Ein Mindestwert ist eine **wahre**
+> Aussage. Vorher stand an derselben Stelle ein Strich mit dem Satz *„Wärmepumpe
+> und Klimaanlage in einer Zahl"* — richtig, aber als Auskunft ärmer, denn die
+> Zahl ist ja bekannt, nur eben nach unten verschoben. **Die Zahl deiner
+> Wärmepumpe steht daneben**, in der Tabelle *Zahlen je Gerät* im selben Block.
+>
+> ⛔ **In die andere Richtung gibt es keinen Mindestwert.** Wenn ein Gerät
+> **Wärme** beisteuert, ohne dass sein Strom mitgezählt wird, wäre die Zahl zu
+> **groß** — dort bleibt es beim Strich und beim Grund. Dasselbe gilt für deine
+> eigene Angabe *Fremdanteil auf den Zählern* und für versetzte Messzeiträume.
+
+> ### ⭐ Und seit v4.0.45 steht jeder Grund nur noch EINMAL auf der Seite
+>
+> Bis dahin bekam jede fehlende Kennzahl ihre eigene Kachel mit „—" und
+> demselben Satz darunter — ein einziger fehlender Zähler erzeugte bis zu vier
+> gleichlautende Zeilen. Jetzt gilt:
+>
+> * **Was deine Ausstattung nicht hergibt** (kein Kältemengenzähler, keine
+>   getrennte Strommessung, ein gemeinsamer Wärmemengenzähler …) steht **einmal**
+>   am Ende des Blocks im Kasten **„Was noch möglich wäre"** — mit dem Handgriff
+>   daneben und dem Weg dorthin. Die Kachel dazu erscheint gar nicht erst.
+> * **Was deine Ausstattung hergibt, aber in diesem Zeitraum leer war** (die
+>   Arbeitszahl Heizen im Juni) bleibt als **„—" ohne Text** stehen. Es gibt
+>   nichts zu tun, und ein Satz daneben legte das Gegenteil nahe.
+>
+> ⭐ **Und der Grund ist trotzdem da — eine Geste entfernt:** Fährst du mit der
+> Maus über so einen Strich (auf dem Telefon: antippen und halten), nennt er
+> ihn — *„kein Heizbetrieb in diesem Zeitraum"*. Die Auskunft geht also nicht
+> verloren, sie drängt sich nur nicht auf.
+>
+> Der Kasten ist aufgeklappt, einklappbar und wie jedes Element des Blocks
+> parkbar. Die Tabelle unten gilt unverändert — sie sagt, **welcher** Satz wann
+> erscheint; neu ist nur, **wo** er steht.
+
 ### Die Gründe, wörtlich
 
 | Grund in der App | Was dahintersteckt | Was du tun kannst |
@@ -517,10 +566,13 @@ WP: 3000 kWh Wärme auf 800 kWh Strom. Klimaanlage: 200 kWh Strom, keine Wärme.
 
 | Sicht | Ergebnis |
 |-------|----------|
-| **Cockpit** (beide zusammen) | Arbeitszahl **„—"**, Grund: *Wärmepumpe und Klimaanlage in einer Zahl* |
+| **Cockpit** (beide zusammen) | Arbeitszahl **„≥ 3,00"** (3000 ÷ 1000), darunter *Klimaanlage: Strom ohne Wärmemessung enthalten* |
+| **Cockpit**, Tabelle *Zahlen je Gerät* | Wärmepumpe **3,75** · Klimaanlage **„—"** |
 | **Komponenten → Wärmepumpe** | **3,75** (3000 ÷ 800) — sauber abgegrenzt |
 
-⭐ **Die Mengen bleiben in beiden Sichten vollständig.** Weg ist nur die Zahl, die 3000 ÷ 1000 gerechnet hätte — Wärme von einem Gerät, Strom von zweien.
+⭐ **Die Mengen bleiben in beiden Sichten vollständig.**
+
+⭐ **Bis v4.0.44 stand im Cockpit „—" mit dem Grund *Wärmepumpe und Klimaanlage in einer Zahl*.** Der Grund war richtig: 3000 ÷ 1000 ist keine Arbeitszahl deiner Wärmepumpe — im Zähler steht die Wärme eines Geräts, im Nenner der Strom von zweien. Er ist aber ein **Mindestwert** für die Anlage, denn die 200 kWh der Klimaanlage können die Zahl nur **kleiner** machen. Deshalb steht dort jetzt „≥ 3,00" statt eines Strichs — und die 3,75 deiner Wärmepumpe **im selben Block** eine Zeile tiefer, statt nur hinter einem Link.
 
 ### B — Drei getrennte Zähler: Heizung, Warmwasser, Kühlen
 
@@ -580,7 +632,8 @@ Wärmepumpe mit getrennter Strommessung (800 + 400 kWh) und Wärmemengenzählern
 | Modus erfasst | **18 Stunden** — nicht 36 |
 | Aufgeteilte Menge | wird genannt, sobald sie vom Gesamtstrom abweicht |
 | Aggregiert aus | **Wärmepumpe · Klimaanlage** — die Namen stehen unter dem Block |
-| Arbeitszahl | „—", *Wärmepumpe und Klimaanlage in einer Zahl* |
+| Arbeitszahl | **„≥ …"** — ein Mindestwert, weil der Strom der Klimaanlage ohne Wärmemessung im Nenner steht (seit v4.0.45; vorher „—" mit Grund) |
+| Zahlen je Gerät | jedes Gerät mit seiner eigenen Arbeitszahl, im Block |
 
 ⭐ **Kilowattstunden darf man über Geräte addieren, Stunden nicht.** Zwei Geräte, die dieselben 18 Stunden liefen, ergeben 18 Stunden Beobachtung. Bis v4.0.28 stand dort 36 — an einem Tag.
 
@@ -621,7 +674,13 @@ Trag die 3000 unter ***Wärme gesamt*** ein und lass *Heizwärme* und *Warmwasse
 ## 7. Häufige Missverständnisse
 
 **„Der Block zeigt eine andere Arbeitszahl als der Komponenten-Hub."**
-Das ist so gewollt und der wichtigste Unterschied auf dieser Fläche. Der Block *Wärme/Klima* im Cockpit fasst **alle** Geräte zusammen; der Hub zeigt **eines**. Bei gemischter Ausstattung kann der Block deshalb „—" sagen, während das einzelne Gerät eine saubere Zahl hat. Unter dem Block steht, aus welchen Geräten er entsteht.
+Das ist so gewollt und der wichtigste Unterschied auf dieser Fläche. Der Block *Wärme/Klima* im Cockpit fasst **alle** Geräte zusammen; der Hub zeigt **eines**. Bei gemischter Ausstattung steht im Block deshalb ein **Mindestwert** („≥ 3,00"), während das einzelne Gerät eine höhere, saubere Zahl hat. Unter dem Block steht, aus welchen Geräten er entsteht — und seit v4.0.45 steht die Zahl **je Gerät** gleich daneben.
+
+**„Warum steht vor meiner Arbeitszahl ein ‚≥'?"**
+Weil im Nenner Strom steckt, dem keine gemessene Wärme gegenübersteht — typisch eine Split-Klimaanlage, die mitheizt, oder ein Heizstab auf eigenem Zähler. Deine Anlage ist also **mindestens** so effizient wie die Zahl, vermutlich besser. Der Satz darunter nennt das Gerät. **Was du tun kannst:** Wenn das Gerät eine Wärmemessung haben kann, ordne sie zu; wenn nicht (eine Klimaanlage hat bauartbedingt keinen Wärmemengenzähler), ist der Mindestwert die ehrlichste Zahl, die es gibt. Die saubere Zahl deiner Wärmepumpe steht in derselben Sicht in der Tabelle *Zahlen je Gerät*.
+
+**„Wo ist der Grund hin, der früher unter der leeren Kachel stand?"**
+Er steht seit v4.0.45 **einmal** am Ende des Blocks, im Kasten *„Was noch möglich wäre"* — mit dem Handgriff daneben. Vorher trug jede fehlende Kennzahl ihre eigene Kachel mit „—" und demselben Satz; ein einziger fehlender Zähler erzeugte damit bis zu vier gleichlautende Zeilen. **Ein „—" ohne Text heißt etwas anderes:** Die Messung ist da, dieser Zeitraum war leer — die Arbeitszahl Heizen im Juni zum Beispiel. Dort gibt es nichts zu tun.
 
 **„Heizwärme ist doch der Stromverbrauch fürs Heizen."**
 Nein. *Heizwärme* ist die **abgegebene thermische Wärme**. Der Strom fürs Heizen heißt *Strom Heizen*. Trägst du Strom in ein Wärmefeld ein, kommt eine Arbeitszahl um 1 heraus.

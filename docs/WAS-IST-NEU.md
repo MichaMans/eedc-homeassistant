@@ -11,6 +11,57 @@
 
 ## v4.0.45 — 14. September 2026
 
+**Das Cockpit zeigt, was deine Daten hergeben**
+
+**Betrifft dich das?** Ja, wenn du im Cockpit den Block *Wärme/Klima* offen hast
+— besonders, wenn du **mehrere** Geräte hast (Wärmepumpe und Klimaanlage) oder
+nicht jeden Zähler.
+
+**Was war:** Bei gemischter Ausstattung bestand der Block aus vier Kacheln mit
+„—" und vier Sätzen darunter, von denen zwei wortgleich waren. Jeder Satz war
+richtig, und zusammen sagte die Seite vor allem, was eedc **nicht** weiß —
+obwohl die Zahlen zum größten Teil da waren.
+
+**Was jetzt — drei Dinge:**
+
+1. **Die Arbeitszahl deiner Anlage verschwindet nicht mehr, sie sagt
+   „mindestens".** Wenn deine Klimaanlage mitheizt oder ein Heizstab auf eigenem
+   Zähler läuft, steht in der Rechnung mehr Strom, als der Wärmezähler abdeckt —
+   das Ergebnis kann dann nur **zu klein** sein, nie zu groß. Statt eines
+   Strichs steht dort jetzt **„≥ 3,00"**, darunter *„Klimaanlage: Strom ohne
+   Wärmemessung enthalten"*. Deine Anlage ist also mindestens so gut, vermutlich
+   besser.
+2. **Die Zahlen je Gerät stehen im Block selbst.** Eine kleine Tabelle nennt für
+   jedes Gerät Wärme, Strom und seine Arbeitszahlen — die saubere **3,75** deiner
+   Wärmepumpe steht damit direkt neben dem Mindestwert der Anlage und nicht nur
+   hinter einem Link. Der Link in den Komponenten-Hub bleibt; dort gibt es
+   zusätzlich Verlauf, Saison-Vergleich und Wirtschaftlichkeit.
+3. **Jeder Grund steht einmal, mit dem Handgriff daneben.** Was deine
+   **Ausstattung** nicht hergibt — kein Kältemengenzähler, keine getrennte
+   Strommessung —, sammelt der neue Kasten **„Was noch möglich wäre"** am Ende
+   des Blocks: je Grund eine Zeile, was sie betrifft, was du tun kannst und wohin
+   du dafür gehst. Den Handgriff gab es vorher nirgends. Der Kasten ist
+   aufgeklappt, lässt sich einklappen und wie jeder Block-Teil parken.
+
+**Und was ein „—" jetzt heißt:** Steht eine Kachel ohne Zahl und **ohne Text**
+da, ist die Messung vorhanden und dieser Zeitraum war leer — die Arbeitszahl
+Heizen im Juni zum Beispiel. Da gibt es nichts zu tun, und deshalb steht auch
+nichts da.
+
+⛔ **Was sich NICHT geändert hat:** Die Arbeitszahl **eines Geräts** entsteht
+unverändert nur, wo Zähler und Nenner dasselbe Gerät und dieselbe Funktion
+meinen. Steuert ein Gerät **Wärme** bei, ohne dass sein Strom mitzählt, wäre die
+Zahl zu **groß** — dort bleibt es beim Strich und beim Grund. Der Jahresbericht
+als PDF ist unverändert.
+
+⭐ **Kleinigkeit am Rande:** Wer seinen Heizstrom getrennt misst, las im Sommer
+*„kein Stromverbrauch erfasst"* — an einer Anlage, die ihn sehr wohl erfasst,
+nur eben mit null. Dort steht jetzt *„kein Heizbetrieb in diesem Zeitraum"*.
+
+→ [Wärme & Klima: wann eine Kennzahl verschwindet](HANDBUCH_WAERME_KLIMA.md#4-wann-eine-kennzahl-verschwindet--und-warum-das-richtig-ist)
+
+---
+
 **Ein gemeinsamer Wärmemengenzähler hat jetzt sein eigenes Feld**
 
 **Betrifft dich das?** Nur, wenn deine Wärmepumpe Heizung und Warmwasser über

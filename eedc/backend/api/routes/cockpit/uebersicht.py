@@ -8,11 +8,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.core.exceptions import not_found
 from backend.core.berechnungen.erzeuger_traeger import erzeuger_traeger
-from backend.core.berechnungen.waermepumpe_kennzahl import hub_hilft
+from backend.core.berechnungen.waermepumpe_kennzahl import hub_hilft, systemarbeitszahl
 from backend.core.investition_kennwerte import get_erzeuger_kwp, get_speicher_kapazitaet_kwh
 from backend.api.deps import get_db
 from backend.models.anlage import Anlage
@@ -41,6 +41,16 @@ from backend.core.berechnungen.ust_eigenverbrauch import (
 from backend.core.calculations import berechne_co2_bilanz
 from backend.services.finanz_zeilen import baue_finanz_zeile
 from backend.services.waermepumpe_jahreskennzahlen import waermepumpe_jahreskennzahlen
+from backend.services.waermepumpe_kennzahlen_je_geraet import (
+    lade_kennzahlen_je_geraet,
+)
+from backend.services.waerme_klima_block import (
+    WpGeraetZeile,
+    WpMoeglichZeile,
+    geraete_zeilen,
+    schranken_eingang,
+    was_noch_moeglich,
+)
 from backend.services.monats_fakten import (
     finanz_zeile_eingabe,
     lade_monats_fakten,
@@ -121,6 +131,16 @@ class CockpitUebersichtResponse(BaseModel):
     wp_jaz_warmwasser_grund: Optional[str] = None
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: **E1b:** ``wp_cop`` ist eine untere **Schranke** („≥ 3,25") — im Nenner
+    #: steht Strom ohne gemessene Wärme. Bedeutung und Herkunft wie im Monat
+    #: (``AktuellerMonatResponse.wp_jaz_ist_schranke``).
+    wp_cop_ist_schranke: bool = False
+    wp_cop_schranke_hinweis: Optional[str] = None
+    #: **D-Sicht 3:** die Kennzahlen je Gerät — aus derselben Rechenstelle wie
+    #: der Komponenten-Hub (``services/waermepumpe_kennzahlen_je_geraet.py``).
+    wp_geraete: list[WpGeraetZeile] = Field(default_factory=list)
+    #: **D-Sicht 1:** was die Ausstattung nicht hergibt, einmal je Sicht.
+    wp_moeglich: list[WpMoeglichZeile] = Field(default_factory=list)
     #: Bauschnitt 8 (11.09.2026): die Kältemenge des Jahres für die Zeile „Kälte"
     #: der Gruppe Kühlen — aus dem Layer (`WpJahreskennzahlen.kaelte_kwh`), nicht
     #: als Σ im Client. **> 0, sonst `None`**, dieselbe Regel wie im Monat: die
@@ -519,7 +539,32 @@ async def get_cockpit_uebersicht(
     # Antwort-Zuordnung unten unverändert lesbar ist.
     _wpk = waermepumpe_jahreskennzahlen(fakten, wp_invs)
     wp_abgrenzung = _wpk.abgrenzung
-    _wp_az = _wpk.arbeitszahl
+    # ── E1b: die anlagenweite Zahl als Schranke statt als Strich ───────────
+    #
+    # ⭐ **Hier stand bis 14.09.2026 `_wpk.arbeitszahl`**, und die sperrte bei
+    # gemischten Bauarten und bei Geräten ohne Wärmemeldung. Beide Lagen machen
+    # den Nenner zu **groß** — der Quotient ist dann eine untere Schranke und
+    # als solche wahr (ADR-002/P4).
+    #
+    # ⛔ **`_wpk.arbeitszahl` bleibt unangetastet und wird weiter geliefert** —
+    # der PDF-Jahresbericht liest sie (`pdf/builders/jahresbericht.py`), und dort
+    # ist eine Zahl ohne sichtbares „≥" genau das, was P4 verbietet. Zwei
+    # Fragen, zwei Größen.
+    _wp_kennzahlen_je_geraet = await lade_kennzahlen_je_geraet(
+        db, anlage_id, wp_invs,
+        von=_fenster[0], bis=_fenster[1],
+    )
+    _wp_strom_ohne_waerme, _wp_geraete_ohne_waerme = schranken_eingang(
+        _wp_kennzahlen_je_geraet,
+    )
+    _wp_az = systemarbeitszahl(
+        _wpk.waerme_kwh, _wpk.strom_kwh,
+        waerme_abgeleitet_kwh=_wpk.waerme_abgeleitet_kwh,
+        kuehlstrom_kwh=_wpk.funktionsfremd_abzug_kwh,
+        strom_ohne_waerme_kwh=_wp_strom_ohne_waerme,
+        geraete_ohne_waerme=_wp_geraete_ohne_waerme,
+        abgrenzung_verletzt=_wpk.abgrenzung_sperrt,
+    )
     wp_cop = _wp_az.wert
     _wp_stoerung = _wpk.abgrenzung_stoerung
     _wp_hat_split = _wpk.hat_split
@@ -876,6 +921,15 @@ async def get_cockpit_uebersicht(
         wp_ersparnis_euro=round(wp_ersparnis, 2),
         hat_waermepumpe=hat_waermepumpe,
         wp_cop_hinweis=_wp_az.hinweis,
+        wp_cop_ist_schranke=_wp_az.ist_schranke,
+        wp_cop_schranke_hinweis=_wp_az.schranke_hinweis,
+        wp_geraete=geraete_zeilen(_wp_kennzahlen_je_geraet),
+        wp_moeglich=was_noch_moeglich([
+            ("Arbeitszahl", _wp_az.grund),
+            ("Arbeitszahl Heizen", _wp_az_funktion.heizen.grund),
+            ("Arbeitszahl Warmwasser", _wp_az_funktion.warmwasser.grund),
+            ("Arbeitszahl Kühlen", _wp_az_k.grund),
+        ]),
         wp_jaz_zaehler_kwh=_wp_az.zaehler_kwh,
         wp_jaz_nenner_kwh=_wp_az.nenner_kwh,
         wp_waerme_abgeleitet=_wp_abgeleitet,
@@ -900,6 +954,7 @@ async def get_cockpit_uebersicht(
             _wp_az_funktion.heizen.grund,
             _wp_az_funktion.warmwasser.grund,
             _wp_az_k.grund,
+            ist_schranke=_wp_az.ist_schranke,
         ),
         wp_modus_strom_heizen_kwh=round(_wp_modus["heizen"], 1) if _wp_hat_modus else None,
         wp_modus_strom_kuehlen_kwh=round(_wp_modus["kuehlen"], 1) if _wp_hat_modus else None,

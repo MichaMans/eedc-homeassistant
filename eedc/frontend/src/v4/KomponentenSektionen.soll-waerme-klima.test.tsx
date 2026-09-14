@@ -107,17 +107,32 @@ describe('Achse IV — die Zahl sagt, was sie ist', () => {
     expect(screen.queryByText(/Heizstab|Elektroheizung/i)).toBeNull()
   })
 
-  it('ERFÜLLT (S3): fehlt die Arbeitszahl, steht der Grund daneben', () => {
+  it('ERFÜLLT (S3): fehlt die Arbeitszahl, steht der Grund SICHTBAR im Block', () => {
     // Der Unterschied zwischen „—" und einer Auskunft. Der Grund entsteht dort,
     // wo die Sperre entscheidet — im Layer —, nicht als Client-Vermutung.
+    //
+    // ⭐ **Wortlaut umgestellt, Substanz gehalten (D-Sicht, 14.09.2026).**
+    // Geprüft war: *„der Grund steht sichtbar, nicht im Tooltip"*. Das gilt
+    // unverändert — er steht nur nicht mehr **unter der Kachel**, sondern
+    // **einmal** im Kasten „Was noch möglich wäre", mit dem Handgriff daneben.
+    // Der Kasten ist vorbelegt offen, genau damit diese Zusage hält.
     rendereWpBlock({
       wp_strom_kwh: 337, wp_waerme_kwh: null, wp_jaz: null,
       wp_jaz_grund: 'kein Wärmemengenzähler zugeordnet',
+      wp_moeglich: [{
+        groessen: ['Arbeitszahl'], groesse: 'Arbeitszahl',
+        grund: 'kein Wärmemengenzähler zugeordnet',
+        handgriff: 'Wärmemengenzähler zuordnen',
+        link: '#/einstellungen/datenquellen',
+      }],
     })
 
-    // Sichtbar unter der Zahl, nicht im Hover-Tooltip: S3 verlangt eine
-    // Auskunft, und ein Tooltip ist auf dem Telefon keine.
     expect(screen.getByText('kein Wärmemengenzähler zugeordnet')).toBeTruthy()
+    // ⭐ **Und der Handgriff dazu** — das ist der Gewinn der Umstellung: Bis
+    // hierher stand der Grund da und der Weg nicht.
+    expect(screen.getByText('Wärmemengenzähler zuordnen')).toBeTruthy()
+    // ⛔ **Genau EINMAL.** Vier Kacheln mit demselben Satz waren der Anlass.
+    expect(screen.getAllByText('kein Wärmemengenzähler zugeordnet')).toHaveLength(1)
   })
 })
 
@@ -343,17 +358,43 @@ describe('Achse III — der Tag sagt, warum die Wärme fehlt (W-18)', () => {
     // ⭐ *Ein Prüfer muss aufs richtige Objekt zeigen; ein Teilstring über einen
     // ganzen Block tut das nicht.* Deshalb hier der **exakte** Text: Die
     // Ersparnis trägt ihn mit Präfix und wird davon nicht mehr getroffen.
-    rendereTag({ wp_strom_kwh: 5, wp_waerme_kwh: null, wp_waerme_grund: GRUND })
+    // ⭐ **Wortlaut umgestellt, Substanz gehalten (D-Sicht, 14.09.2026).** Der
+    // Grund steht weiter sichtbar im Block — als Zeile des Kastens, in der
+    // **Kurzform**, die der Kasten trägt. Die Langform bleibt die des Backends;
+    // welche davon wohin geht, entscheidet die Route, nicht der Client.
+    const KURZ = 'für diesen Tag keine Zählerstände'
+    rendereTag({
+      wp_strom_kwh: 5, wp_waerme_kwh: null, wp_waerme_grund: GRUND,
+      wp_moeglich: [{
+        groessen: ['Wärme erzeugt'], groesse: 'Wärme erzeugt', grund: KURZ,
+        handgriff: 'Den Tag in der Reparatur-Werkbank nachrechnen (Einstellungen → Daten)',
+        link: '#/einstellungen/daten',
+      }],
+    })
 
-    expect(screen.getByText(GRUND)).toBeTruthy()
+    expect(screen.getByText(KURZ)).toBeTruthy()
+    // ⛔ **Und NICHT mehr unter der Kachel** — das ist die andere Hälfte der
+    // D-Sicht: eine Kachel ohne Zahl trägt keinen Satz.
+    expect(screen.queryByText(GRUND)).toBeNull()
   })
 
-  it('ERFÜLLT: die Ersparnis verweist auf die Wärme, statt den Grund zu wiederholen', () => {
-    // Zwei Formulierungen derselben Ursache nebeneinander lesen sich wie zwei
-    // Ursachen. Der Verweis hält beide zusammen.
-    rendereTag({ wp_strom_kwh: 5, wp_waerme_kwh: null, wp_waerme_grund: GRUND })
+  it('ERFÜLLT: die Ersparnis wiederholt den Grund NICHT — er steht einmal', () => {
+    // ⭐ **Substanz gehalten, Wortlaut umgestellt.** Geprüft war: *„zwei
+    // Formulierungen derselben Ursache nebeneinander lesen sich wie zwei
+    // Ursachen — der Verweis hält beide zusammen."* Die D-Sicht geht denselben
+    // Weg zu Ende: Statt eines Verweises auf die Nachbarkachel gibt es **eine**
+    // Stelle, an der die Ursache steht. Die Ersparnis-Kachel entfällt mit der
+    // Wärme-Kachel, weil sie ohne Betrag und ohne Grund nichts zu sagen hat.
+    const KURZ = 'für diesen Tag keine Zählerstände'
+    rendereTag({
+      wp_strom_kwh: 5, wp_waerme_kwh: null, wp_waerme_grund: GRUND,
+      wp_moeglich: [{
+        groessen: ['Wärme erzeugt'], groesse: 'Wärme erzeugt', grund: KURZ,
+      }],
+    })
 
-    expect(screen.getByText(`Folgt aus der Tages-Wärme — ${GRUND}`)).toBeTruthy()
+    expect(screen.queryByText(`Folgt aus der Tages-Wärme — ${GRUND}`)).toBeNull()
+    expect(screen.getAllByText(KURZ)).toHaveLength(1)
   })
 
   it('ERFÜLLT: der falsche fest verdrahtete Satz erscheint nicht mehr', () => {

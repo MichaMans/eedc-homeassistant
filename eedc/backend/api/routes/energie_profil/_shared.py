@@ -9,7 +9,12 @@ import re
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from backend.services.waerme_klima_block import (
+    WpGeraetZeile,
+    WpMoeglichZeile,
+)
 
 from backend.core.field_definitions import SONSTIGES_KATEGORIE_UNGEPFLEGT
 from backend.models.investition import Investition
@@ -677,6 +682,19 @@ class TagDetailResponse(BaseModel):
     #: Tag selbst, weil er beide Seiten je Gerät kennt.
     wp_jaz_kuehlen: Optional[float] = None
     wp_jaz_kuehlen_grund: Optional[str] = None
+    #: **E1b:** ``wp_jaz`` ist eine untere **Schranke** („≥ 3,0") — im Nenner
+    #: steht Strom ohne gemessene Wärme. Gleiche Bedeutung und gleiche Quelle
+    #: wie im Monat (``AktuellerMonatResponse.wp_jaz_ist_schranke``); der Tages-
+    #: Grund *„nicht alle Geräte melden Wärme"* ist damit dieselbe Schranke
+    #: statt eines Strichs.
+    wp_jaz_ist_schranke: bool = False
+    wp_jaz_schranke_hinweis: Optional[str] = None
+    #: **D-Sicht 3:** die Kennzahlen je Gerät — aus derselben Rechenstelle wie
+    #: Hub, Monat und Jahr (``services/waermepumpe_kennzahlen_je_geraet.py``),
+    #: nur mit der Tages-Herkunft der Mengen.
+    wp_geraete: list[WpGeraetZeile] = Field(default_factory=list)
+    #: **D-Sicht 1:** was die Ausstattung nicht hergibt, einmal je Sicht.
+    wp_moeglich: list[WpMoeglichZeile] = Field(default_factory=list)
     #: Die Kältemenge des Tages — der Zähler der Kühlzahl darüber, als Zeile
     #: „Kälte" der Gruppe Kühlen (Bauschnitt 8, 11.09.2026). Bis dahin stand sie
     #: nur lokal in der Route. **> 0, sonst `None`** — dieselbe Regel wie Monat und

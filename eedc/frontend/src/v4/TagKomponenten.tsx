@@ -131,6 +131,14 @@ export function baueTagAlsMonat(
     wp_jaz_warmwasser_grund: tagDetail?.wp_jaz_warmwasser_grund ?? null,
     wp_jaz_kuehlen: tagDetail?.wp_jaz_kuehlen ?? null,
     wp_jaz_kuehlen_grund: tagDetail?.wp_jaz_kuehlen_grund ?? null,
+    // E1b + D-Sicht: dieselben drei Felder wie in Monat und Jahr, aus der
+    // Tages-Route. Der Tag kennt sie seit WK-16a — vorher stand hier bei
+    // gemischter Ausstattung ein Strich mit dem Grund „nicht alle Geräte
+    // melden Wärme".
+    wp_jaz_ist_schranke: tagDetail?.wp_jaz_ist_schranke ?? false,
+    wp_jaz_schranke_hinweis: tagDetail?.wp_jaz_schranke_hinweis ?? null,
+    wp_geraete: tagDetail?.wp_geraete ?? [],
+    wp_moeglich: tagDetail?.wp_moeglich ?? [],
     // Bauschnitt 8: die Zeile „Kälte" der Gruppe Kühlen — der Zähler der
     // Kühlzahl darüber, aus derselben Antwort.
     wp_kaelte_kwh: tagDetail?.wp_kaelte_kwh ?? null,
