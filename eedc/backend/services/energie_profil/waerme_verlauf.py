@@ -199,6 +199,139 @@ async def lade_waerme_verlauf(
     return zeilen
 
 
+# ── Dieselbe Tagesreihe, aber je GERÄT über den Zeitraum summiert (N-472/A-5) ──
+
+
+@dataclass(frozen=True)
+class WaermeMonatsMengenJeGeraet:
+    """Σ der Tagesgrößen **eines Geräts** über einen Zeitraum.
+
+    ⭐ **Rohfelder, keine aufgelöste Größe.** Hier steht, was die Zähler des
+    Geräts über die Tage hergegeben haben — die Vorrangregeln fallen wie bei
+    jeder anderen Quelle beim Aufrufer (K3 in ``_wp_strom_k3``, D1 in
+    ``_wp_waerme_d1``). Das ist Absicht: HA-Statistik, Connector und MQTT
+    liefern ebenfalls Rohfelder je Monat, und eine Quelle, die ihre Größen
+    schon aufgelöst abliefert, stünde als einzige neben der Kette.
+
+    ⚠ **Σ über Tage, keine zweite Faltung.** Gefaltet wird feldweise und
+    additiv; die *Formeln* bleiben im Layer. Dieselbe Begründung, unter der
+    ``monats_aus_tagen.py`` seine Σ über die Stunden eines Monats bildet.
+    """
+
+    inv_id: str
+    strom_kwh: float = 0.0
+    waerme_kwh: float = 0.0
+    heizung_kwh: float = 0.0
+    warmwasser_kwh: float = 0.0
+    strom_heizen_kwh: float = 0.0
+    strom_warmwasser_kwh: float = 0.0
+    kaelte_kwh: float = 0.0
+    modus_strom_kuehlen_kwh: float = 0.0
+    funktionsfremd_abzug_kwh: float = 0.0
+
+
+#: Die Strom-Achsen je Funktion — dieselbe Ausgabe-Tabelle, anderer Ausschnitt.
+_STROM_FELDER = {
+    schluessel: key
+    for schluessel, key in TAGESDETAIL_AUSGABE.items()
+    if key in ("wp_strom_heizen_kwh", "wp_strom_warmwasser_kwh")
+}
+
+
+async def lade_waerme_monatsmengen_je_geraet(
+    db: AsyncSession,
+    anlage,
+    investitionen_by_id: dict,
+    von: date,
+    bis: date,
+) -> tuple[dict[str, WaermeMonatsMengenJeGeraet], Optional[date], Optional[date]]:
+    """Die Wärme/Klima-Mengen je Gerät aus der **lokalen Tagesebene** (N-472/A-5).
+
+    ⛔ **Derselbe Leser wie der Verlauf daneben, und das ist der ganze Punkt.**
+    Der Anlass war, dass *Cockpit → Monat* leere Wärme/Klima-Kacheln über einem
+    Verlauf zeigte, der dieselben Tage vollständig zeichnete. Eine zweite Quelle
+    hätte zwei Zahlen erzeugt, wo eine gefragt war — deshalb ruft diese Funktion
+    exakt die Leser von {@link lade_waerme_verlauf}:
+
+    * ``_zaehlerstrom_je_tag`` (Zählerpfad, ``komponenten_kwh``) für den
+      **Gesamtstrom** je Gerät — dieselbe Quelle, aus der *Cockpit → Tag* seine
+      Kachel speist (``wp_strom_je_inv``),
+    * ``lade_tageswerte_je_geraet`` für Wärme, Kälte und die Funktions-Achsen,
+    * ``get_betriebsart_strom_tageswerte`` + ``beitraege_des_tages`` für den
+      Kühlanteil und den Nenner-Abzug (**E7/Option A**, je Gerät).
+
+    ⚠ **Nur die Mengen, keine Kennzahl.** Die drei Layer-Aufrufe bleiben bei
+    ``kennzahlen_aus_mengen``; diese Funktion füllt deren Eingang.
+
+    Returns:
+        ``({inv_id: Mengen}, erster_tag, letzter_tag)`` — die beiden Ränder für
+        die Abdeckungs-Angabe der Quelle (P4). Ohne Tagesspur: ``({}, None, None)``.
+    """
+    from backend.core.berechnungen.tages_stapel import (
+        beitrag_abzug_kwh,
+        beitraege_des_tages,
+    )
+
+    zaehler_je_tag, rueckwaerts_tage = await _zaehlerstrom_je_tag(db, anlage.id, von, bis)
+    werte_je_tag = await lade_tageswerte_je_geraet(
+        db, anlage, investitionen_by_id, von, bis,
+        {**_WAERME_FELDER, **_KAELTE_FELDER, **_STROM_FELDER},
+        rueckwaerts_tage=rueckwaerts_tage,
+    )
+    splits_je_tag = await lade_modus_split_je_tag(db, anlage.id, von=von, bis=bis)
+    stufe_je_inv = await get_wp_strom_stufe_je_investition(
+        db, anlage, investitionen_by_id,
+    )
+
+    tage = sorted(
+        t for t in (set(zaehler_je_tag) | set(werte_je_tag) | set(splits_je_tag))
+        if von <= t <= bis
+    )
+    if not tage:
+        return {}, None, None
+
+    roh: dict[str, dict[str, float]] = {}
+
+    def _addiere(inv_id: str, feld: str, wert: Optional[float]) -> None:
+        if wert:
+            roh.setdefault(inv_id, {})[feld] = roh.setdefault(inv_id, {}).get(feld, 0.0) + float(wert)
+
+    for tag in tage:
+        for inv_id, kwh in (zaehler_je_tag.get(tag) or {}).items():
+            _addiere(inv_id, "strom_kwh", kwh)
+        werte = werte_je_tag.get(tag) or {}
+        for key, feld in (
+            (_WAERME_GESAMT_KEY, "waerme_kwh"),
+            ("wp_heizung_kwh", "heizung_kwh"),
+            ("wp_warmwasser_kwh", "warmwasser_kwh"),
+            ("wp_strom_heizen_kwh", "strom_heizen_kwh"),
+            ("wp_strom_warmwasser_kwh", "strom_warmwasser_kwh"),
+            (_KAELTE_KEY, "kaelte_kwh"),
+        ):
+            for inv_id, kwh in (werte.get(key) or {}).items():
+                _addiere(inv_id, feld, kwh)
+        # E7/Option A je Gerät — dieselbe Auswahl (K2, Zeitfilter) wie im Tag.
+        gemessen_je_inv = await get_betriebsart_strom_tageswerte(
+            db, anlage, investitionen_by_id, tag,
+            rueckwaerts=tag in rueckwaerts_tage,
+        )
+        for b in beitraege_des_tages(
+            gemessen_je_inv, zaehler_je_tag.get(tag, {}), splits_je_tag.get(tag, {}),
+            investitionen_by_id, tag, stufe_je_inv=stufe_je_inv,
+        ):
+            _addiere(b.inv_id, "modus_strom_kuehlen_kwh", b.kuehlen_kwh)
+            _addiere(b.inv_id, "funktionsfremd_abzug_kwh", beitrag_abzug_kwh(b))
+
+    return (
+        {
+            inv_id: WaermeMonatsMengenJeGeraet(inv_id=inv_id, **felder)
+            for inv_id, felder in roh.items()
+        },
+        tage[0],
+        tage[-1],
+    )
+
+
 async def _zaehlerstrom_je_tag(
     db: AsyncSession, anlage_id: int, von: date, bis: date,
 ) -> tuple[dict[date, dict[str, float]], set[date]]:

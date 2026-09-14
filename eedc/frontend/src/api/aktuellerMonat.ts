@@ -392,6 +392,17 @@ export interface AktuellerMonatResponse {
 
   // Quellenangabe pro Feld
   feld_quellen: Record<string, DatenquelleInfo>
+  /**
+   * Warum eine Kachel **leer** bleibt — je Basis-Größe der fertige Satz aus
+   * `core/monatswert_grund.py` (N-472). Nur für Größen ohne Wert gesetzt.
+   *
+   * ⛔ **Der Client baut hier keinen Text.** Die Route liefert den Satz, nicht
+   * den Schlüssel — eine TS-Kopie der Textliste wäre eine zweite Wahrheit über
+   * denselben Sachverhalt und driftet, sobald jemand einen Fall ergänzt (die
+   * Klasse, die F-56 und W-14 erzeugt hat; dieselbe Regel wie bei den
+   * Tageswert-Gründen aus W-18).
+   */
+  datenlage_gruende?: Record<string, string>
 }
 
 export const aktuellerMonatApi = {

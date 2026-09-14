@@ -80,6 +80,10 @@ export const DATENQUELLE_LABELS: Record<string, string> = {
   local_connector: 'Connector',
   scheduler: 'gespeichert',
   gespeichert: 'gespeichert',
+  // N-472: die fünfte Quelle des laufenden Monats — Σ über die lokal
+  // aggregierten Tage. Sie heißt bewusst NICHT „gespeichert": dahinter steckt
+  // kein Monatsabschluss, und wer danach sucht, findet keine Zeile.
+  tagesebene: 'Tageswerte',
   monatsabschluss: 'Abschluss',
   manuell: 'manuell',
   wetter_prognose: 'Prognose',

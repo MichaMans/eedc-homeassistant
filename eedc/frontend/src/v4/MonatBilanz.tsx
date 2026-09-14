@@ -76,10 +76,23 @@ export function baueMonatKpis(
     ? d.gesamtnettoertrag_euro - (d.betriebskosten_anteilig_euro ?? 0) + (d.sonstige_netto_euro ?? 0)
     : null
 
+  // N-472: Warum eine Kachel leer bleibt. Der **Satz kommt aus der Antwort**
+  // (`core/monatswert_grund.py`) — hier wird nur der Slot bedient, den die
+  // Kachel dafür schon hat: `hinweis` ist wörtlich der „Voraussetzungs-Hinweis
+  // bei fehlendem Wert", und WK-16ab hat an der JAZ-Kachel dieselbe Wahl
+  // getroffen. Ein rohes `title` daneben wäre eine zweite Bauform.
+  //
+  // ⚠ Der **Zeitraum**-Vorbehalt („misst erst ab dem 14.") steht NICHT hier,
+  // sondern in der Provenanz-Zeile über dem Strip (`ProvenanzQuellen`, seit
+  // #360 mit genau dieser Beschriftung aus `abdeckung_von`/`abdeckung_bis`).
+  // Zwei Träger für dieselbe Aussage wären Regel-0a-widrig.
+  const grund = (feld: string) => d.datenlage_gruende?.[feld]
+
   return [
     {
       title: 'PV-Erzeugung', value: fmt(d.pv_erzeugung_kwh), unit: 'kWh', color: 'yellow', icon: DATENROLLEN_ICONS.pv,
       subtitle: pvSoll,
+      hinweis: grund('pv_erzeugung_kwh'),
       formel: sollPct != null ? 'PV-Ertrag ÷ PVGIS-SOLL × 100' : undefined,
       berechnung: sollPct != null
         ? `${fmt(d.pv_erzeugung_kwh)} ÷ ${fmt(d.soll_pv_kwh)} kWh${sollFenster ? ` (${sollFenster})` : ''}`
@@ -101,10 +114,12 @@ export function baueMonatKpis(
     {
       title: 'Einspeisung', value: fmt(d.einspeisung_kwh), unit: 'kWh', color: 'green', icon: DATENROLLEN_ICONS.einspeisung,
       subtitle: vm ? `VM: ${fmt(vm.einspeisung_kwh)} kWh` : undefined,
+      hinweis: grund('einspeisung_kwh'),
     },
     {
       title: 'Netzbezug', value: fmt(d.netzbezug_kwh), unit: 'kWh', color: 'red', icon: DATENROLLEN_ICONS.netzbezug,
       subtitle: vm ? `VM: ${fmt(vm.netzbezug_kwh)} kWh` : undefined,
+      hinweis: grund('netzbezug_kwh'),
     },
     {
       title: 'Netto-Ertrag', value: fmtCalc(d.netto_ertrag_euro, 2, '—'), unit: '€', color: 'blue', icon: DATENROLLEN_ICONS.nettoErtrag,

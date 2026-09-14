@@ -65,6 +65,7 @@ from backend.core.berechnungen.counter import (
 from backend.core.berechnungen.datenquellen import (
     connector_deckt_monatsanfang,
     merge_datenquellen,
+    mqtt_teilzeitraum_felder,
     teilzeitraum_felder,
 )
 from backend.core.berechnungen.bkw_finanz import (
@@ -339,6 +340,7 @@ __all__ = [
     "verteile_counter_auf_stunden",
     "connector_deckt_monatsanfang",
     "merge_datenquellen",
+    "mqtt_teilzeitraum_felder",
     "teilzeitraum_felder",
     "BkwFinanzBeitrag",
     "bkw_finanz_beitrag",

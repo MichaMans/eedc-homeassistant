@@ -7,7 +7,7 @@ Monatsdaten zu einer Echtzeit-Übersicht des laufenden Monats.
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import NamedTuple, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -73,6 +73,7 @@ from backend.core.berechnungen import (
     teilzeitraum_felder,
     vollzyklen as berechne_vollzyklen,
 )
+from backend.core.monatswert_grund import monatswert_grund, monatswert_grund_text
 from backend.services.einspeise_erloes_service import get_neg_preis_einspeisung_monat
 from backend.services.wp_wirtschaftlichkeit import (
     WP_ERSPARNIS_FORMEL,
@@ -283,6 +284,15 @@ class AktuellerMonatResponse(BaseModel):
     #: gespeicherten Zeile stammt — kommt sie aus Sensor, Connector oder MQTT,
     #: sagt `pv_vollstaendig` der Monats-Fakten nichts über sie aus.
     hinweise: list[str] = []
+    #: Warum eine Kachel **leer** bleibt — je Basis-Größe der fertige Satz aus
+    #: `core/monatswert_grund.py` (N-472, W-18-Klasse eine Zeitebene höher).
+    #: Nur für Größen ohne Wert gesetzt; eine Größe mit Zahl steht nicht drin.
+    #:
+    #: ⚠ Bewusst nur die **drei Basis-Größen** (PV · Einspeisung · Netzbezug).
+    #: Autarkie, Eigenverbrauch und Gesamtverbrauch entstehen aus ihnen — an
+    #: jeder abgeleiteten Kachel denselben Grund zu wiederholen wäre genau die
+    #: Strich-Flut, gegen die die D-Sicht gebaut ist (WK-16ab/E-2).
+    datenlage_gruende: dict[str, str] = {}
 
     # Energie-Bilanz (kWh)
     pv_erzeugung_kwh: Optional[float] = None
@@ -854,8 +864,18 @@ async def _collect_mqtt_inbound_data(
     Die Menge kommt jetzt aus der mitgeschriebenen Standreihe. Fehlt ein Rand
     oder sprang der Zähler zurück, fehlt das Feld im Ergebnis — dann bleibt der
     **gespeicherte** Wert stehen, statt von einem Stand verdrängt zu werden.
+
+    ⭐ **Seit N-472 mit Rückfall auf den ersten Stand des Monats.** Fehlt der
+    Stand am Monatsersten — die Lage jeder Anlage, die mitten im Monat
+    eingerichtet wurde —, misst die Menge ab dem ersten mitgeschriebenen Stand,
+    und die ``DatenquelleInfo`` dieses Feldes trägt dann ``abdeckung_von``/
+    ``abdeckung_bis``. Der Slot ist derselbe, den der Connector seit #361 für
+    genau diese Aussage benutzt; die Provenanz-Zeile beschriftet ihn bereits
+    (*„MQTT (ab 14.09.)"*). Ein Feld **ohne** ``abdeckung_von`` hat den
+    Monatsersten als linken Rand — daran erkennt der Aufrufer die Teilzeiträume,
+    ohne dass diese Funktion eine zweite Liste zurückgeben muss.
     """
-    from backend.services.mqtt_energy_history_service import mqtt_monats_deltas
+    from backend.services.mqtt_energy_history_service import mqtt_monats_mengen
     from backend.services.mqtt_inbound_service import get_mqtt_inbound_service
     from backend.services.snapshot.keys import extract_quellen_energy
 
@@ -876,10 +896,11 @@ async def _collect_mqtt_inbound_data(
     # — und die Suite fährt in drei Zeitzonen. Der Wächter
     # `test_konformitaet_echte_uhr_in_tests.py` hat genau das beim Bau dieser
     # Zeile gemeldet; die Naht ist die Antwort darauf und gehört ohnehin hierher.
-    mengen = await mqtt_monats_deltas(
+    mengen = await mqtt_monats_mengen(
         db, anlage.id, jahr, monat, list(energy.keys()),
         quellen_energy=extract_quellen_energy(anlage),
         bis=bis if bis is not None else datetime.now(),
+        rueckfall_erster_stand=True,
     )
     if not mengen:
         return {}
@@ -888,6 +909,21 @@ async def _collect_mqtt_inbound_data(
     now_str = datetime.now().isoformat()
     quelle = DatenquelleInfo(quelle="mqtt_inbound", konfidenz=91, zeitpunkt=now_str)
 
+    def _quelle(menge) -> DatenquelleInfo:
+        """Die gemeinsame Quelle — oder eine eigene, wenn der Monatsanfang fehlt.
+
+        Ein Feld ab Monatsbeginn bekommt die geteilte Instanz **ohne**
+        Abdeckung (bitgleich zu vor N-472). Nur das Rückfall-Feld trägt seinen
+        gemessenen Zeitraum, damit Provenanz-Zeile und Kachel-Hinweis ihn
+        nennen können — und nur seinen eigenen, nicht den eines Nachbarn.
+        """
+        if menge.ab_fenster_beginn:
+            return quelle
+        return DatenquelleInfo(
+            quelle="mqtt_inbound", konfidenz=91, zeitpunkt=now_str,
+            abdeckung_von=menge.seit, abdeckung_bis=menge.bis,
+        )
+
     # Basis-Felder
     basis_map = {
         "pv_gesamt_kwh": "pv_erzeugung_kwh",
@@ -895,20 +931,142 @@ async def _collect_mqtt_inbound_data(
         "netzbezug_kwh": "netzbezug_kwh",
     }
     for mqtt_key, feld_name in basis_map.items():
-        val = mengen.get(mqtt_key)
-        if val is not None and val > 0:
-            resolved[feld_name] = (val, quelle)
+        menge = mengen.get(mqtt_key)
+        if menge is not None and menge.menge_kwh > 0:
+            resolved[feld_name] = (menge.menge_kwh, _quelle(menge))
 
     # Investitions-Felder: inv/{inv_id}/{key} → inv_{inv_id}_{key}
     # (passt zum Aggregations-Pattern in der Prioritätskette)
     inv_ids = {str(i.id) for i in investitionen}
-    for mqtt_key, val in mengen.items():
-        if not mqtt_key.startswith("inv/") or val is None or val <= 0:
+    for mqtt_key, menge in mengen.items():
+        if not mqtt_key.startswith("inv/") or menge.menge_kwh <= 0:
             continue
         parts = mqtt_key.split("/", 2)  # ["inv", "3", "ladung_kwh"]
         if len(parts) == 3 and parts[1] in inv_ids:
-            resolved[f"inv_{parts[1]}_{parts[2]}"] = (val, quelle)
+            resolved[f"inv_{parts[1]}_{parts[2]}"] = (menge.menge_kwh, _quelle(menge))
 
+    return resolved
+
+
+async def _collect_tagesebene_data(
+    db: AsyncSession,
+    anlage_id: int,
+    jahr: int,
+    monat: int,
+    wp_mengen: Optional[dict] = None,
+    wp_von: Optional[date] = None,
+    wp_bis: Optional[date] = None,
+) -> dict[str, tuple[float, DatenquelleInfo]]:
+    """Die **fünfte** Quelle: die lokale Tagesebene (Konfidenz 80 %, N-472).
+
+    ⛔ **Der Anlass.** Eine Anlage mit vollständig aggregierter Tagesebene sah
+    in *Cockpit → Monat* leere Kacheln, solange keine der vier direkten Quellen
+    antwortete: einen automatischen Monatsabschluss gibt es nicht, der laufende
+    Monat hat also nie eine ``Monatsdaten``-Zeile, und wer weder HA-Statistik
+    noch Connector noch MQTT-Zählerreihe hat, bekam gar nichts. **Der Verlauf
+    daneben zeigte dieselben Tage vollständig** (gemessen an der
+    Prüfstand-Anlage der Demo-DB r28: 13 September-Tage, PV 265,3 kWh,
+    Einspeisung 191,9, Netzbezug 101,3 — und drei leere Kacheln darüber).
+
+    Die Quelle ist dieselbe, die N-121 für die **Zeitreihen** geöffnet hat
+    (``services/energie_profil/monats_aus_tagen.py``); hier wird sie direkt
+    gelesen statt über ``lade_monats_fakten(inkl_nur_tageswerte=True)``, und
+    zwar aus einem Grund: Über die Fakten-Schicht käme sie als ``gespeichert``
+    heraus und behauptete eine Herkunft, die sie nicht hat. Die Marke
+    ``quellen.tagesebene`` und die eigene ``DatenquelleInfo`` sind der Punkt.
+
+    ⭐ **Zwei Leser, eine Quelle.** Die anlagenweite Strom-Bilanz kommt aus
+    ``monats_aus_tagen`` (Zähler · PV · BKW · Speicher). Die **Wärme/Klima**-
+    Größen reicht der Aufrufer als ``wp_mengen`` herein — aus
+    ``waerme_verlauf.lade_waerme_monatsmengen_je_geraet``, **demselben Leser,
+    den der Verlauf daneben für seine Tage benutzt**. Das ist keine
+    Bequemlichkeit: Genau dieses Nebeneinander war der Anlass (*„der Verlauf
+    zeigt dieselben Tage, die Kacheln nicht"*), und eine zweite Quelle hätte
+    zwei Zahlen erzeugt, wo eine gefragt war (S1).
+
+    ⚠ **Sie werden hereingereicht statt hier geholt**, weil der Aufrufer sie ein
+    zweites Mal braucht: für die Tabelle *Zahlen je Gerät*, deren Monatszeilen
+    es im laufenden Monat noch nicht gibt. Zweimal zu lesen wäre dieselbe
+    Abfrage zweimal.
+
+    ⚠ **Die WP-Größen kommen als Rohfelder je Gerät** (``inv_<id>_…``), nicht
+    aufgelöst — K3 und D1 fallen anschließend in ``_wp_strom_k3`` bzw.
+    ``_wp_waerme_d1`` wie bei jeder anderen Nicht-DB-Quelle. Eine Quelle, die
+    ihre Größen vorab auflöst, stünde als einzige neben der Kette.
+
+    ⚠ **Kein HA-Zugriff.** Die Tagesebene liegt lokal; das war die Auflage, unter
+    der N-121 entschieden wurde, und sie gilt hier genauso.
+
+    Returns:
+        ``{feld: (menge, DatenquelleInfo)}`` — nur Größen mit ``> 0``, wie in
+        allen vier Collectoren. Keine Tagesspur ⇒ leeres Dict.
+    """
+    from backend.services.energie_profil.monats_aus_tagen import (
+        lade_monats_summen_aus_tagen,
+    )
+
+    summen = await lade_monats_summen_aus_tagen(
+        db, anlage_id, von=(jahr, monat), bis=(jahr, monat)
+    )
+    summe = summen.get((jahr, monat))
+    wp_mengen = wp_mengen or {}
+
+    if (summe is None or summe.tage <= 0) and not wp_mengen:
+        return {}
+
+    # Die Abdeckung gehört dazu (P4): Beginnt die Tagesspur erst mitten im
+    # Monat — später eingerichtetes Add-on, Vollbackfill, der nicht zurückreicht
+    # —, sagt die Provenanz-Zeile es (*„Tageswerte (ab 05.09.)"*). Derselbe
+    # Slot, dieselbe Beschriftung wie beim Connector seit #361; beginnt sie am
+    # Monatsersten, schweigt sie von selbst (`connector_deckt_monatsanfang`).
+    # ⚠ Die Ränder der **beiden** Leser zusammen — die Wärme-Spur kann früher
+    # beginnen als die Bilanz-Spur und umgekehrt.
+    _erste = [t for t in (getattr(summe, "erster_tag", None), wp_von) if t]
+    _letzte = [t for t in (getattr(summe, "letzter_tag", None), wp_bis) if t]
+    quelle = DatenquelleInfo(
+        quelle="tagesebene", konfidenz=80, zeitpunkt=datetime.now().isoformat(),
+        abdeckung_von=datetime.combine(min(_erste), time.min) if _erste else None,
+        abdeckung_bis=(
+            datetime.combine(max(_letzte), time.min) + timedelta(days=1)
+            if _letzte else None
+        ),
+    )
+    resolved: dict[str, tuple[float, DatenquelleInfo]] = {}
+    for feld, wert in (
+        ("einspeisung_kwh", getattr(summe, "einspeisung_kwh", 0.0)),
+        ("netzbezug_kwh", getattr(summe, "netzbezug_kwh", 0.0)),
+        # `pv_kwh` ist Module + BKW — dieselbe PV-Achse wie im DB-Zweig.
+        ("pv_erzeugung_kwh", summe.pv_kwh if summe is not None else 0.0),
+        ("bkw_erzeugung_kwh", getattr(summe, "bkw_kwh", 0.0)),
+        ("speicher_ladung_kwh", getattr(summe, "speicher_ladung_kwh", 0.0)),
+        ("speicher_entladung_kwh", getattr(summe, "speicher_entladung_kwh", 0.0)),
+    ):
+        if wert > 0:
+            resolved[feld] = (wert, quelle)
+
+    # ── Wärme/Klima je Gerät (A-5) ──
+    # Die Feldnamen sind die der **Registry**, nicht die der Tagesebene — genau
+    # die Keys, die `_wp_strom_k3` und `_wp_waerme_d1` unten lesen. Damit läuft
+    # die bestehende Kette (K3 · D1 · `typ_aggregation` · Systemarbeitszahl),
+    # statt daneben eine zweite zu entstehen.
+    for inv_id, m in wp_mengen.items():
+        for feld, wert in (
+            ("stromverbrauch_kwh", m.strom_kwh),
+            ("waerme_kwh", m.waerme_kwh),
+            ("heizenergie_kwh", m.heizung_kwh),
+            ("warmwasser_kwh", m.warmwasser_kwh),
+            ("strom_heizen_kwh", m.strom_heizen_kwh),
+            ("strom_warmwasser_kwh", m.strom_warmwasser_kwh),
+            ("kaelte_kwh", m.kaelte_kwh),
+        ):
+            if wert > 0:
+                resolved[f"inv_{inv_id}_{feld}"] = (wert, quelle)
+    # Der Kühlanteil als Anlagensumme — Eingang der Ersparnis-Rechnung, wie im
+    # DB-Zweig (`fakt.wp.modus_strom_kuehlen_kwh`). Er ist eine **Teilmenge**
+    # des WP-Stroms, keine eigene Achse, und läuft deshalb nicht durch K3.
+    _kuehl = sum(m.modus_strom_kuehlen_kwh for m in wp_mengen.values())
+    if _kuehl > 0:
+        resolved["wp_modus_kuehlen_kwh"] = (_kuehl, quelle)
     return resolved
 
 
@@ -1617,6 +1775,38 @@ async def get_aktueller_monat(
         if ist_aktueller_monat else {}
     )
     ha_stats = await _collect_ha_statistics_data(anlage, jahr, monat)
+    # Fünfte Quelle (N-472) — nur im laufenden Monat, und das ist eine Aussage
+    # über die Kategorie, nicht über den Aufwand: Im laufenden Monat IST eine
+    # Teilmenge der Tage die vollständige Auskunft über das bisher Geschehene,
+    # und alle vier Quellen darüber messen dort ebenfalls nur bis jetzt. In
+    # einem abgeschlossenen Monat wäre dieselbe Teilmenge eine stille
+    # Untertreibung eines Monatswertes — dort ist die Antwort der
+    # Monatsabschluss, auf den der Daten-Checker ohnehin zeigt
+    # (`daten_checker/monatsdaten.py`, MONATSDATEN_VOLLSTAENDIGKEIT).
+    # Die Wärme/Klima-Mengen der Tagesebene — EINMAL gelesen, zweimal gebraucht:
+    # für die Kacheln (über den Collector) und für die Tabelle *Zahlen je Gerät*
+    # weiter unten, deren Monatszeilen es im laufenden Monat noch nicht gibt.
+    _tages_wp_mengen: dict = {}
+    _tages_wp_von = _tages_wp_bis = None
+    if ist_aktueller_monat and investitionen:
+        from calendar import monthrange
+
+        from backend.services.energie_profil.waerme_verlauf import (
+            lade_waerme_monatsmengen_je_geraet,
+        )
+        _tages_wp_mengen, _tages_wp_von, _tages_wp_bis = (
+            await lade_waerme_monatsmengen_je_geraet(
+                db, anlage, {str(i.id): i for i in investitionen},
+                date(jahr, monat, 1), date(jahr, monat, monthrange(jahr, monat)[1]),
+            )
+        )
+    tagesebene = (
+        await _collect_tagesebene_data(
+            db, anlage_id, jahr, monat,
+            wp_mengen=_tages_wp_mengen, wp_von=_tages_wp_von, wp_bis=_tages_wp_bis,
+        )
+        if ist_aktueller_monat else {}
+    )
 
     # Abdeckung des Connector-Deltas — sie steht in jedem seiner
     # DatenquelleInfo (eine Instanz für alle Felder), der erste Eintrag genügt.
@@ -1635,13 +1825,22 @@ async def get_aktueller_monat(
         ist_aktueller_monat=ist_aktueller_monat,
         connector_abdeckung_von=connector_abdeckung_von,
         monat_start=datetime(jahr, monat, 1),
+        tagesebene=tagesebene,
     )
     resolved: dict[str, tuple[float, DatenquelleInfo]] = merge_datenquellen(**quellen_args)
 
-    # Felder, die nur einen Teilzeitraum messen (Connector-Delta ohne Abdeckung
-    # des Monatsanfangs) — sie dürfen die Aggregation der Komponenten-Werte
-    # nicht unterdrücken, siehe `direct_fields` unten (#361).
-    teilzeitraum = teilzeitraum_felder(**quellen_args)
+    # Felder, die nur einen Teilzeitraum messen — sie dürfen die Aggregation der
+    # Komponenten-Werte nicht unterdrücken, siehe `direct_fields` unten (#361).
+    # Drei Herkünfte: Connector-Delta ohne Abdeckung des Monatsanfangs, MQTT mit
+    # Rückfall auf den ersten Stand (N-472) und die Tagesebene. Woran ein
+    # MQTT-Feld als Rückfall erkennbar ist, steht in `_collect_mqtt_inbound_data`:
+    # an der gesetzten `abdeckung_von` seiner eigenen `DatenquelleInfo`.
+    teilzeitraum = teilzeitraum_felder(
+        **quellen_args,
+        mqtt_ab_monatsbeginn={
+            k for k, (_, info) in mqtt_energy.items() if info.abdeckung_von is None
+        },
+    )
 
     # ── Investitions-Felder in Top-Level aggregieren (typabhängig) ──
     # Nur aggregieren wenn kein direkter Top-Level-Wert existiert (sonst Doppelzählung!)
@@ -2231,6 +2430,55 @@ async def get_aktueller_monat(
     _wp_kennzahlen_je_geraet = await lade_kennzahlen_je_geraet(
         db, anlage_id, _wp_invs_fuer_block, von=(jahr, monat), bis=(jahr, monat),
     )
+    # ── N-472/A-5: dieselbe Tabelle im laufenden Monat, aus der Tagesebene ──
+    #
+    # ⛔ **Der Dienst liest `InvestitionMonatsdaten` — die es im laufenden Monat
+    # nicht gibt.** Die Tabelle *Zahlen je Gerät* blieb deshalb leer, während
+    # Kachel und Verlauf darüber dieselben Tage vollständig zeigten; genau das
+    # Bild, gegen das dieses Paket gebaut ist, eine Ebene tiefer.
+    #
+    # ⭐ **Die Kennzahl entsteht trotzdem in derselben Funktion.** Der Dienst
+    # trägt für diesen Fall seit WK-16ab `mengen_aus_tageswerten` — dieselbe
+    # zweite Herkunft, die *Cockpit → Tag* benutzt; nur der Zeitraum ist ein
+    # Monat statt eines Tages. Es entsteht **keine** zweite Rechenstelle.
+    #
+    # ⚠ **Ersetzt wird nur, was leer ist.** Trägt ein Gerät für diesen Monat
+    # schon eine Zeile (gepflegter Teilmonat, Import), gewinnt sie — dieselbe
+    # Präzedenz wie oben in der Quellen-Kaskade.
+    if _tages_wp_mengen:
+        from backend.services.waermepumpe_kennzahlen_je_geraet import (
+            kennzahlen_aus_mengen,
+            mengen_aus_tageswerten,
+        )
+        _wp_invs_by_id = {i.id: i for i in _wp_invs_fuer_block}
+        _ersetzt: list = []
+        for _k in _wp_kennzahlen_je_geraet:
+            _m = _tages_wp_mengen.get(str(_k.inv_id))
+            _inv = _wp_invs_by_id.get(_k.inv_id)
+            if (
+                _m is None or _inv is None
+                or _k.mengen.strom_kwh > 0 or _k.mengen.waerme_kwh > 0
+            ):
+                _ersetzt.append(_k)
+                continue
+            _ersetzt.append(kennzahlen_aus_mengen(mengen_aus_tageswerten(
+                _inv,
+                strom_kwh=_m.strom_kwh,
+                waerme_kwh=waerme_gesamt_kwh(
+                    _m.waerme_kwh or None,
+                    _m.heizung_kwh + _m.warmwasser_kwh,
+                    None,
+                ),
+                heizung_kwh=_m.heizung_kwh,
+                warmwasser_kwh=_m.warmwasser_kwh,
+                strom_heizen_kwh=_m.strom_heizen_kwh,
+                strom_warmwasser_kwh=_m.strom_warmwasser_kwh,
+                kaelte_kwh=_m.kaelte_kwh,
+                modus_strom_kuehlen_kwh=_m.modus_strom_kuehlen_kwh,
+                funktionsfremd_abzug_kwh=_m.funktionsfremd_abzug_kwh,
+                waerme_ist_gesamt=bool(_m.waerme_kwh),
+            )))
+        _wp_kennzahlen_je_geraet = _ersetzt
     _wp_strom_ohne_waerme, _wp_geraete_ohne_waerme = schranken_eingang(
         _wp_kennzahlen_je_geraet,
     )
@@ -2858,12 +3106,31 @@ async def get_aktueller_monat(
     )
 
     # ── Quellen-Übersicht ──
+    # `tagesebene` steht **als eigene Marke** daneben und wird nicht unter
+    # „gespeichert" verbucht (N-472): Sie ist nicht gepflegt, sondern abgeleitet
+    # — wer sie für einen Monatsabschluss hält, sucht eine Zeile, die es nicht
+    # gibt.
     quellen = {
         "ha_statistics": bool(ha_stats),
         "mqtt_inbound": bool(mqtt_energy) if ist_aktueller_monat else False,
         "connector": bool(connector),
         "gespeichert": bool(saved),
+        "tagesebene": bool(tagesebene),
     }
+
+    # ── Grund statt Leere (N-472) ──
+    # Die Regel und der Wortlaut stehen in `core/monatswert_grund.py`; hier wird
+    # nur die eine Frage beantwortet, die diese Route beantworten kann: Hat für
+    # diesen Monat überhaupt irgendeine Quelle irgendetwas geliefert?
+    _grund = monatswert_grund_text(monatswert_grund(bool(resolved)))
+    datenlage_gruende: dict[str, str] = (
+        {
+            feld: _grund
+            for feld in ("pv_erzeugung_kwh", "einspeisung_kwh", "netzbezug_kwh")
+            if get_val(feld) is None
+        }
+        if _grund else {}
+    )
 
     # ── Feld-Quellen extrahieren ──
     feld_quellen = {
@@ -3061,6 +3328,7 @@ async def get_aktueller_monat(
         aktualisiert_um=now.isoformat(),
         quellen=quellen,
         hinweise=hinweise,
+        datenlage_gruende=datenlage_gruende,
         # Energie
         pv_erzeugung_kwh=pv,
         einspeisung_kwh=einspeisung,
