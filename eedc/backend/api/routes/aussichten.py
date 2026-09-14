@@ -62,6 +62,7 @@ from backend.core.berechnungen.ust_eigenverbrauch import (
     bemessungsgrundlage_aus_investitionen,
     ust_eigenverbrauch_fuer_anlage,
 )
+from backend.core.berechnungen.waermepumpe_kennzahl import waerme_gesamt_kwh
 from backend.core.field_definitions import (
     get_emob_pv_netz_kwh,
     get_wp_strom_kwh,
@@ -1531,8 +1532,20 @@ async def get_finanz_prognose(
             if inv_id == wp.id and wp.ist_aktiv_im_monat(jahr, monat):
                 # N-379: dieselbe Lesetuer wie im Layer — sonst traegt die
                 # Aussicht eine Waermemenge weiter, die es am Geraet nicht gibt.
-                thermisch = (daten.get("heizenergie_kwh", 0) or 0) + (
-                    get_wp_warmwasser_kwh(daten, wp.parameter)
+                #
+                # N-391/D1 (14.09.2026): und derselbe Vorrang „Gesamtwert vor
+                # Summanden" wie in `alternativkosten.py` eine Bildschirmseite
+                # weiter oben — die beiden Schleifen lesen dieselbe Zeile und
+                # duerfen sie nicht verschieden verstehen. Ohne D1 wog eine
+                # Waermepumpe mit EINEM Waermemengenzaehler in der thermischen
+                # Mischung mit **0 kWh**: `gesamt_wp_thermisch` blieb 0, die
+                # WP-Prognose fiel ganz aus (gemessen ueber `get_finanz_prognose`:
+                # `wp_alternativ_ersparnis_euro` **0,0** statt **790,0**), und
+                # `wp_ersparnis_je_inv` liess das Geraet leer ausgehen.
+                thermisch = waerme_gesamt_kwh(
+                    daten.get("waerme_kwh"),
+                    daten.get("heizenergie_kwh"),
+                    get_wp_warmwasser_kwh(daten, wp.parameter),
                 )
                 gesamt_wp_thermisch += thermisch
                 wp_agg["thermisch_kwh"] += thermisch

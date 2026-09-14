@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import Iterable, Optional
 
 from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+from backend.core.berechnungen.waermepumpe_kennzahl import waerme_gesamt_kwh
 from backend.core.field_definitions import (
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
@@ -207,8 +208,25 @@ def berechne_wp_alternativkosten_ersparnis(
             # Split-Klimaanlage gibt es die Groesse nicht, und genau hier
             # entstand aus einem Altwert die "Ersparnis vs. Gas" fuer Waerme,
             # die das Geraet nie abgegeben hat (dietmar1968, T89667 #295).
-            thermisch = (daten.get("heizenergie_kwh", 0) or 0) + (
-                get_wp_warmwasser_kwh(daten, wp.parameter)
+            #
+            # ⛔ **N-391/D1 (14.09.2026): der Gesamtwert VOR den Summanden.**
+            # Hier stand bis dahin die blosse Summe der beiden Achsen. Wer EINEN
+            # Waermemengenzaehler ueber Heizung und Warmwasser fuehrt, traegt
+            # seine Waerme seit WK-14b in `waerme_kwh` — und `thermisch` war
+            # dann **0**. An dieser Funktion gemessen (Lage B: Waerme gesamt
+            # 3000 kWh, Strom 1000 kWh, Gas 10 ct, Netz 30 ct): **-300,00 EUR**
+            # statt **33,33 EUR** — keine Gas-Ersparnis, nur die Stromkosten.
+            #
+            # Das ist die **N-397-Klasse** (roh gelesen, wo der Layer kanonisch
+            # liest) an einem **Geldpfad**: An dieser Summe haengen die
+            # Aussichten, der ROI-Fortschritt und die Jahres-Ersparnis des
+            # HA-Exports. `waerme_gesamt_kwh` ist die eine Regelstelle (D1);
+            # `waerme_kwh` waere als dritter Summand eine Doppelzaehlung, sobald
+            # jemand Gesamtzaehler **und** Aufteilung pflegt.
+            thermisch = waerme_gesamt_kwh(
+                daten.get("waerme_kwh"),
+                daten.get("heizenergie_kwh"),
+                get_wp_warmwasser_kwh(daten, wp.parameter),
             )
             strom = get_wp_strom_kwh(daten, wp.parameter)
             # B5/X-5 (05.09.2026, Entscheid E-B 18.08.): Kühlen ersetzt keine

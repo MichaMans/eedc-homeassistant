@@ -37,6 +37,7 @@ from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, hub_hilft,
     abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
+    waerme_gesamt_kwh,
 )
 from backend.core.berechnungen import (
     sonstiges_richtung,
@@ -144,6 +145,17 @@ MONAT_NAMEN = [
     "", "Januar", "Februar", "März", "April", "Mai", "Juni",
     "Juli", "August", "September", "Oktober", "November", "Dezember",
 ]
+
+#: Der Schluessel, unter dem die **Vorausloesung** der Waerme je Geraet ihr
+#: Ergebnis in ``resolved`` ablegt (N-391/D1, 14.09.2026).
+#:
+#: ⚠ **Kein Registry-Feld und keine Groesse der Anlage** — er entsteht in dieser
+#: Route und lebt nur zwischen ``_wp_waerme_d1`` und ``typ_aggregation``. Der
+#: Praefix ``_`` haelt ihn auseinander von den Feldnamen aus
+#: ``INVESTITION_FELDER``, die in ``resolved`` daneben stehen; ein Sensor- oder
+#: MQTT-Feld dieses Namens gibt es nicht und darf es nicht geben, sonst
+#: ueberschriebe eine Quelle die aufgeloeste Zahl.
+_WP_WAERME_D1_SUFFIX: str = "_waerme_d1_kwh"
 
 
 # =============================================================================
@@ -1307,7 +1319,16 @@ def _baue_investition_financial(
         # N-379: die eine Lesetuer — an einem Geraet ohne Warmwasserkreis ist 0.
         ww = get_wp_warmwasser_kwh(data, inv.parameter)
         strom = get_wp_strom_kwh(data, inv.parameter) or None
-        waerme_total = (waerme or 0) + (ww or 0)
+        # ⛔ **N-391/D1 (14.09.2026): Gesamtwert vor Summanden, je Geraet.**
+        # Hier stand bis dahin `(waerme or 0) + (ww or 0)`. Traegt der Monat
+        # dieses Geraets EINEN Waermemengenzaehler (`waerme_kwh`), war die
+        # Summe **0** — und die Zeile „Ersparnis vs. Alternative" entstand
+        # wegen der Bedingung darunter **gar nicht**, waehrend der
+        # Komponenten-Hub fuer dieselbe Anlage seit WK-14b eine Ersparnis
+        # nennt. Zwei Sichten, zwei Auskuenfte (SOLL §3.3 S1). Gemessen ueber
+        # die echte Route (`get_aktueller_monat`): Lage B **0** WP-Zeilen,
+        # Lage D eine Zeile mit **33,33 EUR**.
+        waerme_total = waerme_gesamt_kwh(data.get("waerme_kwh"), waerme, ww)
         if waerme_total > 0 and strom is not None:
             wp_result = berechne_wp_ersparnis(
                 wp_waerme_kwh=waerme_total,
@@ -1590,8 +1611,20 @@ async def get_aktueller_monat(
             "stromverbrauch_kwh": ("wp_strom_kwh",),
             "strom_heizen_kwh": ("wp_strom_kwh",),
             "strom_warmwasser_kwh": ("wp_strom_kwh",),
-            "heizenergie_kwh": ("wp_waerme_kwh",),
-            "warmwasser_kwh": ("wp_waerme_kwh",),
+            # ⛔ **Die Waerme steht hier NICHT als zwei (oder drei) Summanden.**
+            # `heizenergie_kwh` und `warmwasser_kwh` standen bis 14.09.2026 an
+            # dieser Stelle, `waerme_kwh` fehlte ganz — wer seine Waerme ueber
+            # EINEN Waermemengenzaehler fuehrt (Feld seit WK-14b) und fuer den
+            # laufenden Monat noch keine gespeicherte Zeile hat, sah in
+            # *Cockpit → Monat* **keine Waerme** (gemessen: `wp_waerme_kwh`
+            # None statt 3000). `waerme_kwh` als dritten Summanden nachzutragen
+            # waere die Gegenrichtung desselben Fehlers: Wer Gesamtzaehler
+            # **und** Aufteilung pflegt, zaehlte 3000 + 2100 + 900 = 6000.
+            # D1 faellt deshalb **je Geraet** in `_wp_waerme_d1` unten; hier
+            # steht nur noch dessen Ergebnis, und diese Tabelle summiert es —
+            # wie im DB-Zweig, wo `monats_fakten` je IMD-Zeile aufloest und
+            # erst danach addiert.
+            _WP_WAERME_D1_SUFFIX: ("wp_waerme_kwh",),
         },
         # E-Auto und Wallbox NICHT hier — sie messen denselben Stromfluss aus
         # zwei Perspektiven (Vehicle vs. Loadpoint). Aufsummieren über beide
@@ -1625,6 +1658,47 @@ async def get_aktueller_monat(
     direct_fields = set(resolved.keys()) - teilzeitraum
     ersetzbar = set(teilzeitraum)
 
+    def _wp_waerme_d1(inv_id: int) -> None:
+        """D1 je Geraet — der Gesamtwert verdraengt nur die EIGENE Aufteilung.
+
+        Legt das Ergebnis unter ``inv_<id>_<_WP_WAERME_D1_SUFFIX>`` ab, damit
+        ``typ_aggregation`` darueber nur noch **summieren** muss. Die Regel
+        selbst bleibt die eine Stelle (``waerme_gesamt_kwh``); dass sie **je
+        Geraet** faellt und nicht auf der Anlagensumme, ist dieselbe Lehre wie
+        im Tagespfad (N-391b): ``waerme_kwh`` ist ein Feld **am Geraet**, und
+        eine Aufloesung ueber den Summen liesse die Aufteilung des zweiten
+        Geraets still hinter dem Gesamtwert des ersten verschwinden (P4).
+
+        Die Herkunfts-Marke ist die des Wertes, der D1 tatsaechlich gewonnen
+        hat — bei den Summanden die des **letzten** vorhandenen, wie es die
+        frueheren zwei ``_aggregate``-Aufrufe hinterliessen (verhaltensgleich).
+        """
+        _gesamt = resolved.get(f"inv_{inv_id}_waerme_kwh")
+        _teile = [
+            resolved.get(f"inv_{inv_id}_{s}")
+            for s in ("heizenergie_kwh", "warmwasser_kwh")
+        ]
+        if _gesamt is None and all(t is None for t in _teile):
+            return
+        # Dieselbe Form wie im Layer-Zwilling `waerme_gesamt_je_geraet`: die
+        # Summanden werden **vorher** addiert und als EIN Argument uebergeben.
+        # Sonst haengt der Aufruf an der Laenge des Tupels darueber und eine
+        # dritte Waermeachse liesse ihn umfallen, statt mitzuzaehlen.
+        _wert = waerme_gesamt_kwh(
+            _gesamt[0] if _gesamt is not None else None,
+            sum(t[0] for t in _teile if t is not None),
+            None,
+        )
+        if _gesamt is not None and _gesamt[0]:
+            _quelle = _gesamt[1]
+        else:
+            _quelle = next(
+                (t[1] for t in reversed(_teile) if t is not None), None
+            )
+            if _quelle is None:          # nur eine gemessene 0 im Gesamtfeld
+                _quelle = _gesamt[1]
+        resolved[f"inv_{inv_id}_{_WP_WAERME_D1_SUFFIX}"] = (_wert, _quelle)
+
     def _aggregate(top_level_feld: str, inv_key: str) -> None:
         if inv_key not in resolved:
             return
@@ -1646,6 +1720,8 @@ async def get_aktueller_monat(
     for inv in investitionen:
         if not inv.ist_aktiv_im_monat(jahr, monat):
             continue
+        if inv.typ == "waermepumpe":
+            _wp_waerme_d1(inv.id)
         agg_map = typ_aggregation.get(inv.typ, {})
         for inv_suffix, ziel_felder in agg_map.items():
             for top_level_feld in ziel_felder:

@@ -1064,12 +1064,28 @@ Anwenders.
 >
 > **SoT:** `core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh`. Jede Sicht, die eine
 > Wärmemenge auswertet, bekommt sie von dort — Monats-Fakten, Komponenten-Hub, HA-Export,
-> Community-Payload und der Tag.
+> Community-Payload, der Tag, die anlagenweiten Alternativkosten
+> (`core/berechnungen/alternativkosten.py` ⇒ Aussichten · ROI · Jahres-Ersparnis des HA-Exports),
+> die thermische Gewichtung der WP-Prognose (`api/routes/aussichten.py`), die Komponenten-Zeile
+> „Ersparnis vs. Alternative“ in *Cockpit → Monat* und die Nicht-DB-Quellen des laufenden Monats
+> (MQTT · Connector · HA-Statistik).
 >
 > ```
 > Wärme_kWh = waerme_kwh            , wenn gepflegt        (EIN gemeinsamer Wärmemengenzähler)
 >           = heizenergie_kwh + warmwasser_kwh, sonst      (getrennte Zähler)
 > ```
+>
+> ⚠ **Die vier zuletzt genannten standen bis zum 14.09.2026 nicht in dieser Liste — und lasen die
+> Regel auch nicht** (N-391c). An einem Gerät mit gemeinsamem Wärmemengenzähler war die thermische
+> Menge dort 0; die Jahresformel lieferte damit **−300 € statt 33,33 €** (der WP-Strom wurde weiter
+> belastet, die Gas-Ersparnis daneben fiel weg), die Zeile in *Cockpit → Monat* entstand gar nicht,
+> und der laufende Monat zeigte keine Wärme. **Diese Liste ist deshalb Teil der Regel, nicht ihre
+> Illustration:** Wer eine Wärmemenge liest, steht hier — oder er liest falsch.
+>
+> ⛔ **`waerme_kwh` ist nie ein dritter Summand.** Wer Gesamtzähler **und** Aufteilung pflegt, zählte
+> sonst 3000 + 2100 + 900. Und die Regel fällt **je Gerät vor** dem Summieren: auf Anlagensummen
+> angewandt verschwände die Aufteilung des zweiten Geräts hinter dem Gesamtwert des ersten
+> (N-391b, ADR-002/P4).
 >
 > **Warum der Gesamtwert gewinnt (K1):** Die Gesamtmenge ist die Messung; jede Aufteilung steht
 > daneben, nie an ihrer Stelle. ⚠ **Bewusst die Gegenrichtung zur Stromseite** (`wp_strom_stufe`):
