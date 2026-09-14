@@ -108,7 +108,7 @@ from backend.core.field_definitions import (
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     ist_abgabe_kategorie,
-    wp_strom_stufe,
+    wp_strom_aufteilung,
 )
 from backend.utils.sonstige_positionen import berechne_sonstige_summen
 from backend.core.investition_kennwerte import get_speicher_kapazitaet_kwh
@@ -1659,10 +1659,10 @@ async def get_aktueller_monat(
             # `stromverbrauch_kwh`, `strom_heizen_kwh` und
             # `strom_warmwasser_kwh` standen bis 14.09.2026 alle drei an dieser
             # Stelle und wurden **addiert** — der Gesamtzaehler UND die
-            # Aufteilung, die ihn ersetzt. Die Lesetuer `get_wp_strom_kwh`
-            # (K3, `wp_strom_stufe`) tut genau das nicht: ist die feine Achse
-            # vollstaendig, IST sie die Menge und der Gesamtzaehler wird
-            # verworfen, *„sonst zaehlte derselbe Strom zweimal"*.
+            # Aufteilung darunter. Die Lesetuer `get_wp_strom_kwh`
+            # (K3, `wp_strom_aufteilung`) tut genau das nicht: ein
+            # Gesamtzaehler IST die Menge (K1), die feinen Achsen stehen
+            # daneben — addiert wird nie, ersetzt schon.
             # Gemessen ueber die echte Route (eine WP, HA-Statistik liefert
             # 1000 + 600 + 400, `getrennte_strommessung=True`):
             # `wp_strom_kwh` **2000 statt 1000**, `wp_jaz` **1,5 statt 3,0** —
@@ -1769,13 +1769,13 @@ async def get_aktueller_monat(
 
         Der Zwilling zu {@link _wp_waerme_d1} auf der Stromseite, und aus
         demselben Grund **je Geraet**: Die Stufenregel haengt an
-        ``Investition.parameter`` (``getrennte_strommessung``, Bauart) und an
-        der Frage, welche feinen Achsen *dieses* Geraet ueberhaupt hat. Auf der
-        Anlagensumme gestellt, waere sie fuer eine Waermepumpe neben einer
-        Split-Klimaanlage gar nicht beantwortbar.
+        ``Investition.parameter`` (``getrennte_strommessung``) und an den
+        Werten *dieses* Geraets. Auf der Anlagensumme gestellt, waere sie fuer
+        eine Waermepumpe neben einer Split-Klimaanlage gar nicht beantwortbar.
 
         ⛔ **Die Regel selbst bleibt die eine Stelle** (``get_wp_strom_kwh`` /
-        ``wp_strom_stufe``, K3/N-451). Hier wird sie nur **gerufen** — auch fuer
+        ``wp_strom_aufteilung``, K3/N-451/WK-16d). Hier wird sie nur
+        **gerufen** — mit denselben Werten fuer Menge und Marke, auch fuer
         die Herkunfts-Marke, statt ihre Bedingung lokal nachzubauen: ein
         Nachbau derselben Bedingung faellt erfahrungsgemaess anders aus als das
         Original (die Lehre aus Sprengsatz S7 in N-391c).
@@ -1811,11 +1811,9 @@ async def get_aktueller_monat(
         # drei `_aggregate`-Aufrufe hinterliessen (verhaltensgleich).
         _traeger = (
             ("stromverbrauch_kwh",)
-            if wp_strom_stufe(
-                parameter,
-                ist_belegt=lambda f: f in _eintraege,
-                hat_gesamtzaehler="stromverbrauch_kwh" in _eintraege,
-            ) == "gesamt"
+            if wp_strom_aufteilung(
+                {f: e[0] for f, e in _eintraege.items()}, parameter,
+            ).stufe == "gesamt"
             else FEINE_STROM_FELDER
         )
         _quelle = next(

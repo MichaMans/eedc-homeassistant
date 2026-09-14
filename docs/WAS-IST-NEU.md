@@ -102,6 +102,40 @@ und lass *Heizwärme* leer — im Monatsabschluss, oder gleich als Sensor unter
 *Einstellungen → Datenquellen*. **eedc verschiebt nichts von allein:** Deine
 bisherigen Monate bleiben, wie du sie gepflegt hast, bis du sie umträgst.
 
+**Ein Gesamtzähler neben getrennten Zählern zählt jetzt mit**
+
+**Betrifft dich das?** Nur, wenn du *Strom Heizen* und *Strom Warmwasser*
+getrennt misst **und** zusätzlich einen Gesamtzähler für die Wärmepumpe hast.
+Steht dein Gesamtzähler genau auf der Summe der beiden, ändert sich nichts.
+
+**Was war:** eedc hat den Gesamtzähler in dieser Lage weggeworfen — „die beiden
+Achsen sind zusammen der Verbrauch, sonst zählte dieselbe Kilowattstunde
+zweimal". Eine Wärmepumpe zieht aber Strom, der auf keiner der beiden Achsen
+liegt: **Standby, Steuerung, Umwälzpumpen.** Bei einem Tester waren das **145 von
+2193 kWh im Jahr**, knapp 7 % — und die fehlten in Verbrauch, Kosten, CO₂ und im
+Nenner der Arbeitszahl.
+
+**Was jetzt:** Hast du einen Gesamtzähler, ist **er** der Verbrauch deines
+Geräts. Die beiden Achsen stehen als Aufteilung darunter, und die Differenz
+erscheint als **„nicht aufgeteilt"**. Doppelt gezählt wird trotzdem nichts —
+eedc *ersetzt* die Summe, es addiert sie nicht.
+
+⚠ **Deine Arbeitszahl gesamt wird dadurch etwas kleiner.** Im Beispiel aus dem
+Handbuch: **3,44 statt 3,79**. Das ist die ehrliche Zahl — der Systemverbrauch
+gehört zur Wärmepumpe. **Die Zahlen je Funktion ändern sich nicht**; sie rechnen
+weiter mit dem jeweils eigenen Zähler.
+
+⚑ **Zwei Hinweise kommen dazu.** Liegt dein Gesamtzähler **unter** der Summe der
+Achsen, sagt der Daten-Checker es dir — dann misst er meist nur einen Teil des
+Geräts, und eedc rechnet in diesen Monaten weiter mit den Achsen. Liegt mehr als
+ein Viertel deines Verbrauchs auf keiner Achse, **fragt** eedc einmal nach, ob
+der Zähler wirklich nur die Wärmepumpe misst. Das ist kein Fehler, sondern eine
+Frage — oft ist genau das der Systemverbrauch.
+
+**Was du tun kannst:** Nichts, wenn dein Gesamtzähler stimmt. Hast du ihn bisher
+nicht zugeordnet, weil die Datenquellen-Fläche *„hier ist nichts einzutragen"*
+sagte: Jetzt lohnt er sich — der Text dort sagt inzwischen, was er bringt.
+
 **„Leistung Kühlen" wird jetzt auch angezeigt**
 
 **Betrifft dich das?** Nur, wenn dein Gerät kühlt **und** du dafür einen eigenen

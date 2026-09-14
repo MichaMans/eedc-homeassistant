@@ -19,7 +19,7 @@ from backend.core.field_definitions import (
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     groesse_gibt_es_am_geraet,
-    wp_strom_stufe,
+    wp_strom_aufteilung,
 )
 from backend.core.berechnungen.erzeuger_traeger import erzeuger_traeger
 from backend.core.investition_kennwerte import get_erzeuger_kwp
@@ -34,6 +34,7 @@ from .kategorien import (
     CheckErgebnis,
     CheckKategorie,
     CheckSeverity,
+    LINK_DATENQUELLEN,
     LINK_MONATSDATEN,
     MonatsdatenAbdeckung,
     link_monat_erfassen,
@@ -47,6 +48,18 @@ PV_MAX_KWH_PRO_KWP = {
     1: 55, 2: 75, 3: 110, 4: 140, 5: 170, 6: 180,
     7: 180, 8: 165, 9: 140, 10: 90, 11: 55, 12: 40,
 }
+
+#: WK-16d: Ab welchem Anteil der Menge stellt eedc die **Frage**, ob der
+#: Gesamtzähler wirklich nur die Wärmepumpe misst?
+#:
+#: ⚠ **Großzügig, und das ist Absicht.** Der Rest *soll* es geben — Standby,
+#: Steuerung und Umwälzpumpen laufen auf keiner der beiden Achsen; bei
+#: dietmar1968 sind es 6,6 % im Jahr, im Sommer einzelner Monate deutlich mehr.
+#: Ein Viertel trennt „das ist der Systemverbrauch" von „da hängt vermutlich
+#: noch etwas anderes am Zähler", ohne einer normalen Anlage zwölfmal im Jahr
+#: eine Frage zu stellen. Sie ist **kein Fehler** (INFO, Fragesatz): eedc weiß
+#: nicht, was am Zähler hängt, und behauptet es nicht.
+_REST_AUFFAELLIG_ANTEIL = 0.25
 
 
 class MonatsdatenChecks:
@@ -1046,57 +1059,19 @@ class MonatsdatenChecks:
         heiz_erwartet = get_feld_bedarf("waermepumpe", "heizenergie_kwh", param)[0] == "pflicht"
         ww_strom_gibt_es = groesse_gibt_es_am_geraet("waermepumpe", "strom_warmwasser_kwh", param)
 
-        # #183: Steht die feine Achse **vollständig**, ist der alte
-        # `stromverbrauch_kwh`-Sensor überflüssig — die Aggregation verwirft ihn
-        # dann (sonst zählte derselbe Strom zweimal), und er schreibt bloß
-        # parallel Werte in die JSON, die niemand mehr liest. INFO zum Entfernen.
-        #
-        # ⛔ **Bis zum 13.09.2026 hing diese Meldung allein am Kennzeichen, und
-        # seit N-451 wäre sie damit ein Rat ins Verderben** (gemessen an drei
-        # Lagen): Ist die feine Achse **unvollständig**, trägt genau dieser
-        # Sensor den Stromverbrauch des Geräts (K3) — ihn zu entfernen setzte
-        # jede Monats-Sicht wieder auf 0. Die Bedingung fragt deshalb dieselbe
-        # Stufenregel wie die Aggregation ({@link
-        # backend.core.field_definitions.wp_strom_stufe}), auf der Ebene der
-        # **Zuordnung** — genau der Ebene, über die die Meldung spricht.
-        if getrennte_strommessung:
-            anlage = getattr(inv, "anlage", None)
-            sensor_mapping = (anlage.sensor_mapping if anlage else None) or {}
-            inv_map = (sensor_mapping.get("investitionen") or {}).get(str(inv.id)) or {}
-            felder = inv_map.get("felder") or {}
-            alter_sensor = felder.get("stromverbrauch_kwh")
-
-            def _zugeordnet(feld: str) -> bool:
-                cfg = felder.get(feld)
-                return isinstance(cfg, dict) and cfg.get("strategie") == "sensor"
-
-            if (
-                isinstance(alter_sensor, dict)
-                and alter_sensor.get("strategie") == "sensor"
-                and wp_strom_stufe(
-                    param, ist_belegt=_zugeordnet, hat_gesamtzaehler=True,
-                ) == "fein"
-            ):
-                ergebnisse.append(CheckErgebnis(
-                    kategorie=kat, schwere=CheckSeverity.INFO,
-                    meldung=(
-                        f"{name}: Alter Gesamt-Stromverbrauch-Sensor "
-                        f"({alter_sensor.get('sensor_id')}) ist bei aktivierter "
-                        f"getrennter Strommessung obsolet"
-                    ),
-                    details=(
-                        # N-463 (13.09.2026): Hier stand „Beim nächsten Speichern
-                        # des Sensor-Mappings wird der Eintrag automatisch entfernt
-                        # — kein Klick nötig." Diesen Pfad gibt es seit der
-                        # Datenquellen-Fläche nicht mehr (gemessen: kein Speicherweg
-                        # entfernt Mapping-Felder). Eine Zusage ohne Code bleibt
-                        # nicht stehen.
-                        "Der Sensor wird nicht mehr gelesen — der Gesamtstrom kommt "
-                        "aus Strom Heizen + Strom Warmwasser, solange beide gepflegt "
-                        "sind. Du kannst ihn unter Einstellungen → Datenquellen "
-                        "entfernen; nötig ist es nicht."
-                    ),
-                ))
+        # ⛔ **Hier stand bis zum 14.09.2026 eine INFO „Alter
+        # Gesamt-Stromverbrauch-Sensor … ist bei aktivierter getrennter
+        # Strommessung obsolet" (#183).** Sie ist mit WK-16d **ersatzlos
+        # entfallen, weil der Zustand, den sie meldete, nicht mehr eintritt:**
+        # Ein zugeordneter Gesamtzähler ist seither die Menge (K1) und wird
+        # gelesen, auch neben einer vollständigen Achse — er ist nicht obsolet,
+        # sondern die Quelle des „nicht aufgeteilt"-Rests. Eine Empfehlung, ihn
+        # zu entfernen, hätte ab jetzt Standby, Steuerung und Umwälzpumpen aus
+        # der Bilanz geworfen. *Dieselbe Bauform wie die F-7-Stufe-1-Warnung,
+        # die mit #406 entfiel: eine Meldung ohne Defekt ist eine Falschmeldung.*
+        # An ihre Stelle treten die zwei Prüfungen unter der Monats-Karte: der
+        # **Widerspruch** (Gesamt < Σ Achsen) und die **Plausibilitätsfrage**
+        # (Rest > 25 %).
 
         imd_map = {
             (imd.jahr, imd.monat): (imd.verbrauch_daten or {})
@@ -1201,6 +1176,96 @@ class MonatsdatenChecks:
                     "Zählern ist es umgekehrt."
                 ),
                 link=link_monat_erfassen(waerme_widerspruch[0]),
+                investition_id=inv.id,
+            ))
+
+        # ── WK-16d: der Gesamt-Stromzähler und seine Achsen ──────────────────
+        #
+        # **Zwei Meldungen, zwei verschiedene Aussagen** — sie stehen hier, weil
+        # sie dieselbe Zeile lesen wie die zwei Prüfungen darüber und dieselbe
+        # Monatsliste bauen. Beide Zahlen kommen aus **einer** Auflösung
+        # ({@link backend.core.field_definitions.wp_strom_aufteilung}); die
+        # Toleranz und die Stufenregel liegen dort, nicht hier — ein zweiter
+        # Schwellenwert wäre die F-56-Klasse (die Fläche bemängelte eine Lage,
+        # die die Rechnung daneben durchgehen lässt).
+        strom_widerspruch: list[str] = []
+        rest_auffaellig: list[tuple[str, float, float]] = []
+        for (jahr, monat), daten in sorted(imd_map.items()):
+            _auf = wp_strom_aufteilung(daten, param)
+            if _auf.gesamtzaehler_zu_klein:
+                strom_widerspruch.append(f"{monat:02d}/{jahr}")
+                continue
+            # ⚠ **Die Frage setzt eine Aufteilung voraus, die auch etwas
+            # aufteilt.** Wer nur den Gesamtzähler pflegt, hat keinen Rest,
+            # sondern nur eine Menge — dass die Achsen fehlen, sagt die Meldung
+            # „Strom Heizen/Warmwasser fehlt" weiter unten, und zwei Hinweise
+            # auf denselben Sachverhalt wären Lärm.
+            #
+            # ⛔ **Und die Bedingung ist NICHT dieselbe wie die des Rests.**
+            # ``wp_strom_aufteilung`` fragt *steht eine Achse in der Zeile?*
+            # (``is not None`` — eine gemessene 0 ist eine Messung); hier wird
+            # gefragt, ob sie auch **etwas trägt**. Eine Zeile mit nur
+            # ``strom_warmwasser_kwh: 0.0`` hat einen Rest in voller Höhe der
+            # Menge, aber keine Aufteilung, über die sich eine Frage lohnte.
+            if _auf.feine_summe_kwh <= 0:
+                continue
+            if _auf.nicht_aufgeteilt_kwh > _REST_AUFFAELLIG_ANTEIL * _auf.menge_kwh:
+                rest_auffaellig.append(
+                    (f"{monat:02d}/{jahr}", _auf.nicht_aufgeteilt_kwh, _auf.menge_kwh)
+                )
+        if strom_widerspruch:
+            _s_monate = ", ".join(strom_widerspruch[:6])
+            if len(strom_widerspruch) > 6:
+                _s_monate += f" … (+{len(strom_widerspruch) - 6})"
+            ergebnisse.append(CheckErgebnis(
+                kategorie=kat, schwere=CheckSeverity.WARNING,
+                meldung=(
+                    f"{name}: Gesamtzähler kleiner als die Summe der Achsen "
+                    f"({_s_monate})"
+                ),
+                details=(
+                    "Der Gesamt-Stromverbrauch ist der Verbrauch des ganzen "
+                    "Geräts — Strom Heizen und Strom Warmwasser sind Teile "
+                    "davon und können zusammen nicht mehr sein. Steht dort "
+                    "weniger, meint einer der Werte etwas anderes als gedacht: "
+                    "Häufig misst der Gesamtzähler nur einen Teil des Geräts "
+                    "(nur das Außengerät, nur einen Stromkreis) oder eine der "
+                    "beiden Achsen zählt einen fremden Verbrauch mit. eedc "
+                    "rechnet in diesen Monaten mit der Summe der Achsen, damit "
+                    "nichts verloren geht — prüf bitte im Monatsabschluss, "
+                    "welcher Zähler welchen Wert liefert."
+                ),
+                link=link_monat_erfassen(strom_widerspruch[0]),
+                investition_id=inv.id,
+            ))
+        if rest_auffaellig:
+            _r_monate = ", ".join(m for m, _, _ in rest_auffaellig[:6])
+            if len(rest_auffaellig) > 6:
+                _r_monate += f" … (+{len(rest_auffaellig) - 6})"
+            _beispiel = max(rest_auffaellig, key=lambda e: e[1] / e[2])
+            ergebnisse.append(CheckErgebnis(
+                kategorie=kat, schwere=CheckSeverity.INFO,
+                meldung=(
+                    f"{name}: Der Gesamtzähler misst deutlich mehr als die "
+                    f"Achsen — misst er nur die Wärmepumpe? ({_r_monate})"
+                ),
+                details=(
+                    # P-6: der Weg steht dabei. Und **kein Fehler, eine Frage** —
+                    # der Unterschied kann vollkommen richtig sein (Standby,
+                    # Steuerung, Umwälzpumpen; bei einem Melder 6,6 % im Jahr).
+                    # Deshalb INFO und deshalb ein Fragesatz: eedc weiß nicht,
+                    # was am Zähler hängt, und behauptet es auch nicht.
+                    f"In {_beispiel[0]} liegen "
+                    f"{_beispiel[1]:.0f} von {_beispiel[2]:.0f} kWh weder auf "
+                    "Strom Heizen noch auf Strom Warmwasser; eedc führt sie als "
+                    "„nicht aufgeteilt“. Das ist oft richtig — Standby, "
+                    "Steuerung und Umwälzpumpen laufen auf keiner der beiden "
+                    "Achsen. Es kann aber auch heißen, dass am Gesamtzähler "
+                    "noch etwas anderes hängt als die Wärmepumpe. Prüf das "
+                    "unter Einstellungen → Datenquellen; ändern musst du "
+                    "nichts, wenn der Zähler stimmt."
+                ),
+                link=LINK_DATENQUELLEN,
                 investition_id=inv.id,
             ))
 

@@ -115,18 +115,34 @@ async def test_bei_f5_bleibt_das_zweite_stromfeld_pflicht(db):
 
 
 @pytest.mark.asyncio
-async def test_bei_f5_ist_das_gesamtstromfeld_inaktiv(db):
+async def test_bei_f5_ist_das_gesamtstromfeld_optional_mit_grund(db):
     """Die Gegenrichtung derselben Regel — sonst wäre sie „nie verdrängen".
 
     `stromverbrauch_kwh` ist bei F5 **nicht** Pflicht am Gerät (die Registry
-    stuft es auf `erweitert` zurück) ⇒ ein belegtes Split-Feld deckt es ab.
+    stuft es auf `erweitert` zurück) — es steht also nicht rot in der Fläche und
+    zählt in keinem Rollup als offene Lücke. Genau darum ging es bei N-456.
+
+    ⛔ **Bis zum 14.09.2026 stand hier ``("inaktiv", "gruppe:wp_strom")``** samt
+    dem Satz *„Der WP-Stromverbrauch ist bereits zugeordnet — hier ist nichts
+    einzutragen."* Mit WK-16d ist das falsch geworden: Ein Gesamtzähler ist die
+    Menge (K1) und trägt, was die beiden Achsen **nicht** messen — Standby,
+    Steuerung, Umwälzpumpen. Wer ihn wegen jenes Satzes nicht zuordnet, verliert
+    genau diese Kilowattstunden. Ein **Summand** deckt seine Geschwister nie ab;
+    das sagt `BEDARF_GRUPPEN_ALTERNATIV` seit N-391, und `stufe_bedarf_ein`
+    liest es jetzt auch.
+
+    **Die Substanz von N-456 ist unverändert: nicht Pflicht, keine Lücke.** Nur
+    die Begründung, die der Anwender liest, ist eine andere geworden.
     """
     aid, ids = await _anlage_mit_wps(
         db, geraete=[F5], zugeordnet=["1:strom_heizen_kwh"],
     )
     felder = await _felder(db, aid)
 
-    assert _bedarf(felder, ids[0], "stromverbrauch_kwh") == ("inaktiv", "gruppe:wp_strom")
+    assert _bedarf(felder, ids[0], "stromverbrauch_kwh") == ("optional", None)
+    text = felder[f"inv_energy_{ids[0]}_stromverbrauch_kwh"].get("bedarf_text") or ""
+    assert "nicht aufgeteilt" in text, text
+    assert "nichts einzutragen" not in text, text
 
 
 @pytest.mark.asyncio

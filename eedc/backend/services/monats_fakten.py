@@ -440,6 +440,23 @@ class WpFakten:
     #: {@link modus_nicht_aufgeteilt_kwh}. Auf Anlagenebene ist `strom_kwh` der
     #: falsche Bezug: er trägt auch Wärmepumpen ohne Modus-Sensor.
     modus_strom_bezug_kwh: float = 0.0
+    #: **WK-16d/K5 — der Rest der SUMMANDEN-Aufteilung** (Heizen/Warmwasser),
+    #: summiert über die Geräte: was ein Gesamtzähler **mehr** misst als seine
+    #: Achsen zusammen. Standby, Steuerung, Umwälzpumpen — dietmar1968s
+    #: „Systemverbrauch", bei ihm 145 von 2193 kWh im Jahr.
+    #:
+    #: ⛔ **Der ZWEITE Rest, und er ist nicht {@link
+    #: modus_nicht_aufgeteilt_kwh}.** Dieselbe Menge wird auf **zwei** Weisen
+    #: aufgeteilt, und jede lässt ihren eigenen Rest übrig:
+    #:
+    #: | Aufteilung | Rest | Herkunft des Rests |
+    #: | --- | --- | --- |
+    #: | Summanden (Strom Heizen + Strom Warmwasser) | **dieses Feld** | der Gesamtzähler misst mehr als die Achsen |
+    #: | Teilmengen (Betriebsart bzw. Modus-Split) | ``modus_nicht_aufgeteilt_kwh`` | Stunden ohne Modus-Signal, nicht gemessene Betriebsarten |
+    #:
+    #: Sie zu addieren wäre Doppelzählung; sie zu verwechseln hieße, in einer
+    #: Sicht den falschen Rest zu zeigen. Beide sind ≥ 0 und beide sind K5.
+    strom_nicht_aufgeteilt_kwh: float = 0.0
     #: Anteil von ``waerme_kwh``, der aus ``Strom × JAZ`` stammt statt aus
     #: einem Wärmemengenzähler. **Trägt die JAZ-Sperre aus Konzept §3.5** —
     #: siehe {@link jaz_belastbar}.
@@ -1568,6 +1585,7 @@ class _RohMonat:
         self.speicher_preis_summe = 0.0
         self.speicher_preis_gewicht = 0.0
         self.wp_strom = 0.0
+        self.wp_strom_nicht_aufgeteilt = 0.0
         self.wp_waerme = 0.0
         self.wp_strom_mit_ersatz = 0.0
         self.wp_waerme_mit_ersatz = 0.0
@@ -1783,6 +1801,10 @@ class _RohMonat:
 
         elif inv.typ == "waermepumpe":
             self.wp_strom += b.wp_strom
+            # WK-16d: der Rest der Summanden-Achsen, je Geraet aufgeloest und
+            # erst danach summiert — wie die Menge darueber. Auf der
+            # Anlagensumme gebildet waere er fuer eine Mischanlage sinnlos.
+            self.wp_strom_nicht_aufgeteilt += b.wp_strom_nicht_aufgeteilt
             self.wp_waerme += b.wp_waerme
             # N-256: dieselben Mengen noch einmal, aber nur über die Geräte, die
             # überhaupt eine Heizung ersetzt haben. KEINE Aufteilung je Gerät —
@@ -2156,6 +2178,7 @@ async def _baue_fakt(
             modus_abdeckung_h=roh.wp_modus_abdeckung_h,
             modus_gemessen=roh.wp_modus_gemessen,
             modus_strom_bezug_kwh=roh.wp_modus_strom_bezug,
+            strom_nicht_aufgeteilt_kwh=roh.wp_strom_nicht_aufgeteilt,
             waerme_abgeleitet_kwh=roh.wp_waerme_abgeleitet,
             # `WpFakten` ist `frozen=True` — die Mengen frieren beim Übergang
             # mit ein, damit ein Leser sie nicht versehentlich fortschreibt.
