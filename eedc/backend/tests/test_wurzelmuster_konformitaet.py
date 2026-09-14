@@ -2885,7 +2885,10 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
 
     # ── 2. Vorschlag: Vorbelegung · Beschriftung · weiche Herabstufung ────────
     "backend/core/field_definitions.py::get_feld_bedarf",         # Pflicht → optional, nie weg (N-86)
-    "backend/api/routes/investitionen/crud.py::_wp_nicht_bewertbar",  # Default-Bedarfe nicht vorbelegt (N-88/F2b)
+    # ⛔ `crud.py::_wp_nicht_bewertbar` stand hier bis WK-15c (14.09.2026) — die
+    # Vorbelegungs-Sperre fragte `ist_luft_luft_waermepumpe`. Sie fragt jetzt die
+    # **Achsen** (`feld_urteil`) und liest die Bauart nicht mehr; der Eintrag wäre
+    # tot und die Liste ist damit um einen Leser kürzer.
 
     # ── 3. Stammdatum: die Bauart reist als Eigenschaft ──────────────────────
     "backend/services/community_service.py::prepare_community_data",

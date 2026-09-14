@@ -135,3 +135,47 @@ describe('WaermepumpeFelder — „PV-Anteil (%)" sagt, was er tut (N-459 / SOLL
     expect(pvAnteilHinweis().textContent).toMatch(/Zuordnung des Eigenverbrauchs/)
   })
 })
+
+/**
+ * **WK-15c — das Feld „Heizwärmebedarf" an einem Gerät ohne Heiz-Achse.**
+ *
+ * Handbuch WAERME_KLIMA §6/F sagt der Brauchwasser-Wärmepumpe zu: *„die
+ * Heiz-Achse wird weder angeboten noch erwartet."* Der Daten-Checker fragt seit
+ * WK-15b nicht mehr danach — das Formular bot das Feld weiter an und belegte es
+ * mit 12.000 kWh vor.
+ *
+ * ⚠ **Die Klimaanlage behält es** (N-88/F2b): Sie hat eine Heiz-Achse, viele
+ * heizen mit ihr, und ihre Ersparnis hängt an genau dieser Zahl.
+ */
+describe('WaermepumpeFelder — Heizwärmebedarf nur mit Heiz-Achse (WK-15c)', () => {
+  function felder(wpArt: string) {
+    render(
+      <WaermepumpeFelder
+        paramData={{ wp_art: wpArt }}
+        onInputChange={noop}
+        setParam={noop}
+        zeige={() => undefined}
+        markTouched={noop}
+        setFeldRef={() => () => {}}
+      />,
+    )
+    return {
+      heiz: screen.queryByLabelText(/Heizwärmebedarf/),
+      ww: screen.queryByLabelText(/Warmwasserbedarf/),
+    }
+  }
+
+  it('bietet der Brauchwasser-Wärmepumpe keinen Heizwärmebedarf an', () => {
+    const { heiz, ww } = felder('brauchwasser')
+    expect(heiz).toBeNull()
+    expect(ww).not.toBeNull()
+  })
+
+  it('behält beide Felder an der Klimaanlage (N-88/F2b) und an der Luft-Wasser-WP', () => {
+    for (const art of ['luft_luft', 'luft_wasser']) {
+      const { heiz, ww } = felder(art)
+      expect(heiz, art).not.toBeNull()
+      expect(ww, art).not.toBeNull()
+    }
+  })
+})

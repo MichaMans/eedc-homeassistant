@@ -3,6 +3,7 @@ import { FormSection, Input, Select, Alert, RadioGroup, Button } from '../../../
 import { SchalterZeile } from '../SchalterZeile'
 import type { Innengeraet } from '../../../../lib/investitionParameter'
 import { istLuftLuft } from '../../../../lib/investitionParameter'
+import { hatHeizAchse } from '../../../../lib/fieldDefinitions'
 import type { TypFelderProps } from './types'
 
 /**
@@ -379,16 +380,33 @@ export function WaermepumpeFelder({ paramData, onInputChange, setParam, zeige, m
                 einem Typwechsel im offenen Formular übernommene Vorbelegung ist
                 jetzt SICHTBAR und damit korrigierbar, statt unbemerkt
                 mitgespeichert zu werden. */}
-            <Input
-              label="Heizwärmebedarf (kWh/Jahr)"
-              name="param_heizwaermebedarf_kwh"
-              type="number" step="any" min="0"
-              value={paramData.heizwaermebedarf_kwh as string}
-              onChange={onInputChange}
-              hint={istLuftLuft(paramData)
-                ? 'Nur wenn du mit dem Gerät heizt — sonst leer lassen'
-                : 'Aus Energieausweis oder Schätzung'}
-            />
+            {/* WK-15c (14.09.2026): An einem Gerät **ohne Heiz-Achse** —
+                einer Brauchwasser-Wärmepumpe — wird das Feld nicht angeboten.
+                Handbuch WAERME_KLIMA §6/F sagt genau das zu: „die Heiz-Achse
+                wird weder angeboten noch erwartet". Der Daten-Checker fragt
+                seit WK-15b nicht mehr danach; hier stand das Feld weiter, mit
+                12.000 kWh vorbelegt — und daraus wurden 571 €/Jahr Ersparnis
+                für Heizwärme, die das Gerät nie abgibt.
+
+                ⚠ Die **Klimaanlage** behält es (N-88/F2b): Sie hat eine
+                Heiz-Achse, viele heizen mit ihr, und ihre Ersparnis hängt an
+                genau dieser Zahl. Nur vorbelegt wird sie dort nicht.
+
+                ⛔ Gefragt wird die Registry-Spiegelung, nicht `wp_art`
+                (ADR-002/P13) — Backend-Gegenstück: `feld_urteil(…,
+                'heizenergie_kwh', …) == URTEIL_GILT`. */}
+            {hatHeizAchse(paramData) && (
+              <Input
+                label="Heizwärmebedarf (kWh/Jahr)"
+                name="param_heizwaermebedarf_kwh"
+                type="number" step="any" min="0"
+                value={paramData.heizwaermebedarf_kwh as string}
+                onChange={onInputChange}
+                hint={istLuftLuft(paramData)
+                  ? 'Nur wenn du mit dem Gerät heizt — sonst leer lassen'
+                  : 'Aus Energieausweis oder Schätzung'}
+              />
+            )}
             <Input
               label="Warmwasserbedarf (kWh/Jahr)"
               name="param_warmwasserbedarf_kwh"
