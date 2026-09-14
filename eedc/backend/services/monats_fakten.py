@@ -1182,9 +1182,10 @@ async def lade_monats_fakten(
     # ⚠ Seit N-141 Weg (c) gibt es einen **zweiten** Grund, sie zu laden, und er
     # hat nichts mit der Grundgesamtheit zu tun: der PV-Anteil der Heimladung
     # ist nirgends gemessen und wird aus der Tagesebene abgeleitet. Ohne dieses
-    # Nachladen sähe genau EINE Sicht (Cockpit → Monat, der einzige Aufrufer mit
-    # dem Flag) einen PV-Anteil, während Komponenten-Hub, CO₂-Bilanz und
-    # E-Auto-Ersparnis weiter 0 % behaupten — zwei Zahlen für dieselbe Größe,
+    # Nachladen sähen nur die Aufrufer MIT dem Flag (Speicher-Potential,
+    # Auswertungen → Tabelle und Cockpit → Jahr über `monatsdaten.py`; Cockpit →
+    # Monat ruft seit C1a OHNE das Flag) einen PV-Anteil, während Komponenten-Hub,
+    # CO₂-Bilanz und E-Auto-Ersparnis weiter 0 % behaupten — zwei Zahlen für dieselbe Größe,
     # die Klasse hinter #331 und F-15. Deshalb **bedingt**: nur wenn ein Monat
     # überhaupt Heimladung ohne gepflegten PV-Anteil trägt. Eine Anlage ohne
     # Wallbox und ohne E-Auto zahlt dafür nichts (Entscheid Gernot 2026-08-08).
