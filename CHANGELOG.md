@@ -7,7 +7,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
-## [Unreleased]
+## [4.0.45] - 2026-09-14 — Wärme und Klima zeigen, WANN etwas passiert ist — und der Strom der Wärmepumpe wird voll gerechnet
 
 ### Added
 
