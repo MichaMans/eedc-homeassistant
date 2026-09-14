@@ -123,7 +123,43 @@ async def lade_tageswerte_je_feld(
     *,
     rueckwaerts_tage: frozenset[date] | set[date] = frozenset(),
 ) -> dict[date, dict[str, float]]:
-    """Tages-kWh je Ausgabe-Key über ``[von, bis]`` — eine Reihe je Feld.
+    """Tages-kWh je Ausgabe-Key über ``[von, bis]`` — die Σ über die Geräte.
+
+    Die dünne Hülle über {@link lade_tageswerte_je_geraet}. Wer eine Regel
+    anwendet, die **am Gerät** hängt — D1 („Gesamtwert vor Summanden") ist eine
+    solche —, ruft die Kernfunktion; hier ist die Auflösung schon vorbei
+    (N-391b).
+    """
+    je_geraet = await lade_tageswerte_je_geraet(
+        db, anlage, investitionen_by_id, von, bis, felder,
+        rueckwaerts_tage=rueckwaerts_tage,
+    )
+    return {
+        tag: {key: sum(je_inv.values()) for key, je_inv in keys.items()}
+        for tag, keys in je_geraet.items()
+    }
+
+
+async def lade_tageswerte_je_geraet(
+    db: AsyncSession,
+    anlage,
+    investitionen_by_id: dict,
+    von: date,
+    bis: date,
+    felder: dict[tuple[str, str], str],
+    *,
+    rueckwaerts_tage: frozenset[date] | set[date] = frozenset(),
+) -> dict[date, dict[str, dict[str, float]]]:
+    """Tages-kWh je Ausgabe-Key **und Gerät** über ``[von, bis]``.
+
+    ⭐ **Warum die Geräte-Ebene der Kern ist und die Summe die Hülle** (N-391b,
+    14.09.2026): ``get_tagesdetail_kwh`` liefert beides seit Bauschnitt 6
+    (``werte`` und ``werte_je_inv``) — dieser Leser lieferte nur die Summe, und
+    der Monatsverlauf konnte D1 deshalb gar nicht je Gerät anwenden. Bei zwei
+    verschieden zählenden Wärmepumpen verschluckte der Gesamtwert der einen die
+    Aufteilung der anderen, und die Monatssäule nannte eine andere Wärme als der
+    Monat daneben. Die Summe ist aus den Geräte-Zahlen jederzeit zu bilden, die
+    Geräte-Zahlen aus der Summe nie.
 
     Args:
         felder: Ausschnitt aus ``aggregator.TAGESDETAIL_AUSGABE``,
@@ -139,10 +175,10 @@ async def lade_tageswerte_je_feld(
             nur Felder herein, deren Gegenstück in diesem Fenster steht.
 
     Returns:
-        ``{datum: {ausgabe_key: kwh}}``. Ein Tag ohne verwertbaren Wert fehlt
-        — ebenso ein Tag, dessen Zähler zurückgesprungen ist. **Keine 0 als
-        Platzhalter** (ADR-002/P4: keine Aussage statt einer Zahl, die wie eine
-        Messung aussieht).
+        ``{datum: {ausgabe_key: {inv_id: kwh}}}``. Ein Tag ohne verwertbaren
+        Wert fehlt — ebenso ein Tag, dessen Zähler zurückgesprungen ist.
+        **Keine 0 als Platzhalter** (ADR-002/P4: keine Aussage statt einer
+        Zahl, die wie eine Messung aussieht).
     """
     sensor_mapping = anlage.sensor_mapping or {}
     investitionen_map = sensor_mapping.get("investitionen", {}) or {}
@@ -162,7 +198,7 @@ async def lade_tageswerte_je_feld(
         fenster_je_tag[tag] = (start, start + timedelta(days=1))
     grenzen = sorted({ts for paar in fenster_je_tag.values() for ts in paar})
 
-    ergebnis: dict[date, dict[str, float]] = {}
+    ergebnis: dict[date, dict[str, dict[str, float]]] = {}
 
     for inv_id_str, inv in investitionen_by_id.items():
         if inv is None:
@@ -222,8 +258,11 @@ async def lade_tageswerte_je_feld(
                 )
                 if wert is None:
                     continue
-                je_tag = ergebnis.setdefault(tag, {})
-                je_tag[ausgabe_key] = je_tag.get(ausgabe_key, 0.0) + wert
+                # Dieselbe Akkumulation wie in `get_tagesdetail_kwh`: EIN Gerät
+                # kann über mehrere (typ, feld)-Paare in denselben Ausgabe-Key
+                # laufen, mehrere Geräte ohnehin.
+                geraete = ergebnis.setdefault(tag, {}).setdefault(ausgabe_key, {})
+                geraete[str(inv_id_str)] = geraete.get(str(inv_id_str), 0.0) + wert
 
     return ergebnis
 

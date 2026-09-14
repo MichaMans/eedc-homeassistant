@@ -41,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.berechnungen import waermepumpe_kwh_je_investition
 from backend.core.berechnungen.tages_stapel import TagesStapel, falte_tages_stapel
+from backend.core.berechnungen.waermepumpe_kennzahl import waerme_gesamt_je_geraet
 from backend.models.tages_energie_profil import TagesZusammenfassung
 from backend.services.energie_profil.modus_split_monat import lade_modus_split_je_tag
 from backend.services.mitteltemperatur import lade_tagesmittel_temperatur
@@ -50,7 +51,7 @@ from backend.services.snapshot.aggregator import (
     get_betriebsart_strom_tageswerte,
     get_wp_strom_stufe_je_investition,
 )
-from backend.services.snapshot.bereichs_leser import lade_tageswerte_je_feld
+from backend.services.snapshot.bereichs_leser import lade_tageswerte_je_geraet
 
 #: N-391: der gemeinsame Wärmemengenzähler. Er steht bewusst NICHT in
 #: `WAERME_AUSGABE_KEYS` (dort wird summiert), wird aber je Tag mitgelesen —
@@ -117,7 +118,10 @@ async def lade_waerme_verlauf(
     # Monatssäule eine andere Wärme als *Cockpit → Tag* für denselben Tag.
     # Bauschnitt 6b: Wärme UND Kälte in EINEM Satz Bereichsabfragen — dasselbe
     # Fenster je Tag. Getrennt wird danach nach Key, nie über die Summe.
-    nutzenergie_je_tag = await lade_tageswerte_je_feld(
+    # N-391b: **je Gerät** geladen, nicht als Anlagensumme — D1 unten ist eine
+    # Regel je Gerätezeile, und über den Summen verschlänge der Gesamtzähler
+    # EINER Wärmepumpe die Aufteilung aller anderen.
+    nutzenergie_je_tag = await lade_tageswerte_je_geraet(
         db, anlage, investitionen_by_id, von, bis,
         {**_WAERME_FELDER, **_KAELTE_FELDER},
         rueckwaerts_tage=rueckwaerts_tage,
@@ -164,13 +168,20 @@ async def lade_waerme_verlauf(
         # Wärmemengenzähler den Tag, ist er die Wärme; sonst ist sie die Summe
         # ihrer beiden Achsen. Ihn einfach in `WAERME_AUSGABE_KEYS` zu legen
         # hieße, ihn zur Aufteilung zu ADDIEREN — dieselbe Wärme zweimal.
-        waerme_teile = [v for k, v in werte.items() if k in WAERME_AUSGABE_KEYS]
-        _waerme_gesamt = werte.get(_WAERME_GESAMT_KEY)
-        if _waerme_gesamt:
-            waerme = _waerme_gesamt
-        else:
-            waerme = sum(waerme_teile) if waerme_teile else None
-        kaelte = werte.get(_KAELTE_KEY)
+        #
+        # ⛔ **N-391b: die Vorrangfrage steht je GERÄT.** Bis zum 14.09.2026
+        # stand sie hier auf der Anlagensumme — bei zwei verschieden zählenden
+        # Wärmepumpen (30 Gesamt · 20 + 5 aufgeteilt) nannte die Tagesliste
+        # deshalb **30**, während der Monat für denselben Bestand **55** sagt.
+        # Die Aufteilung des zweiten Geräts verschwand ohne jeden Hinweis
+        # (ADR-002/P4).
+        waerme_je_geraet = waerme_gesamt_je_geraet(
+            werte.get(_WAERME_GESAMT_KEY),
+            *(werte.get(k) for k in sorted(WAERME_AUSGABE_KEYS)),
+        )
+        waerme = sum(waerme_je_geraet.values()) if waerme_je_geraet else None
+        _kaelte_je_geraet = werte.get(_KAELTE_KEY)
+        kaelte = sum(_kaelte_je_geraet.values()) if _kaelte_je_geraet else None
         strom = sum(zaehler.values()) if zaehler else None
         if stapel.ist_leer and waerme is None and kaelte is None:
             # Ein Tag ohne Aufteilung und ohne gemessene Wärme hat für den

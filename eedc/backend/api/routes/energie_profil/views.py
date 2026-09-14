@@ -382,6 +382,9 @@ async def get_waerme_verlauf_stunden(
         verteile_felder_auf_stunden,
         verteile_tages_stapel_auf_stunden,
     )
+    from backend.core.berechnungen.waermepumpe_kennzahl import (
+        geraete_mit_gesamtwaerme,
+    )
     from backend.services.energie_profil import (
         lade_modus_split_tag,
         lade_modus_stunden_tag,
@@ -533,11 +536,20 @@ async def get_waerme_verlauf_stunden(
         if t == "waermepumpe"
     }
 
-    def _linie(ausgaben) -> tuple[list, float]:
+    def _linie(ausgaben, *, nur_geraete=None) -> tuple[list, float]:
+        """Eine Linie über die genannten Ausgabe-Keys.
+
+        ``nur_geraete`` schränkt **je Ausgabe-Key** auf eine Geräte-Menge ein
+        (fehlt der Key darin, zählen alle Geräte). Die Wärme braucht das, weil
+        D1 je Gerät entscheidet, WELCHE Zähler es zeichnen — s. u.
+        """
         summe = [0.0] * STUNDEN
         ohne_linie = 0.0
         for ausgabe in ausgaben:
             je_inv = verteilte_felder.get(ausgabe) or {}
+            _erlaubt = (nur_geraete or {}).get(ausgabe)
+            if _erlaubt is not None:
+                je_inv = {i: f for i, f in je_inv.items() if i in _erlaubt}
             werte, rest = verteile_felder_auf_stunden(
                 je_inv,
                 {
@@ -559,11 +571,29 @@ async def get_waerme_verlauf_stunden(
     # zeichnete seine Wärme dann zweimal. Gemessen wird deshalb dieselbe
     # Vorrangfrage wie im Monat — trug der Gesamtzähler den Tageswert, ist er
     # die Linie; sonst sind es die beiden Achsen.
-    _waerme_linien_keys = (
-        ("wp_waerme_kwh",) if detail.felder_je_inv.get("wp_waerme_kwh")
-        else tuple(sorted(WAERME_AUSGABE_KEYS))
+    #
+    # ⛔ **N-391b: die Frage wird je GERÄT gestellt, nicht für die Anlage.** Hier
+    # stand bis zum 14.09.2026 ein Alles-oder-nichts: *trägt IRGENDEIN Gerät
+    # `wp_waerme_kwh`, zeichne für ALLE nur den Gesamtschlüssel.* Bei zwei
+    # verschieden zählenden Wärmepumpen fiel damit die ganze Wärme der zweiten
+    # aus der Linie — sie stand weder im Balken noch im genannten Rest, weil das
+    # Feld gar nicht erst gelesen wurde. Jetzt bekommt jedes Gerät den Zähler,
+    # den D1 für es wählt: die Summe je Slot ist Σ je Gerät nach D1.
+    _gesamt_geraete = geraete_mit_gesamtwaerme(
+        detail.werte_je_inv.get("wp_waerme_kwh"),
     )
-    waerme_je_slot, waerme_ohne = _linie(_waerme_linien_keys)
+    _achsen_geraete = frozenset(
+        inv_id
+        for key in WAERME_AUSGABE_KEYS
+        for inv_id in (verteilte_felder.get(key) or {})
+    ) - _gesamt_geraete
+    waerme_je_slot, waerme_ohne = _linie(
+        (*sorted(WAERME_AUSGABE_KEYS), "wp_waerme_kwh"),
+        nur_geraete={
+            **{key: _achsen_geraete for key in WAERME_AUSGABE_KEYS},
+            "wp_waerme_kwh": _gesamt_geraete,
+        },
+    )
     kaelte_je_slot, kaelte_ohne = _linie(("wp_kaelte_kwh",))
 
     # ── Der Funktions-Stapel (WK-09 B2, SOLL §3.3/S2a) ─────────────────────
@@ -774,7 +804,7 @@ async def get_tag_detail(
         GRUND_FUNKTION_NICHT_DECKUNGSGLEICH, abgrenzungs_grund,
         ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
         arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
-        deckung_aus_geraeten, waerme_gesamt_kwh,
+        deckung_aus_geraeten, waerme_gesamt_je_geraet,
     )
     from backend.core.investition_parameter import (
         abgrenzung_stoerung, ist_luft_luft_waermepumpe,
@@ -865,10 +895,18 @@ async def get_tag_detail(
     # Tag konnte die Vorrangregel D1 also gar nicht anwenden. Mit dem Feld
     # *Wärme gesamt* kommt sein Tageswert über den Aggregator an
     # (`TAGESDETAIL_AUSGABE`), und Tag, Monat und Jahr lesen dieselbe Regel.
-    _wp_waerme_tag = waerme_gesamt_kwh(
-        detail.get("wp_waerme_kwh"),
-        detail.get("wp_heizung_kwh"), detail.get("wp_warmwasser_kwh"),
+    # ⛔ **N-391b: je GERÄT, dann summieren — nie auf `detail` (den Anlagen-
+    # summen).** Das Feld liegt am Gerät; über den Summen verschlänge der
+    # Gesamtzähler EINER Wärmepumpe die Aufteilung aller anderen (zwei WPs,
+    # 30 + [20 + 5] ⇒ 30 statt 55, während der Monat für denselben Bestand 55
+    # sagt). `werte_je_inv` trägt dieselben Zahlen je Gerät; `detail` ist ihre
+    # Summe — die Auflösung gehört davor, nicht danach.
+    _wp_waerme_je_geraet = waerme_gesamt_je_geraet(
+        _tagesdetail.werte_je_inv.get("wp_waerme_kwh"),
+        _tagesdetail.werte_je_inv.get("wp_heizung_kwh"),
+        _tagesdetail.werte_je_inv.get("wp_warmwasser_kwh"),
     )
+    _wp_waerme_tag = sum(_wp_waerme_je_geraet.values())
     wp_waerme_tag = round(_wp_waerme_tag, 2) if _wp_waerme_tag > 0 else None
     _tz_alle = (await db.execute(
         select(TagesZusammenfassung.komponenten_kwh).where(

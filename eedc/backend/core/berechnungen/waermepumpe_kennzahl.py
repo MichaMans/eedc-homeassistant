@@ -26,7 +26,7 @@ Layer, damit ihre Bedingungen mitwandern — nicht nur ihr Rechenweg.
 
 from __future__ import annotations
 
-from collections.abc import Set as AbstractSet
+from collections.abc import Mapping, Set as AbstractSet
 from dataclasses import dataclass
 from typing import Optional
 
@@ -113,6 +113,71 @@ def waerme_gesamt_kwh(
     if waerme_kwh:
         return float(waerme_kwh)
     return float(heizung_kwh or 0.0) + float(warmwasser_kwh or 0.0)
+
+
+def waerme_gesamt_je_geraet(
+    gesamt_je_inv: Optional[Mapping[str, float]],
+    *teile_je_inv: Optional[Mapping[str, float]],
+) -> dict[str, float]:
+    """D1 **je Gerät** — und erst danach summieren.
+
+    ⛔ **Warum das nicht dieselbe Frage auf der Anlagensumme ist.** ``waerme_kwh``
+    ist ein Feld **am Gerät** (`INVESTITION_FELDER["waermepumpe"]`), und E1 sagt
+    für die Anlage: *„Mengen dürfen nebeneinander stehen"* — die Anlage ist die
+    **Summe ihrer Geräte nach der Auflösung**, nie eine Auflösung über den
+    Summen. Der Unterschied wird sichtbar, sobald zwei Wärmepumpen verschieden
+    zählen (gemessen 14.09.2026, N-391b):
+
+    ======================  =============  ==========================
+    Gerät                   Felder         D1 dieses Geräts
+    ======================  =============  ==========================
+    WP1 (Gesamtzähler)      waerme 30      **30**
+    WP2 (zwei Zähler)       heiz 20, ww 5  **25**
+    ======================  =============  ==========================
+
+    Je Gerät ergibt das **55**, wie der Monat für denselben Bestand. Auf den
+    Anlagensummen (``waerme_gesamt_kwh(30, 20, 5)``) ergibt es **30** — die
+    Aufteilung von WP2 verschwindet still hinter dem Gesamtwert von WP1, und
+    genau diese Teilsumme ohne Hinweis verbietet ADR-002/**P4**.
+
+    Args:
+        gesamt_je_inv: ``{inv_id: kwh}`` des gemeinsamen Wärmemengenzählers.
+        *teile_je_inv: die **Summanden** je Gerät, eine Abbildung je Achse
+            (Heizwärme, Warmwasser-Wärme). Variadisch, weil die Aufrufer ihre
+            Achsen aus einer benannten Menge nehmen
+            (``aggregator.WAERME_AUSGABE_KEYS``) und eine dritte Achse dort
+            sonst still aus der Summe fiele.
+
+    Returns:
+        ``{inv_id: waerme_kwh}`` über die Vereinigung aller Schlüssel — jede
+        Zeile über {@link waerme_gesamt_kwh}, damit die Regel eine Stelle hat.
+    """
+    _gesamt: Mapping[str, float] = gesamt_je_inv or {}
+    _teile = [t or {} for t in teile_je_inv]
+    inv_ids = set(_gesamt) | {inv for teil in _teile for inv in teil}
+    return {
+        inv: waerme_gesamt_kwh(
+            _gesamt.get(inv),
+            sum(float(teil.get(inv) or 0.0) for teil in _teile),
+            None,
+        )
+        for inv in inv_ids
+    }
+
+
+def geraete_mit_gesamtwaerme(
+    gesamt_je_inv: Optional[Mapping[str, float]],
+) -> frozenset[str]:
+    """Die Geräte, an denen D1 auf den **Gesamtwert** fällt.
+
+    Dieselbe Bedingung wie in {@link waerme_gesamt_kwh} (``if waerme_kwh``), nur
+    als Menge statt als Zweig — für Leser, die nicht die Menge brauchen, sondern
+    die Frage *„welche Zähler zeichnen dieses Gerät?"*: die Stundenlinie legt für
+    genau diese Geräte den Gesamtschlüssel und für alle anderen die beiden Achsen.
+    Eine gemessene **0** ist kein Gesamtwert — sonst verlöre ein Gerät seine
+    Aufteilung an einen Zähler, der an diesem Tag nichts gemeldet hat.
+    """
+    return frozenset(inv for inv, wert in (gesamt_je_inv or {}).items() if wert)
 
 
 #: **Gemessene Null, nicht fehlender Zähler** — die Gegenstücke zu
