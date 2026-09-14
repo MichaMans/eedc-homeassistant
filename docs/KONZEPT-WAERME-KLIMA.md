@@ -19,7 +19,7 @@
 >
 > | Frage | Dokument |
 > | --- | --- |
-> | **Was sieht und tut der Anwender?** | [`HANDBUCH_WAERME_KLIMA.md`](HANDBUCH_WAERME_KLIMA.md) — Voraussetzungen je Anzeige, Zuordnung Schritt für Schritt, sechs Anlagen als Beispiel, die Sperrgründe im Wortlaut |
+> | **Was sieht und tut der Anwender?** | [`HANDBUCH_WAERME_KLIMA.md`](HANDBUCH_WAERME_KLIMA.md) — Voraussetzungen je Anzeige, Zuordnung Schritt für Schritt, sieben Anlagen als Beispiel, die Sperrgründe im Wortlaut |
 > | **Wie lautet die Formel je Kennzahl?** | [`BERECHNUNGEN.md`](BERECHNUNGEN.md) |
 > | **Welcher Sensor, welches MQTT-Topic?** | [`SENSOR-REFERENZ.md`](SENSOR-REFERENZ.md) |
 > | *Wo* eine Aggregat-Formel definiert wird | [`ADR-001-BERECHNUNGS-LAYER.md`](ADR-001-BERECHNUNGS-LAYER.md) |
@@ -127,7 +127,7 @@ Für **jede** Funktion gibt es genau zwei Größen; alles Weitere ist daraus abg
 | **Kühlen** | E_kühl | Q_kälte (**Kälte**, nicht Wärme) |
 | **Lüften** | E_lüft | — (keine bewertete Nutzenergie) |
 | **Entfeuchten** | E_entf | — (dito) |
-| **gesamt** | **E_ges** — die Bilanzgröße | **Q_ges** |
+| **gesamt** | **E_ges** — die Bilanzgröße | **Q_ges** — hat seit dem 14.09.2026 ein eigenes Feld, *Wärme gesamt* (`waerme_kwh`): der Ort für **einen** Wärmemengenzähler, der Heizung und Warmwasser zusammen misst. Steht er neben einer Aufteilung, gilt er (Gesamtwert vor Summanden); die Zeilen je Funktion sagen dann „Wärme nicht je Funktion gemessen" |
 
 Dazu drei **Begleitgrößen**, die keine Bilanz tragen: **Betriebsmodus** (Zustand jetzt — teilt E
 auf die Funktionen auf, wenn es nur *einen* Zähler gibt), **Betriebsstunden** und
@@ -244,6 +244,39 @@ an einer Stelle und nicht zweimal.
 Achsen als *Summanden* einer vollständigen Aufteilung gelten dürfen; es entscheidet **nicht**, ob
 ein feiner Zähler überhaupt zählt. Kennzeichen aus, kein Gesamtzähler, aber ein feiner Zähler
 zugeordnet ⇒ Stufe 3, er trägt.
+
+### Die Wärmeseite: Gesamtwert vor Summanden — je Gerät
+
+Auf der Wärmeseite gibt es dieselben zwei Familien — *Wärme gesamt* (`waerme_kwh`, seit dem
+14.09.2026) als Bilanzgröße und *Heizwärme* + *Warmwasser-Wärme* als Summanden —, aber **keine
+drei Stufen**: Es gibt kein Kennzeichen, das die Summanden zur „vollständigen" Aufteilung erklärt.
+Die Frage *„welche Menge ist die Wärme dieses Geräts?"* wird deshalb mit **einer** Regel an
+**einer** Stelle beantwortet (`core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh`):
+**Steht ein Gesamtwert, gilt er; sonst die Summe dessen, was gemessen ist.** Das ist K1 auf der
+Wärmeseite — ein Gesamtzähler neben einer Aufteilung addiert nicht, er ersetzt.
+
+* **Je Gerät, dann summiert** ([Kapitel 7](#7-mehrere-geräte)). Zwei Geräte mit verschiedener
+  Zählerlage — eines mit Gesamtzähler, eines mit Aufteilung — ergeben die **Summe ihrer je
+  aufgelösten Wärme**, nicht die Auflösung ihrer Summe. Monats-Fakten, Hub, Cockpit → Monat,
+  Aussichten/ROI (Jahresformel), HA-Export, Checker, Community-Payload und Tag lesen alle so. Der
+  erste Bau erreichte drei Geldstellen nicht (die Jahresformel schrieb die Summe im Klartext, nicht
+  über den Helfer — in Lage B stand dort 0) und der Tag löste zunächst auf der Anlagensumme auf (im
+  Mischfall 30 statt 55). *Wer eine Regel an jede Lesestelle bringt, sucht nach dem Feldnamen, nicht
+  nach dem Helfer.*
+* **Die Kennzahl je Funktion behält ihre Zahl, wo sie eine hat.** Wer Gesamtzähler *und*
+  Aufteilung pflegt, hat für Heizen und Warmwasser gemessene Zähler und Nenner (R2) — beide Zahlen
+  bleiben. Nur eine Funktion **ohne** eigenen Wärmewert sagt *„Wärme nicht je Funktion gemessen"*
+  statt *„kein Wärmemengenzähler zugeordnet"* — der Zähler ist ja zugeordnet. Eine pauschale
+  Sperre „sobald ein Gesamtwert dasteht" ist durchgefallen: Sie träfe auch das Gerät, dessen
+  Wärmemengenzähler nur am Heizkreis sitzt und dessen Heiz-Arbeitszahl richtig ist.
+* **Nur eine Richtung ist ein Widerspruch.** Gesamtwärme *kleiner* als Heizwärme + Warmwasser-Wärme
+  ⇒ der Daten-Checker warnt (meist ist unter „Wärme gesamt" die Heizwärme gelandet). Gesamt
+  *größer* als die Summe ist die normale Lage, wenn nur eine Achse eigens gemessen wird.
+* **Keine Migration.** Bestandszeilen, die einen Gesamtzähler unter „Heizwärme" führen, bleiben,
+  wie sie sind — eedc kann die drei Lagen (nur Heizung · beides mit einem Zähler · beides ohne
+  Zähler) in den Daten nicht unterscheiden (ADR-002/P3b: kein stiller Overwrite). Der Anwender
+  trägt um; der Vorschlag aus dem Gesamtstrom (F2) steht seitdem an *Wärme gesamt*, nicht mehr an
+  *Heizwärme*.
 
 ### Was jeder vorausgesetzte Wert leisten muss
 
@@ -685,6 +718,18 @@ falsch oder der Monatswert nicht mehr der, den Home Assistant kennt.
 | Strom, Wärme, Kälte, Betriebsstunden, Starts | **ja** |
 | Arbeitszahl, EER, JAZ | **nein** — nur neu berechnen aus Σ Q ÷ Σ E, und nur bei **gleicher Abgrenzung** |
 
+**Addiert wird, was je Gerät schon aufgelöst ist.** Die Vorrangregel für die Wärme ([Kapitel 3](#3-der-erfassungs-kanon--welcher-weg-gilt-wenn-mehrere-da-sind))
+wird **je Gerät** angewandt und erst danach summiert — genau wie K2 die Aufteilung je Gerät
+entscheidet. Die Auflösung der Anlagensumme ist etwas anderes als die Summe der aufgelösten
+Geräte, sobald zwei Geräte verschiedene Zählerlagen haben.
+
+**Eine Kennzahl je Funktion gibt es für die Anlage nur, wenn jedes Gerät sie je Funktion misst.**
+Trägt ein Gerät seine Wärme mit einem gemeinsamen Zähler, sagen die Funktions-Zeilen der Anlage
+*„Wärme nicht je Funktion gemessen"* — auch wenn ein zweites Gerät seine beiden Achsen sauber
+trennt. Das ist R2, nicht Vorsicht: Die Heizwärme des einen Geräts durch den Heizstrom beider
+zu teilen ergäbe eine Zahl, deren Zähler und Nenner nicht dasselbe Gerät meinen. Monat und Tag
+entscheiden das gleich (ODER über die Geräte).
+
 **E1 (Entscheid Gernot, 26.08.2026): Geräte verschiedener Bauart werden nicht zu einer Kennzahl
 zusammengefasst.** Eine Luft-Wasser-Wärmepumpe und eine Split-Klimaanlage haben verschiedene
 Funktionen, verschiedene Nutzenergie und verschiedene Vergleichsmaßstäbe. **Mengen dürfen
@@ -831,6 +876,11 @@ Nutzenergie ist thermisch. Als eigener Beitrag stünde die Wärmepumpe in der Ta
 * **Bei getrennter Strommessung bleiben beide Stromfelder Pflicht.** Sie sind **Summanden**, keine
   Alternativen — das leere Feld darf nicht „inaktiv" heißen. Inaktiv wird stattdessen das
   **Gesamt**stromfeld: *„Der WP-Stromverbrauch ist bereits zugeordnet."*
+* **Heizwärme und Wärme gesamt sind Alternativen** derselben Größe (Gruppe `wp_waerme`). Ist
+  eines zugeordnet, sagt das andere *„Die abgegebene Wärme ist bereits zugeordnet — hier ist nichts
+  einzutragen."* — das Gegenstück zu den Stromfeldern oben, die Summanden sind und beide Pflicht
+  bleiben. Der Daten-Checker mahnt deshalb die Heizwärme nicht an, wenn der gemeinsame Zähler
+  gepflegt ist (sonst: dieselbe Anlage, zwei Flächen, gegenteilige Aussage).
 * **Gesamtleistung verdrängt die Aufteilung.** Solange „Leistung gesamt" zugeordnet ist, wertet
   eedc „Leistung Heizen", „Leistung Warmwasser" und „Leistung Kühlen" im Verlauf nicht aus. Der
   Satz steht **am verdrängten Feld**, im Info-Ton, mit Info-Symbol — und **ohne** Knopf, der das
@@ -849,6 +899,7 @@ verdrängt wird. **Zustandsabhängig neben dem Schalter ist der einzige Ort, der
 | **Eine Stromseite fehlt bei getrennter Messung** | WARNING **je Seite** | Warmwasser-Wärme ohne Warmwasser-Strom (oder umgekehrt) ⇒ Nenner unvollständig, Arbeitszahl zu hoch. Handgriff: Monatsabschluss zuerst, Zuordnung zusätzlich |
 | **Gesamt-Sensor bei vollständiger feiner Achse obsolet** | INFO | die feine Summe *ist* die Gesamtmenge (K3, Stufe 1) |
 | **Heiz- + Kühlstrom > Gesamtverbrauch** | WARNING | die Teilmengen-Invariante ist verletzt |
+| **Gesamtwärme kleiner als Heizwärme + Warmwasser-Wärme** | WARNING | einer der Werte meint etwas anderes als gedacht — meist ist unter „Wärme gesamt" die Heizwärme gelandet; eedc rechnet mit der Gesamtwärme, die Monate fallen zu niedrig aus. Handgriff: im Monatsabschluss prüfen, welcher Zähler welchen Wert liefert. Die Gegenrichtung (Gesamt größer) ist kein Fehler |
 | **Heizend-kühlendes Gerät ohne Modus-Quelle** | INFO | Heiz- und Kühlstrom bleiben zusammen; der OK-Titel unterscheidet „gemessen" von „abgeleitet" |
 | **Modus-Quelle mehrdeutig** | INFO | mehrere Innengeräte zeigen auf verschiedene Entitäten ⇒ keine Aufteilung. Weg: eine Entität oder ein Template-Sensor |
 | **Geschätzter Kühlanteil** | INFO | bei getrennter Messung ohne Kühlzähler: der Kühlanteil wird verteilt und kürzt die Arbeitszahl **nicht** ([5.3](#53-abgezogen-wird-nur-was-im-nenner-steht)). Handgriff: „Strom Kühlbetrieb" zuordnen |
@@ -901,7 +952,6 @@ wird der Punkt fällig. Die Zuordnung zu den Fund-IDs steht in [Kapitel 12](#12-
 
 | Grenze | Auslöser |
 | --- | --- |
-| **Eine Wärmepumpe mit *einem* Wärmemengenzähler hat keinen Ort für ihre Gesamtwärme** — sie landet unter „Heizwärme", und jede Aufteilung darüber ist eine Behauptung. Die *Anzeige* ist repariert, die **Modellfrage** (Gesamtfeld oder Schalter) ist offen | der nächste Melder, dessen Arbeitszahl Heizen zu hoch aussieht — oder der nächste Eingriff an den Wärmefeldern der Registry |
 | **Der abgeleitete Zweig der Tagesaufteilung mischt im Snapshot-Pfad zwei Fenster** — die Form aus den Rückwärts-Slots, die Menge aus 0–24 Uhr. Der gemessene Zweig ist geheilt (S1a), dieser nicht | der erste Melder mit Betriebsmodus-Signal, dessen Tageszeile aus dem Snapshot-Pfad stammt — oder der nächste Eingriff an der abgeleiteten Tagesaufteilung |
 | **„Nutzenergie Heizbetrieb" hat keinen Leser** — wer das Feld pflegt, bekommt den falschen Grund „kein Wärmemengenzähler zugeordnet" | der erste Anwender, der Heizwärme je Betriebsart oder je Innengerät zuordnet — oder der nächste Eingriff an der Wärme-Faltung |
 | **Zwei Jahresschleifen über dieselben Fakten** — Formel zentral, Gruppierung je Sicht eigen | die fünfte Sicht — oder der nächste Eingriff an den Bilanz-Eingängen |
@@ -953,6 +1003,7 @@ oder im Bericht, nicht hier.
 | **K2** — gemessen schlägt abgeleitet, je Gerät ganz oder gar nicht | `core/berechnungen/betriebsart_gemessen.py`, `core/berechnungen/tages_stapel.py` | `test_tages_stapel_gemessen_verdraengt_abgeleitet.py`; `test_263_innengeraete_varianten.py` (acht benannte Datenlagen V1–V8 über sechs Flächen, dazu die Mischanlage aus zwei Geräten) | Regression |
 | **K4** — Summanden und Teilmengen nebeneinander | Registry + `funktionsfremd_abzug_kwh` | `test_n445_kuehlstrom_im_f5_heizstrom.py` (14 Proben, F5 mit und ohne Kühlzähler) | Regression |
 | **K5** — der Rest heißt *nicht aufgeteilt* | `core/betriebsmodus.py`, Modus-Split | `test_263_k2_modus_split.py`; `test_soll_waerme_klima_e4_lueften_entfeuchten.py::test_e4_restmenge_zieht_die_neuen_segmente_ab` | Regression |
+| **Gesamtwert vor Summanden (Wärme) — je Gerät** | `core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh` (Monat · Hub · HA-Export · Checker · Community) und die Geräte-Auflösung im Tag | `test_n391_gesamtwaerme.py` (15 Proben: Hub · Monat · Jahr · Tag · HA-Sensoren · Community · Checker · Invariante · CSV-Rundlauf · Client-Spiegel · Gruppen-Deckung; Lage D behält ihre Zahl); Mischfall zwei Geräte: `test_n391b_tag_je_geraet.py` (Kachel · Stundenlinie · Tagesliste · **Tag = Monat**); Geldpfade und Nicht-DB-Pfad: `test_n391c_geldpfade_d1.py` (Cockpit → Monat · Jahresformel · Aussichten · `typ_aggregation` mit Lage BEIDES, je Lage B = Lage D) | Regression |
 | **Σ Teilmengen ≤ Gesamt** | Modus-Split-Normierung | `test_263_innengeraete_varianten.py::test_teilmengen_ueberschreiten_nie_den_gesamtwert` | Regression |
 | **Tagesreset-Zähler bekommt keine Menge** | Monats- und Tagespfad | `test_n341_reset_zaehler_wird_abgelehnt.py` (eedc liefert **keine Zahl**) und `test_n341_checker_zaehler_ruecksprung.py` (der Anwender **erfährt warum** — WARNING); `test_soll_waerme_klima_achse3_aufloesung.py::test_iii1a…test_iii1d` (fünf Lagen inkl. „ruhendes Gerät behält seine Null") | Regression |
 | **Registry-Keys tragen keinen Bindestrich** (Voraussetzung der Innengeräte-Auflösung) | `field_definitions.basis_feld_key` | `test_263_innengeraete.py::test_kein_registry_feld_traegt_einen_bindestrich` (16 Proben in der Datei, je Eigenschaft eine) | **Wächter** (über die Registry) |
@@ -1028,7 +1079,7 @@ belegt — passive Kühlung, Brauchwasser-Wärmepumpe, bivalente Anlagen, Lüfte
 
 | Dokument | Verhältnis |
 | --- | --- |
-| [`HANDBUCH_WAERME_KLIMA.md`](HANDBUCH_WAERME_KLIMA.md) | die Anwendersicht derselben Fläche — Voraussetzungen, Zuordnung, Sperrgründe im Wortlaut, sechs Beispielanlagen |
+| [`HANDBUCH_WAERME_KLIMA.md`](HANDBUCH_WAERME_KLIMA.md) | die Anwendersicht derselben Fläche — Voraussetzungen, Zuordnung, Sperrgründe im Wortlaut, sieben Beispielanlagen |
 | [`KONZEPT-263-klima-split.md`](KONZEPT-263-klima-split.md) · [`KONZEPT-263-INNENGERAETE.md`](KONZEPT-263-INNENGERAETE.md) | **Kapitel 8** — die Bauform Split-/Multisplit-Klimaanlage samt Entstehungsgeschichte |
 | [`ADR-001-BERECHNUNGS-LAYER.md`](ADR-001-BERECHNUNGS-LAYER.md) | *wo* eine Formel definiert wird (S1) |
 | [`ADR-002-WURZELMUSTER.md`](ADR-002-WURZELMUSTER.md) | **P4** (Lücke ist keine 0) · **P9** (ein Energiefluss trägt genau einmal bei, zweiter Fall = S1b) · **P12** (Arbeitszahl nur im Layer) · **P13** (die Bauart entscheidet keine Größe = R1) |
@@ -1043,7 +1094,6 @@ Leser nichts.
 
 | Grenze (Kurzform) | ID | Band |
 | --- | --- | --- |
-| Ein Wärmemengenzähler, kein Ort für die Gesamtwärme | N-391 | P2 |
 | Abgeleitete Tagesaufteilung mischt im Snapshot-Pfad zwei Fenster | N-436 | P4 |
 | „Nutzenergie Heizbetrieb" ohne Leser | N-398 | P4 |
 | Zwei Jahresschleifen über dieselben Fakten | N-135 | P4 |
