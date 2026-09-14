@@ -244,3 +244,98 @@ async def test_modus_hinweis_klimaanlage_weiterhin_per_vorschlag(db):
     anlage, _ = await _anlage(db, KLIMA, mapping_felder=["stromverbrauch_kwh"])
     erg = await DatenChecker(db)._check_klima_modus_sensor(anlage)
     assert len(erg) == 1 and "nicht zugeordnet" in erg[0].meldung
+
+
+# ── Die Stammdaten-Seite: der Bedarf für die Jahres-Einsparungsschätzung ────
+#
+# WK-15/F-1 (14.09.2026). B2 hat oben die vier **Monats-/Zuordnungs**-Stellen
+# auf die Registry umgestellt — der Stammdaten-Block in
+# `daten_checker/stammdaten.py` blieb dabei stehen und fragte weiterhin gar
+# nichts: „Heizwärmebedarf nicht gesetzt" hing allein an `ersetzt_keine_heizung`.
+# Gemessen an der Brauchwasser-WP des Prüfstands (Lage F, Demo-DB r28 und
+# HAOS-Lab); `docs/HANDBUCH_WAERME_KLIMA.md` §6/F sagt für dieses Gerät wörtlich
+# zu, der Daten-Checker verlange die Heiz-Achse nicht. Dieselbe Klasse wie
+# N-86/N-304: **eine Regel, zwei Flächen, gegenteilige Aussage.**
+
+BEDARF_MELDUNG_HEIZ = "Heizwärmebedarf nicht gesetzt"
+BEDARF_MELDUNG_WW = "Warmwasserbedarf nicht gesetzt"
+
+
+async def _stammdaten_befunde(db, parameter: dict) -> list:
+    """Die Befunde des Stammdaten-Blocks für EIN Gerät mit diesen Parametern."""
+    anlage, _ = await _anlage(db, parameter)
+    return DatenChecker(db)._check_investitionen(anlage, [])
+
+
+def _meldungen(befunde) -> list[str]:
+    return [e.meldung for e in befunde]
+
+
+@pytest.mark.asyncio
+async def test_brauchwasser_wp_wird_nicht_nach_heizwaermebedarf_gefragt(db):
+    """F-1: das Gerät hat keine Heiz-Achse — also verlangt der Checker sie nicht.
+
+    Der Anwender konnte den Hinweis vorher nur abstellen, indem er eine Zahl
+    erfand (Handbuch §5/Schritt 7: ein Fehler bei uns).
+    """
+    befunde = await _stammdaten_befunde(db, {**BRAUCHWASSER, "warmwasserbedarf_kwh": 1800})
+    assert not [m for m in _meldungen(befunde) if BEDARF_MELDUNG_HEIZ in m]
+    assert not [m for m in _meldungen(befunde) if BEDARF_MELDUNG_WW in m], \
+        "der Bedarf IST gepflegt — kein Ersatz-Hinweis"
+
+
+@pytest.mark.asyncio
+async def test_heizwaermebedarf_hinweis_bleibt_wo_es_eine_heiz_achse_gibt(db):
+    """Gegenprobe (Bestand, Wortlaut bitgleich) — auch an der Klimaanlage.
+
+    Die Klimaanlage behält ihn bewusst: `feld_herabgestuft` wäre auch für sie
+    wahr (kein Wärmemengenzähler möglich), aber wer mit ihr **heizt**, braucht
+    den Bedarf für seine Ersparnis (N-88/F2b, #383).
+    """
+    for parameter, wer in ((LUFT_WASSER, "Luft-Wasser"), (KLIMA, "Klimaanlage"), ({}, "ohne Art")):
+        befunde = await _stammdaten_befunde(db, parameter)
+        treffer = [e for e in befunde if BEDARF_MELDUNG_HEIZ in e.meldung]
+        assert len(treffer) == 1, f"{wer}: der Hinweis gehört hierher"
+        assert treffer[0].meldung == "WP (waermepumpe): Heizwärmebedarf nicht gesetzt"
+        assert treffer[0].details == "Wird für Jahres-Einsparungsschätzung verwendet (kWh/Jahr)"
+        assert treffer[0].schwere == "info"
+        assert treffer[0].link == "/einstellungen/investitionen"
+
+
+@pytest.mark.asyncio
+async def test_ohne_ersetzte_heizung_bleiben_beide_achsen_still(db):
+    """Die zweite Frage bleibt die zweite Frage: ohne Altanlage gibt es nichts zu
+    schätzen — für beide Bauarten, wie seit F-41/#383."""
+    befunde = await _stammdaten_befunde(db, {**BRAUCHWASSER, "alter_energietraeger": "nichts"})
+    assert not [m for m in _meldungen(befunde) if BEDARF_MELDUNG_HEIZ in m or BEDARF_MELDUNG_WW in m]
+    befunde_w = await _stammdaten_befunde(db, {**LUFT_WASSER, "alter_energietraeger": "nichts"})
+    assert not [m for m in _meldungen(befunde_w) if BEDARF_MELDUNG_HEIZ in m]
+
+
+@pytest.mark.asyncio
+async def test_brauchwasser_wp_wird_nach_ihrer_eigenen_achse_gefragt(db):
+    """Die Frage fällt nicht weg, sie wechselt die Achse.
+
+    `_wp_nicht_bewertbar` (investitionen/crud.py) lässt die ROI-Zeile nur mit
+    einem gepflegten Bedarf rechnen; ohne diesen Hinweis stünde der Anwender vor
+    „Nicht bewertet: kein Wärmebedarf gepflegt" und erführe nicht mehr, welches
+    Feld gemeint ist.
+    """
+    befunde = await _stammdaten_befunde(db, BRAUCHWASSER)
+    treffer = [e for e in befunde if BEDARF_MELDUNG_WW in e.meldung]
+    assert len(treffer) == 1
+    assert treffer[0].meldung == "WP (waermepumpe): Warmwasserbedarf nicht gesetzt"
+    assert treffer[0].schwere == "info"
+    assert treffer[0].link == "/einstellungen/investitionen"
+    assert "Heiz-Achse" in treffer[0].details, "der Hinweis sagt, warum die andere Frage ausbleibt"
+    # Der Gesamtbedarf aus einem Import beantwortet dieselbe Frage.
+    befunde_gesamt = await _stammdaten_befunde(db, {**BRAUCHWASSER, "waermebedarf_kwh": 1800})
+    assert not [m for m in _meldungen(befunde_gesamt) if BEDARF_MELDUNG_WW in m]
+
+
+@pytest.mark.asyncio
+async def test_kein_neuer_hinweis_an_geraeten_mit_heiz_achse(db):
+    """Sonst nichts Neues: ein Hinweis je Gerät, und er nennt die Achse, die es hat."""
+    for parameter, wer in ((LUFT_WASSER, "Luft-Wasser"), (KLIMA, "Klimaanlage"), ({}, "ohne Art")):
+        befunde = await _stammdaten_befunde(db, parameter)
+        assert not [m for m in _meldungen(befunde) if BEDARF_MELDUNG_WW in m], wer

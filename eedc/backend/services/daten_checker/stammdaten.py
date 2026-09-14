@@ -28,6 +28,8 @@ from backend.core.berechnungen import (
 from backend.core.berechnungen.alternativkosten import ersetzt_keine_heizung
 from backend.core.wirtschaftlichkeit_defaults import NETZBEZUG_DEFAULT_CENT
 from backend.core.field_definitions import (
+    URTEIL_GILT,
+    feld_urteil,
     get_speicher_netzladung_kwh,
     ist_zaehler_kategorie,
 )
@@ -1529,13 +1531,81 @@ class StammdatenChecks:
                     ))
 
                 # Wärmebedarf für Jahres-Einsparungsschätzung
-                if not param.get("heizwaermebedarf_kwh") and not ersetzt_nichts:
-                    ergebnisse.append(CheckErgebnis(
-                        kategorie=kat, schwere=CheckSeverity.INFO,
-                        meldung=f"{name}: Heizwärmebedarf nicht gesetzt",
-                        details="Wird für Jahres-Einsparungsschätzung verwendet (kWh/Jahr)",
-                        link="/einstellungen/investitionen",
-                    ))
+                #
+                # ⚠ **Zwei Fragen, nicht eine** — die zweite fehlte bis zum
+                # 14.09.2026 (WK-15/F-1). `ersetzt_nichts` oben beantwortet die
+                # **Bewertbarkeit** („gibt es eine Altanlage?"); unbeantwortet
+                # blieb die **Messbarkeit**: *Hat dieses Gerät die Größe
+                # überhaupt?* Eine Brauchwasser-Wärmepumpe gibt keine Heizwärme
+                # ab — die Registry sagt das seit A6 (`heizenergie_kwh` trägt
+                # `!brauchwasser`), und der Monats-Checker fragt sie seit B2
+                # (`_check_wp_monatsdaten`). Dieser Block fragte gar nichts.
+                #
+                # Gemessen am „Stiebel Eltron WWK 300" (Prüfstand-Lage F, Demo-DB
+                # r28 **und** HAOS-Lab): INFO „Heizwärmebedarf nicht gesetzt",
+                # obwohl `docs/HANDBUCH_WAERME_KLIMA.md` §6/F wörtlich zusagt
+                # *„… die Heiz-Achse wird weder angeboten noch erwartet, und der
+                # Daten-Checker verlangt sie nicht."* Abstellen konnte der
+                # Anwender den Hinweis nur, indem er eine Zahl **erfindet** —
+                # genau das nennt Handbuch §5/Schritt 7 einen Fehler bei uns
+                # ([[feedback_daten_checker_kein_akzeptiert]]).
+                # **Klasse N-86/N-304:** eine Regel gilt auf einer Fläche und auf
+                # der zweiten nicht.
+                #
+                # ⛔ Deshalb steht hier die **Registry** und keine `wp_art`-Frage
+                # (ADR-002/P13, SOLL Wärme/Klima R1: die Bauart entscheidet keine
+                # Größe). ⚠ Und zwar `feld_urteil`, **nicht**
+                # `groesse_gibt_es_am_geraet`: das liefert für `heizenergie_kwh`
+                # an einer Brauchwasser-WP `True` (gemessen), denn die Bedingung
+                # ist dort **weich** — „untypisch, nicht unmöglich", wer doch
+                # einen kleinen Heizkreis hat, trägt ihn unter *Weitere Größen
+                # erfassen* ein. Für den Lesepfad ist das richtig, für diese
+                # Frage zu weit. ⚠ Ebenso wenig `feld_herabgestuft`: das ist auch
+                # an der **Klimaanlage** wahr (kein Wärmemengenzähler möglich),
+                # und die soll den Hinweis behalten — wer mit ihr heizt, braucht
+                # den Bedarf für seine Ersparnis (N-88/F2b).
+                heiz_achse_gilt = feld_urteil(
+                    "waermepumpe", "heizenergie_kwh", param,
+                ) == URTEIL_GILT
+                if not ersetzt_nichts:
+                    if heiz_achse_gilt:
+                        if not param.get("heizwaermebedarf_kwh"):
+                            ergebnisse.append(CheckErgebnis(
+                                kategorie=kat, schwere=CheckSeverity.INFO,
+                                meldung=f"{name}: Heizwärmebedarf nicht gesetzt",
+                                details="Wird für Jahres-Einsparungsschätzung verwendet (kWh/Jahr)",
+                                link="/einstellungen/investitionen",
+                            ))
+                    # Ohne Heiz-Achse **fällt die Frage nicht weg, sie wechselt
+                    # die Achse.** Dieselbe Schätzung läuft für ein solches Gerät
+                    # über den Warmwasserbedarf: `_wp_nicht_bewertbar`
+                    # (`investitionen/crud.py`) lässt die ROI-Zeile nur mit
+                    # **einem** gepflegten Bedarf überhaupt rechnen und schreibt
+                    # sonst „Nicht bewertet: kein Wärmebedarf gepflegt" — ohne
+                    # diesen Zweig stünde der Anwender vor genau dieser Zeile,
+                    # und kein Hinweis sagte ihm mehr, welches Feld sie meint.
+                    # Es bleibt bei **einem** Hinweis je Gerät; er nennt nur die
+                    # Achse, die dieses Gerät hat.
+                    #
+                    # `waermebedarf_kwh` (Gesamtbedarf, kein Formularfeld, kommt
+                    # aus Importen) zählt mit — die JAZ-Rechnung dort liest ihn
+                    # **vor** der Summe aus Heiz- und Warmwasserbedarf; wer ihn
+                    # gepflegt hat, dem fehlt nichts.
+                    elif (
+                        feld_urteil("waermepumpe", "warmwasser_kwh", param) == URTEIL_GILT
+                        and not param.get("warmwasserbedarf_kwh")
+                        and not param.get("waermebedarf_kwh")
+                    ):
+                        ergebnisse.append(CheckErgebnis(
+                            kategorie=kat, schwere=CheckSeverity.INFO,
+                            meldung=f"{name}: Warmwasserbedarf nicht gesetzt",
+                            details=(
+                                "Wird für Jahres-Einsparungsschätzung verwendet "
+                                "(kWh/Jahr). Nach dem Heizwärmebedarf fragt eedc "
+                                "an diesem Gerät nicht — es hat keine Heiz-Achse."
+                            ),
+                            link="/einstellungen/investitionen",
+                        ))
 
                 # Monatsdaten-Vollständigkeit der WP prüfen
                 ergebnisse.extend(

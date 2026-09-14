@@ -399,7 +399,7 @@ Gemessen (2026-08-18): `stammdaten.py:1007` gated **eine** Prüfung auf die **Ba
 | --- | --- | --- | --- |
 | **Alternativkosten (Gas-/Ölheizung) fehlen** (WARNING) | `anschaffungskosten_alternativ` (Spalte) | `core/berechnungen/investitionskosten.py::relevante_kosten_aus_investitionen` — `Σ max(0, gesamt − alternativ)` ⇒ **USt-Bemessungsgrundlage · Amortisations-Fortschritt · Amortisationsdauer** | *„Was hättest du stattdessen kaufen müssen?"* — **hat mit Ersetzen nichts zu tun.** Ein Neubau ersetzt keine Heizung, hat aber trotzdem keinen Gaskessel gekauft |
 | Alter Energiepreis nicht gesetzt (INFO) | `alter_preis_cent_kwh` | laufende Kosten der **ersetzten** Anlage | `ersetzt_keine_heizung()` |
-| Heizwärmebedarf nicht gesetzt (INFO) | `heizwaermebedarf_kwh` | Einsparungsschätzung gegen die ersetzte Anlage | `ersetzt_keine_heizung()` |
+| Heizwärmebedarf nicht gesetzt (INFO) | `heizwaermebedarf_kwh` | Einsparungsschätzung gegen die ersetzte Anlage | `ersetzt_keine_heizung()` **und** die Heiz-Achse gilt am Gerät (`feld_urteil("waermepumpe", "heizenergie_kwh", …) == URTEIL_GILT`, seit 14.09.2026 — eine Brauchwasser-WP wird nach ihrem Warmwasserbedarf gefragt) |
 
 **Negativbeweis:** In `investitionskosten.py` und allen weiteren Lesestellen von
 `anschaffungskosten_alternativ` kommt `alter_energietraeger`/`ersetzt_keine_heizung` **0-mal** vor.
