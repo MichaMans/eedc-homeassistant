@@ -3063,6 +3063,57 @@ def wp_strom_stufe(
     return "gesamt"
 
 
+def wp_feine_summe_kwh(
+    strom_heizen_kwh: float | None,
+    strom_warmwasser_kwh: float | None,
+    funktionsfremd_kwh: float = 0.0,
+    *,
+    betriebsart_gemessen: bool = False,
+) -> float:
+    """Was die **Summanden**-Aufteilung eines Geräts trägt (K4).
+
+    ``strom_heizen_kwh + strom_warmwasser_kwh`` und — bei **gemessener**
+    Betriebsart — die funktionsfremden Teilmengen (W-16: ein gemessener
+    Betriebsart-Zähler steht *neben* den beiden Achsen, nicht darin; ein
+    **abgeleiteter** Split verteilt dagegen die vorhandene Menge, ihn zu
+    addieren wäre die Doppelzählung von W-16b).
+
+    ⭐ **Warum das eine eigene Funktion ist** (WK-16c, 14.09.2026): Die Formel
+    wird an **zwei** Ebenen gebraucht — an der Monatszeile von {@link
+    wp_strom_aufteilung} und an den Tageswerten der Verteilungs-Sicht
+    (``services/waerme_verteilung.py``), die keine ``verbrauch_daten``-Zeile
+    hat, sondern Snapshot-Summen je Gerät. Sie dort nachzubauen wäre die
+    F-56-Klasse; die **Eingänge** dürfen sich unterscheiden, die Formel nicht.
+    """
+    summe = float((strom_heizen_kwh or 0) + (strom_warmwasser_kwh or 0))
+    if betriebsart_gemessen:
+        summe += float(funktionsfremd_kwh or 0.0)
+    return summe
+
+
+def wp_nicht_aufgeteilt_kwh(
+    menge_kwh: float, feine_summe_kwh: float, *, hat_aufteilung: bool,
+) -> float:
+    """Der **Zähler**-Rest eines Geräts (K5) — ``Menge − Aufteilung ≥ 0``.
+
+    Standby, Steuerung, Umwälzpumpen — dietmar1968s „Systemverbrauch".
+
+    ⚠ **``hat_aufteilung`` ist keine Formsache:** *„nicht aufgeteilt"* setzt
+    eine Aufteilung voraus. Wer nur einen Gesamtzähler pflegt, hat keinen Rest,
+    sondern nur eine Menge; dass die Achsen fehlen, sagt der Daten-Checker.
+
+    ⛔ **Nicht zu verwechseln mit dem Modus-Rest**
+    (``WpFakten.modus_nicht_aufgeteilt_kwh`` bzw.
+    ``TagesStapel.nicht_aufgeteilt_kwh``). Zwei Reste zweier verschiedener
+    Aufteilungen derselben Menge; sie zu addieren wäre Doppelzählung
+    (Konzept Wärme/Klima Kap. 3, Zwei-Reste-Tabelle).
+
+    Zweiter Aufrufer neben {@link wp_strom_aufteilung}: die Tagesebene der
+    Verteilungs-Sicht — s. {@link wp_feine_summe_kwh}.
+    """
+    return max(0.0, menge_kwh - feine_summe_kwh) if hat_aufteilung else 0.0
+
+
 @dataclass(frozen=True)
 class WpStromAufteilung:
     """Menge **und** Rest einer Monatszeile — K1 und K5 in einer Antwort.
@@ -3138,15 +3189,13 @@ def wp_strom_aufteilung(
     from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
 
     zeile = modus_strom_zeile(d)
-    feine_summe = float(
-        (d.get("strom_heizen_kwh") or 0) + (d.get("strom_warmwasser_kwh") or 0)
+    # W-16 und die Begründung stehen im Docstring von `wp_feine_summe_kwh` —
+    # seit WK-16c an einer Stelle, weil die Tagesebene der Verteilungs-Sicht
+    # dieselbe Formel auf Snapshot-Summen anwendet (F-56).
+    feine_summe = wp_feine_summe_kwh(
+        d.get("strom_heizen_kwh"), d.get("strom_warmwasser_kwh"),
+        zeile.funktionsfremd_kwh, betriebsart_gemessen=zeile.gemessen,
     )
-    if zeile.gemessen:
-        # W-16: ein **gemessener** Betriebsart-Zähler steht neben den beiden
-        # Achsen, nicht darin. Ein **abgeleiteter** Split verteilt dagegen die
-        # vorhandene Menge — ihn zu addieren wäre die Doppelzählung, gegen die
-        # W-16b gebaut wurde.
-        feine_summe += zeile.funktionsfremd_kwh
 
     gesamt = d.get("stromverbrauch_kwh")
     stufe = wp_strom_stufe(
@@ -3165,8 +3214,8 @@ def wp_strom_aufteilung(
     return WpStromAufteilung(
         menge_kwh=menge,
         feine_summe_kwh=feine_summe,
-        nicht_aufgeteilt_kwh=(
-            max(0.0, menge - feine_summe) if hat_aufteilung else 0.0
+        nicht_aufgeteilt_kwh=wp_nicht_aufgeteilt_kwh(
+            menge, feine_summe, hat_aufteilung=hat_aufteilung,
         ),
         stufe=stufe,
         gesamtzaehler_zu_klein=zu_klein,

@@ -34,13 +34,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.berechnungen import waermepumpe_kwh_je_investition
-from backend.core.berechnungen.tages_stapel import TagesStapel, falte_tages_stapel
+from backend.core.berechnungen.tages_stapel import (
+    TagesStapel,
+    beitraege_des_tages,
+    falte_tages_stapel,
+)
 from backend.core.berechnungen.waermepumpe_kennzahl import waerme_gesamt_je_geraet
 from backend.models.tages_energie_profil import TagesZusammenfassung
 from backend.services.energie_profil.modus_split_monat import lade_modus_split_je_tag
@@ -76,6 +80,18 @@ _KAELTE_FELDER = {
     for schluessel, key in TAGESDETAIL_AUSGABE.items()
     if key == _KAELTE_KEY
 }
+#: Die **Summanden**-Achsen (WK-16c) — derselbe Ausschnitt aus derselben
+#: Feldtabelle wie oben, nur für die Verteilungs-Sicht. Sie stehen bewusst
+#: NICHT in `_WAERME_FELDER`: das ist Strom, keine Nutzenergie, und die
+#: Wärme-Linie dürfte ihn niemals mitzeichnen.
+_ACHSEN_FELDER = {
+    schluessel: key
+    for schluessel, key in TAGESDETAIL_AUSGABE.items()
+    if key in ("wp_strom_heizen_kwh", "wp_strom_warmwasser_kwh")
+}
+
+if TYPE_CHECKING:  # pragma: no cover — nur für die Signatur unten
+    from backend.core.berechnungen.waerme_verteilung import GeraetStromEingabe
 
 
 @dataclass(frozen=True)
@@ -197,6 +213,87 @@ async def lade_waerme_verlauf(
             strom_kwh=round(strom, 2) if strom else None,
         ))
     return zeilen
+
+
+async def lade_waerme_verlauf_beitraege(
+    db: AsyncSession,
+    anlage,
+    investitionen_by_id: dict,
+    von: date,
+    bis: date,
+) -> dict[date, dict[str, "GeraetStromEingabe"]]:
+    """Je Tag und **je Gerät** die Eingabe der Verteilungs-Sicht (WK-16c).
+
+    ⭐ **Dieselben Eingänge wie {@link lade_waerme_verlauf}, eine Stufe früher
+    abgegriffen.** Jene Funktion faltet die Beiträge zum anlagenweiten
+    ``TagesStapel``; die Verteilung braucht sie **je Gerät**, weil ein Segment
+    dort *Gerät × Funktion* ist („WP Heizen" neben „Klima Heizen"). Beide lesen
+    denselben Zählerpfad, denselben Zeitfilter und dieselbe K3-Stufe — es gibt
+    keinen zweiten Weg zu diesen Zahlen.
+
+    ⚠ **Die Summanden-Achsen kommen aus demselben Bereichs-Leser** wie die
+    Wärme (``lade_tageswerte_je_geraet``) und damit im **Fenster der jeweiligen
+    Tageszeile** (N-434/N-435). Ohne das nennte die Tagessäule einen anderen
+    Heizstrom als *Cockpit → Tag* für denselben Tag.
+
+    Returns:
+        ``{datum: {inv_id: GeraetStromEingabe}}``. Ein Tag ohne jede
+        Wärmepumpen-Menge fehlt (P4: keine Reihe von Nullen).
+    """
+    from backend.services.waerme_verteilung import eingabe_aus_tageswerten
+
+    splits_je_tag = await lade_modus_split_je_tag(db, anlage.id, von=von, bis=bis)
+    zaehler_je_tag, rueckwaerts_tage = await _zaehlerstrom_je_tag(
+        db, anlage.id, von, bis,
+    )
+    achsen_je_tag = await lade_tageswerte_je_geraet(
+        db, anlage, investitionen_by_id, von, bis, _ACHSEN_FELDER,
+        rueckwaerts_tage=rueckwaerts_tage,
+    )
+    stufe_je_inv = await get_wp_strom_stufe_je_investition(
+        db, anlage, investitionen_by_id,
+    )
+
+    ergebnis: dict[date, dict[str, "GeraetStromEingabe"]] = {}
+    for tag in sorted(set(splits_je_tag) | set(zaehler_je_tag)):
+        if not (von <= tag <= bis):
+            continue
+        zaehler = zaehler_je_tag.get(tag, {})
+        if not zaehler:
+            continue
+        gemessen_je_inv = await get_betriebsart_strom_tageswerte(
+            db, anlage, investitionen_by_id, tag,
+            rueckwaerts=tag in rueckwaerts_tage,
+        )
+        beitraege = {
+            b.inv_id: b
+            for b in beitraege_des_tages(
+                gemessen_je_inv, zaehler, splits_je_tag.get(tag, {}),
+                investitionen_by_id, tag, stufe_je_inv=stufe_je_inv,
+            )
+        }
+        achsen = achsen_je_tag.get(tag, {})
+        je_geraet: dict[str, "GeraetStromEingabe"] = {}
+        for inv_id_str, menge in zaehler.items():
+            inv = investitionen_by_id.get(inv_id_str)
+            # #236/#239: Der Zeitfilter gehört auch hier hin — die Beiträge
+            # oben tragen ihn schon, der Zählerpfad nicht.
+            if inv is None or not inv.ist_aktiv_an(tag):
+                continue
+            je_geraet[inv_id_str] = eingabe_aus_tageswerten(
+                inv,
+                menge_kwh=float(menge or 0.0),
+                strom_heizen_kwh=(
+                    achsen.get("wp_strom_heizen_kwh", {}).get(inv_id_str)
+                ),
+                strom_warmwasser_kwh=(
+                    achsen.get("wp_strom_warmwasser_kwh", {}).get(inv_id_str)
+                ),
+                beitrag=beitraege.get(inv_id_str),
+            )
+        if je_geraet:
+            ergebnis[tag] = je_geraet
+    return ergebnis
 
 
 async def _zaehlerstrom_je_tag(

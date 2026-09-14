@@ -252,6 +252,17 @@ export const CHART_COLORS = {
   modusLueften: '#818cf8',          // = ROLLEN_BG.lueftung (indigo-400)
   modusEntfeuchten: '#4f46e5',      // = ROLLEN_BG.entfeuchtung (indigo-600)
   modusNichtAufgeteilt: '#9ca3af',  // = ROLLEN_BG.nicht_aufgeteilt (gray-400)
+  // ⭐ **Der ZWEITE Rest** (WK-16c): „System/Standby" ist der Zähler-Rest
+  // (Gesamtzähler − Summanden-Achsen), `modusNichtAufgeteilt` darüber der
+  // Modus-Rest (Stunden ohne Modus-Signal). Sie stehen im selben Bild
+  // nebeneinander und werden nie addiert (Konzept Wärme/Klima Kap. 3) — also
+  // zwei Rollen und nach Regel 0a zwei Farben. Beide bleiben in der
+  // Grau-Familie: Ein Rest ist keine bewertete Betriebsart, und eine eigene
+  // Hue hieße „hier passiert etwas Eigenes". Der dunklere Ton steht bewusst auf
+  // dem Zähler-Rest — er ist die Menge, die eine Anlage WIRKLICH verbraucht
+  // hat (Standby, Steuerung, Umwälzpumpen), während der Modus-Rest nur sagt,
+  // dass ein Signal fehlte.
+  systemRest: '#4b5563',            // = ROLLEN_BG.system_rest (gray-600)
 }
 
 /** Börsenpreis-Stufen (#335) — EINE Datenrolle (Strompreis), nach Preisniveau abgestuft.
@@ -482,6 +493,9 @@ export const ROLLEN_BG = {
   // E4 gilt beides nebeneinander: **gemessen** bekommen sie ihr Segment,
   // **ungemessen** bleiben sie hier.
   nicht_aufgeteilt: 'bg-gray-400',
+  // WK-16c: der **Zähler**-Rest (System/Standby) — die zweite Rest-Rolle, s.
+  // `CHART_COLORS.systemRest`. Zwei Reste, zwei Farben; addiert werden sie nie.
+  system_rest: 'bg-gray-600',
   ladung: DATENROLLE.speicherLadung.bg,
   entladung: DATENROLLE.speicherEntladung.bg,
 } as const

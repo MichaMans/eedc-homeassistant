@@ -43,7 +43,8 @@ import { finanzTeaserBlock } from './MonatRahmen'
 import type { Block } from '../components/blocks'
 import type { ParkApi } from '../components/park'
 import type {
-  TagWerte, StundenWert, SerieInfo, TagDetail, WaermeVerlaufStunde, WaermeVerlaufStunden,
+  TagWerte, StundenWert, SerieInfo, TagDetail, VerteilungVerlauf,
+  WaermeVerlaufStunde, WaermeVerlaufStunden,
 } from '../api/energie_profil'
 import type { WaermeVerlaufPunkt } from './waermeVerlauf'
 import type { AktuellerMonatResponse, SonstigesGeraet } from '../api/aktuellerMonat'
@@ -277,6 +278,9 @@ export function baueTagKomponentenUndFinanz(
   tag: TagWerte, stunden: StundenWert[], serien: SerieInfo[], park: ParkApi, tagDetail?: TagDetail | null,
   /** Der Wärme/Klima-Verlauf des Tages (eigene Route) — ohne ihn fehlt nur der Verlauf. */
   wpVerlaufStunden?: WaermeVerlaufStunden | null,
+  /** WK-16c: Verteilung & Verlauf des Tages (Stunden). Gleiche Bauform — ohne
+   *  ihn fehlt genau dieser Blockteil. */
+  wpVerteilung?: VerteilungVerlauf | null,
 ): Block[] {
   const d = baueTagAlsMonat(tag, stunden, serien, tagDetail)
   const finanz = finanzTeaserBlock(d, park)
@@ -292,6 +296,7 @@ export function baueTagKomponentenUndFinanz(
             funktion: wpVerlaufStunden.funktion_ohne_stundenform_kwh,
           }
         : null,
+      wpVerteilung,
     ),
     ...(finanz ? [finanz] : []),
   ]

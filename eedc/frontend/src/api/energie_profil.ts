@@ -571,6 +571,58 @@ export interface ReaggregateTagResponse {
  * ⚠ **Kein `wp_waerme_abgeleitet_kwh`** — auf Tagesebene gibt es keine
  * abgeleitete Wärme; sie entsteht an den Monatszeilen.
  */
+/** Ein Segment der Verteilung — **ein Gerät, eine Funktion** (WK-16c).
+ *
+ *  ⚠ Die Kennzahl eines Geräts teilt sich mit keinem anderen (E1); die **Menge**
+ *  darf summiert werden. Deshalb steht hier eine Menge und keine Arbeitszahl. */
+export interface VerteilungSegment {
+  /** `"<investition_id>:<funktion>"` — der Schlüssel der Perioden-Werte. */
+  schluessel: string
+  /** `heizen` · `warmwasser` · `kuehlen` · `lueften` · `entfeuchten` ·
+   *  `system` (Zähler-Rest) · `ohne_modus` (Modus-Rest). */
+  funktion: string
+  funktion_label: string
+  geraet: string
+  investition_id: number
+  kwh: number
+  /** Anteil an der **aufgeteilten** Menge, nicht an der Gesamtmenge (W-17b). */
+  anteil_prozent: number
+  /** `gemessen` · `abgeleitet` · `rest`. */
+  herkunft: string
+  preis_cent?: number | null
+  kosten_euro?: number | null
+}
+
+/** Eine Periode des Verlaufs — Stunde, Tag oder Monat. */
+export interface VerteilungPeriode {
+  schluessel: string
+  label: string
+  /** `{Segment-Schlüssel: kWh}` — nur Segmente mit Menge (P4). */
+  kwh_je_segment: Record<string, number>
+  temperatur_c?: number | null
+  /** Symbol-Name wie im Live-Dashboard (`sunny` · `cloudy` · …) oder `null`. */
+  wetter_symbol?: string | null
+}
+
+/** Verteilung eines Zeitraums **und** ihr Verlauf — ein Typ für alle drei Stufen. */
+export interface VerteilungVerlauf {
+  sicht: string
+  /** `stunde` · `tag` · `monat` — die Auflösung der Perioden. */
+  stufe: string
+  segmente: VerteilungSegment[]
+  perioden: VerteilungPeriode[]
+  /** Der **gesamte** Wärme/Klima-Strom des Zeitraums (K1). */
+  menge_kwh: number
+  /** Σ der Segmente — die Differenz zu `menge_kwh` wird genannt (W-17b). */
+  aufgeteilt_kwh: number
+  kosten_gesamt_euro?: number | null
+  /** Σ aller Perioden. Bei Monat und Tag **nicht** `aufgeteilt_kwh` (andere
+   *  Quelle, anderes Fenster) — die Differenz wird genannt. */
+  verlauf_kwh: number
+  /** Nur `stufe === 'stunde'`: was sich keiner Stunde zuordnen ließ (P4). */
+  ohne_stundenform_kwh?: number | null
+}
+
 export interface WaermeVerlaufTag {
   datum: string
   wp_strom_kwh: number | null
@@ -647,6 +699,26 @@ export const energieProfilApi = {
     api.get(`/energie-profil/${anlageId}/tage-werte?von=${von}&bis=${bis}`),
 
   /** Die Tagesreihe des Wärme/Klima-Verlaufs. Zeitraum max. 31 Tage. */
+  /** Verteilung & Verlauf (WK-16c) — **eine** Route für alle drei Sichten.
+   *
+   *  `sicht` bestimmt die Auflösung der Perioden: Jahr → Monate, Monat → Tage,
+   *  Tag → Stunden. Der Aufrufer gibt den Zeitraum, den seine Sicht ohnehin
+   *  kennt; drei Client-Funktionen für dieselbe Antwort wären drei Stellen, an
+   *  denen ein Feld vergessen wird. */
+  getWaermeVerteilung: (
+    anlageId: number,
+    q: { sicht: 'tag'; datum: string } | { sicht: 'monat'; jahr: number; monat: number }
+      | { sicht: 'jahr'; jahr: number },
+  ): Promise<VerteilungVerlauf> => {
+    const p = new URLSearchParams({ sicht: q.sicht })
+    if (q.sicht === 'tag') p.set('datum', q.datum)
+    else {
+      p.set('jahr', String(q.jahr))
+      if (q.sicht === 'monat') p.set('monat', String(q.monat))
+    }
+    return api.get(`/energie-profil/${anlageId}/waerme-verteilung?${p.toString()}`)
+  },
+
   getWaermeVerlauf: (anlageId: number, von: string, bis: string): Promise<WaermeVerlaufTag[]> =>
     api.get(`/energie-profil/${anlageId}/waerme-verlauf?von=${von}&bis=${bis}`),
 

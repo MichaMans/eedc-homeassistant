@@ -13,7 +13,8 @@
 4. [Wann eine Kennzahl verschwindet — und warum das richtig ist](#4-wann-eine-kennzahl-verschwindet--und-warum-das-richtig-ist)
 5. [Sensoren zuordnen, Schritt für Schritt](#5-sensoren-zuordnen-schritt-für-schritt)
 6. [Sieben Anlagen, sieben Ergebnisse](#6-sieben-anlagen-sieben-ergebnisse)
-7. [Häufige Missverständnisse](#7-häufige-missverständnisse)
+7. [Verteilung und Verlauf — wohin der Strom gegangen ist](#7-verteilung-und-verlauf--wohin-der-strom-gegangen-ist)
+8. [Häufige Missverständnisse](#8-häufige-missverständnisse)
 
 ---
 
@@ -68,7 +69,7 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 > heißt der Balken deshalb *„Strom-Aufteilung nach Betriebsart"*. Wer die Liste parkt, parkt Wärme und
 > Kälte je Funktion mit.
 
-> **Der Block *Wärme/Klima* im Cockpit fasst alle Geräte zusammen**, der Komponenten-Hub zeigt sie **einzeln**. Das ist kein Widerspruch, sondern der wichtigste Unterschied auf dieser Fläche — siehe [§7](#7-häufige-missverständnisse).
+> **Der Block *Wärme/Klima* im Cockpit fasst alle Geräte zusammen**, der Komponenten-Hub zeigt sie **einzeln**. Das ist kein Widerspruch, sondern der wichtigste Unterschied auf dieser Fläche — siehe [§8](#8-häufige-missverständnisse).
 
 ---
 
@@ -247,7 +248,7 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 > Abgezogen wird nur, was im Nenner auch drinsteht. Ein aus dem Betriebsmodus verteilter Kühlanteil
 > kürzt deinen gemessenen Heiz- und Warmwasserstrom nicht — nachgerechnet in
 > [Fall B2](#b2--getrennte-zähler-für-heizung-und-warmwasser-betriebsmodus-sensor-kein-kühlzähler)
-> und erklärt in [§7](#7-häufige-missverständnisse).
+> und erklärt in [§8](#8-häufige-missverständnisse).
 
 ### Und drei Gründe, die nur der **Tag** kennt
 
@@ -677,7 +678,96 @@ Trag die 3000 unter ***Wärme gesamt*** ein und lass *Heizwärme* und *Warmwasse
 
 ---
 
-## 7. Häufige Missverständnisse
+## 7. Verteilung und Verlauf — wohin der Strom gegangen ist
+
+*Seit v4.0.45.* Unter dem Block *Wärme/Klima* steht in **Cockpit → Tag, Monat und
+Jahr** ein Teil mit drei Bildern, die dieselbe Frage beantworten: **Wohin ist der
+Strom deiner Wärme- und Klimageräte gegangen — und was hat es gekostet?**
+
+| Teil | Was er zeigt |
+|------|--------------|
+| **Anteile** | Je Gerät und Funktion eine Zeile: *Heizen · Warmwasser · Kühlen · Lüften · Entfeuchten* und, was keine davon erklärt, mit kWh und Prozent |
+| **Kosten je Funktion** | Dieselben Zeilen mit **Herkunft**, **Arbeitspreis** und **Betrag** — und einer Summe |
+| **Verlauf** | Dieselben Segmente über die Zeit: **Stunden** eines Tages, **Tage** eines Monats, **Monate** eines Jahres. Darüber die **Ø-Außentemperatur** als Linie (rechte Achse, per Legendenklick ausblendbar) und, wo eedc den Wettercode kennt, ein **Wettersymbol** über der Zeitachse |
+
+Der Blockteil ist parkbar und fokussierbar wie jedes andere Element.
+
+### Woher die Aufteilung kommt — und warum sie je Gerät entschieden wird
+
+**Jedes Gerät teilt seinen Strom auf dem Weg auf, den seine Zähler hergeben**
+(der Erfassungs-Kanon, [§5 Schritt 2](#schritt-2--entscheiden-ein-zähler-oder-getrennte)):
+
+* **Getrennte Stromzähler** für Heizen und Warmwasser ⇒ die beiden Achsen sind die
+  Aufteilung. Kommt ein **gemessener** Betriebsart-Zähler dazu (Kühlen, Lüften,
+  Entfeuchten), steht er daneben — er misst etwas anderes, nicht dasselbe noch einmal.
+* **Kein getrennter Stromzähler, aber ein Betriebsart-Zähler oder ein
+  Betriebsmodus-Sensor** ⇒ die Aufteilung entsteht daraus. Die Spalte *Herkunft*
+  sagt dir, welcher Weg gegriffen hat: **gemessen** (ein Zähler) oder
+  **abgeleitet** (aus dem Modus gerechnet).
+* **Weder noch** ⇒ das Gerät steht in keiner Zeile. Sein Strom zählt trotzdem zur
+  Anlage; die Zeile *„Aufgeteilte Menge X von Y kWh"* unter dem Bild sagt, wie viel
+  davon aufgeteilt ist.
+
+**Zwei Geräte dürfen verschiedene Wege gehen** — eine Wärmepumpe mit getrennten
+Zählern neben einer Klimaanlage mit Modus-Sensor ergibt ein Bild mit beiden. Was
+**nicht** geht, ist eine gemeinsame Arbeitszahl für die beiden: Mengen darf man
+addieren, Kennzahlen nicht ([§8](#8-häufige-missverständnisse)).
+
+> ⚠ **Die zwei Reste heißen verschieden, und das ist wichtig.**
+>
+> * **System/Standby** — dein **Gesamtzähler** misst mehr als die Summe deiner
+>   Funktionszähler. Das ist echter Verbrauch: Steuerung, Umwälzpumpen, Standby.
+>   Bei einem Melder waren das 145 von 2193 kWh im Jahr (6,6 %).
+> * **Ohne Modus** — es gab **Stunden ohne Betriebsmodus-Signal**, oder eine
+>   Betriebsart hat keinen eigenen Zähler. Das ist kein Verbrauch eigener Art,
+>   sondern fehlende Erkenntnis.
+>
+> **Sie werden nie addiert.** Ein Gerät trägt immer nur einen von beiden; stehen
+> beide im Bild, gehören sie zu **verschiedenen Geräten**.
+
+### Die Kosten
+
+**Kosten = kWh × Arbeitspreis des jeweiligen Monats.** Hast du einen
+**Wärmepumpen-Sondertarif** hinterlegt, gilt der; sonst dein allgemeiner Tarif,
+und bei Zeitfenstern (HT/NT) der über deinen gemessenen Netzbezug gewichtete
+Preis. Im **Jahr** rechnet eedc **Monat für Monat** und zeigt als Preis den
+mengengewichteten Mittelwert — eine Preiserhöhung im Juli schreibt den Januar
+also nicht um.
+
+> ⚠ **Es sind die Kosten des Stroms, den diese Geräte verbraucht haben** — nicht
+> deine Netzbezugskosten. Ob eine Kilowattstunde aus der PV oder aus dem Netz kam,
+> weiß eedc je Gerät nicht (dafür bräuchte es eine Zuteilungsannahme, und die wäre
+> erfunden). Die Zahl beantwortet *„was hat mich dieser Betrieb gekostet"*, nicht
+> *„was steht auf meiner Stromrechnung"*.
+
+### Temperatur und Wettersymbol
+
+Die **Ø-Außentemperatur** kommt aus deinen eigenen Reihen, nicht aus einem Abruf:
+zuerst die Stundenwerte, sonst *(Min + Max) / 2* des Tages, zuletzt ein von Hand
+gepflegter Monatswert. Fehlt alles, fehlt die Linie — ein kalter Monat ohne
+Messreihe ist kein 0-°C-Monat.
+
+Das **Wettersymbol** ist der **häufigste** Wettercode der Periode: bei einer
+Stunde ihr eigener, bei einem Tag der häufigste seiner Stunden, bei einem Monat
+der häufigste seiner Tage. Ein Tag mit vierzehn Sonnenstunden und einem Schauer
+ist damit ein sonniger Tag. **Fehlt der Code, fehlt das Symbol** — geraten wird
+nichts. Auf schmalen Geräten erscheint die Symbolreihe nur, wenn die Symbole
+nebeneinander passen (bis zwölf Perioden); überlappende Symbole wären eine
+Auskunft, die niemand lesen kann.
+
+### Drei Zeilen, die eine Differenz benennen
+
+Sie erscheinen nur, wenn es etwas zu sagen gibt — und jede meint etwas anderes:
+
+| Zeile | Bedeutung |
+|-------|-----------|
+| **Aufgeteilte Menge X von Y kWh** | Ein Gerät hat gar keine Aufteilung (s. o.) |
+| **Im Verlauf erfasst X von Y kWh** | Der Verlauf kommt aus einer anderen Quelle als die Anteile darüber: die Tagessäulen aus dem, was eedc täglich mitschreibt, die Anteile aus deiner Monatszeile. Was nur monatlich gepflegt ist, steht deshalb oben und nicht im Verlauf |
+| **Strom ohne Stundenzuordnung** | Nur am Tag: eine Menge, für die es keine Stundenform gab. Sie wird **genannt** statt gleichmäßig über den Tag verteilt — eine geschmierte Kurve wäre eine erfundene Form |
+
+---
+
+## 8. Häufige Missverständnisse
 
 **„Der Block zeigt eine andere Arbeitszahl als der Komponenten-Hub."**
 Das ist so gewollt und der wichtigste Unterschied auf dieser Fläche. Der Block *Wärme/Klima* im Cockpit fasst **alle** Geräte zusammen; der Hub zeigt **eines**. Bei gemischter Ausstattung steht im Block deshalb ein **Mindestwert** („≥ 3,00"), während das einzelne Gerät eine höhere, saubere Zahl hat. Unter dem Block steht, aus welchen Geräten er entsteht — und seit v4.0.45 steht die Zahl **je Gerät** gleich daneben.

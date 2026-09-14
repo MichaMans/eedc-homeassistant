@@ -31,6 +31,10 @@ import {
 import {
   wpFunktionsGruppen, zeigtStromJeFunktion, type FunktionsGruppen, type FunktionsZeile,
 } from './wpFunktionsGruppen'
+import {
+  balkenSegmente, kostenZeilen, verteilungHinweise, verteilungTitel,
+  verteilungVerlaufDaten, zeigtVerteilung,
+} from './waermeVerteilung'
 import { GROESSE, imKasten, jazAnzeige, kennzahlUntertitel } from './waermeKlimaSicht'
 import {
   KOMPONENTEN_IDENTITAET, INVESTITION_TYP_ORDER, SONSTIGES_ERZEUGER_FARBE, ROLLEN_BG,
@@ -41,6 +45,7 @@ import {
 import type {
   AktuellerMonatResponse, SonstigesGeraet, WpGeraetZeile, WpMoeglichZeile,
 } from '../api/aktuellerMonat'
+import type { VerteilungVerlauf } from '../api/energie_profil'
 
 const fmt = (v: number | null | undefined, dec = 0) => fmtCalc(v, dec, '—')
 const hat = (v: number | null | undefined) => v != null
@@ -459,6 +464,78 @@ function WaermeVerlaufElement({ punkte, rest }: {
   )
 }
 
+/**
+ * **Verteilung & Verlauf** — der Blockteil aus WK-16c.
+ *
+ * Drei Teile, eine Antwort: die **Verteilung** des Zeitraums (Strom je Gerät und
+ * Funktion als Anteile), die **Kosten je Funktion**, und derselbe Satz Segmente
+ * als **Verlauf** — Stunden eines Tages, Tage eines Monats, Monate eines Jahres,
+ * mit Ø-Außentemperatur und Wettersymbol über der Zeitachse.
+ *
+ * ⭐ **Kein neues Bild.** Die Anteile zeichnet der Aufteilungs-SoT
+ * {@link VerteilungsBalken} (er hat am 19.06.2026 den Aufteilungs-Donut abgelöst
+ * — *eine* Bildsprache für alle Aufteilungen, mit den Werten IN der Zeile statt
+ * in einer Legende; dietmar1968s Donut zeigt dieselbe Information), die Tabelle
+ * der Tabellen-SoT, den Verlauf {@link WaermeVerlaufChart}, den es für genau
+ * diese drei Auflösungen schon gibt. Neu ist allein, **was** in den Segmenten
+ * steht.
+ *
+ * ⚠ **Hier wird nichts gerechnet** — kein Anteil, keine Kosten, keine Summe
+ * (ADR-001; die Kosten hängen am Monatstarif, ADR-002/**P8**). Farbe,
+ * Reihenfolge und Beschriftung entscheidet die reine Funktion nebenan
+ * (`waermeVerteilung.ts`), damit sie ohne Rendering prüfbar sind.
+ */
+function WaermeVerteilungTeil({ v }: { v: VerteilungVerlauf }) {
+  const daten = verteilungVerlaufDaten(v)
+  const kosten = kostenZeilen(v)
+  const hinweise = verteilungHinweise(v, fmt)
+  return (
+    <div className="space-y-4">
+      <VerteilungsBalken segmente={balkenSegmente(v)} />
+      {/* ⚠ **Ohne kWh-Spalte, und das ist A6-konform:** `kWh × ct/kWh = €` ist
+          eine triviale Rechnung mit sichtbaren Summanden — die kWh stehen im
+          Balken darüber. Eine zweite kWh-Spalte wäre dieselbe Zahl an zwei
+          Orten. */}
+      {v.kosten_gesamt_euro != null && (
+        <Table flaeche="karte">
+          <TableHead>
+            <tr className="text-gray-500 dark:text-gray-400">
+              <th className={`${KOPF_ZELLE} text-left`}>Funktion</th>
+              <th className={`${KOPF_ZELLE} text-left`}>Herkunft</th>
+              <th className={`${KOPF_ZELLE} text-right`}>Preis (ct/kWh)</th>
+              <th className={`${KOPF_ZELLE} text-right`}>Kosten (€)</th>
+            </tr>
+          </TableHead>
+          <TableBody>
+            {kosten.map((z) => (
+              <tr key={z.schluessel} className="border-b border-gray-100 dark:border-gray-800">
+                <td className={`${ZELLE} text-gray-700 dark:text-gray-300`}>{z.label}</td>
+                <td className={`${ZELLE} text-gray-500 dark:text-gray-400`}>{z.herkunft}</td>
+                <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(z.preisCent, 1)}</td>
+                <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(z.kostenEuro, 2)}</td>
+              </tr>
+            ))}
+            <tr className="font-medium">
+              <td className={`${ZELLE} text-gray-700 dark:text-gray-300`}>Summe</td>
+              <td className={ZELLE} />
+              <td className={ZELLE} />
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(v.kosten_gesamt_euro, 2)}</td>
+            </tr>
+          </TableBody>
+        </Table>
+      )}
+      {daten.stapel.length > 0 && (
+        <WaermeVerlaufChart
+          rows={daten.rows} stapel={daten.stapel} linien={daten.linien}
+          rechteEinheit="°C" wetterSymbole={daten.wetterSymbole}
+        />
+      )}
+      {/* Die Differenzen werden **genannt**, nicht hineingerechnet (W-17b/P4). */}
+      <DetailListe rows={hinweise.map((h) => ({ label: h.label, wert: h.wert }))} />
+    </div>
+  )
+}
+
 export function baueKomponentenBloecke(
   d: AktuellerMonatResponse,
   park: ParkApi = NOOP_PARK,
@@ -478,6 +555,11 @@ export function baueKomponentenBloecke(
    *  nicht gleichmäßig verteilt (P4), sondern unter dem Verlauf genannt —
    *  sonst summierte die Zeichnung still weniger als die Kachel darüber. */
   wpVerlaufRest?: VerlaufRest | null,
+  /** WK-16c: Verteilung & Verlauf des Wärme/Klima-Stroms je Gerät und Funktion.
+   *  Gleiche Bauform wie `wpVerlauf` darüber — ein zusätzlicher Eingang, ohne
+   *  den sich nichts ändert: Bleibt der Abruf aus, fehlt genau dieser Blockteil
+   *  und sonst nichts. */
+  wpVerteilung?: VerteilungVerlauf | null,
 ): Block[] {
   const istTag = periode === 'tag'
   const bloecke: Block[] = []
@@ -817,6 +899,17 @@ export function baueKomponentenBloecke(
       titel: verlaufTitel(verlauf),
       titelImNode: true,
       node: <WaermeVerlaufElement punkte={wpVerlauf} rest={wpVerlaufRest} />,
+    })
+    // ── WK-16c: Verteilung & Verlauf — ein weiterer parkbarer Blockteil ───
+    //
+    // ⚠ **Direkt unter dem Verlauf, und das ist die Reihenfolge des Konzepts**
+    // (Kap. 6.2: *Kacheln → Verlauf → Aufteilung*): Erst der zeitliche Verlauf
+    // der Anlage, dann dieselbe Menge nach Funktionen aufgeteilt — mit ihrem
+    // eigenen Verlauf, der die Aufteilung über die Zeit zeigt.
+    if (zeigtVerteilung(wpVerteilung)) wpEls.push({
+      id: 'el:wp-verteilung',
+      titel: verteilungTitel(wpVerteilung!),
+      node: <WaermeVerteilungTeil v={wpVerteilung!} />,
     })
     // ⛔ **Bauschnitt 8 / E1 (b): Der Balken „Wärme-Aufteilung" ist entfallen.**
     // Seine zwei Zahlen stehen jetzt in den Gruppen Heizen und Warmwasser —

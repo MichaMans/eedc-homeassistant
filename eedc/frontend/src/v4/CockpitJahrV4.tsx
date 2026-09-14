@@ -41,6 +41,7 @@ import { baueKomponentenBloecke } from './KomponentenSektionen'
 import { finanzTeaserBlock } from './MonatRahmen'
 import { JahrVerlaufChart, baueJahrChartDaten } from './JahrVerlaufChart'
 import { punkteAusMonatsantworten, type WaermeVerlaufPunkt } from './waermeVerlauf'
+import { energieProfilApi } from '../api/energie_profil'
 import { JahrCo2Chart, baueJahrCo2ChartDaten, co2JahresSumme, CO2_TABELLEN_SPALTEN } from './JahrCo2Chart'
 import { JahrSpeicherTabelle, baueSpeicherZeilen, jahrSpeicherParkIds } from './JahrSpeicherTabelle'
 import { verlaufTabellenSpalten } from './verlaufVergleich'
@@ -227,6 +228,25 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
     },
     [jahrAntworten, alleMonate, angezeigtesJahr],
   )
+  // WK-16c: Verteilung & Verlauf des Jahres (Perioden = Monate). Eine eigene
+  // Abfrage — die Monats-Antworten tragen die Aufteilung je **Anlage**, nicht je
+  // Gerät und Funktion (E1: Mengen je Gerät gibt es nur dort, wo sie je Gerät
+  // gebildet werden). Sie lädt neben der Sicht: bleibt sie aus, fehlt genau
+  // dieser Blockteil.
+  const verteilungQ = useApiData(
+    async () => ({
+      jahr: jahr!,
+      v: await energieProfilApi.getWaermeVerteilung(anlageId!, { sicht: 'jahr', jahr: jahr! }),
+    }),
+    [anlageId, jahr],
+    {
+      enabled: !!anlageId && jahr != null,
+      swrKey: `v4-jahr-waermeverteilung:${anlageId}:${jahr}`, /* de-de-allow: Cache-Key, keine Anzeige */
+      keepPreviousData: true,
+    },
+  )
+  // A3a — eine Sicht zeigt EINE Periode: gezeigt wird nur, was zu diesem Jahr gehört.
+  const wpVerteilung = verteilungQ.data?.jahr === angezeigtesJahr ? verteilungQ.data.v : null
   const speicherZeilen = useMemo(() => baueSpeicherZeilen(jahrAntworten), [jahrAntworten])
   const loading = monateQ.loading || (jahr != null && jahrQ.loading)
   const reloading = jahrQ.reloading
@@ -481,7 +501,7 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
         ),
       }]),
       ...(co2Block ? [co2Block] : []),
-      ...(d ? baueKomponentenBloecke(d, park, 'jahr', null, wpVerlauf) : []),
+      ...(d ? baueKomponentenBloecke(d, park, 'jahr', null, wpVerlauf, null, wpVerteilung) : []),
       // #358 Phase 1 — die Tiefe unter dem Speicher-Abschnitt: Monatstabelle
       // (Vollzyklen · Solar-Anteil · Auslastung · Netto-Nutzen) + Saison-
       // Vergleich. Nur wenn überhaupt ein Speicher Bewegung hatte; die Zeilen
@@ -509,7 +529,7 @@ function CockpitJahrInner({ anlageId }: { anlageId: number | undefined }) {
       ...(finanzBlock ? [finanzBlock] : []),
     ]
   }, [angezeigtesJahr, jahrData, jahrVglData, vorjahr, oeJahr, vjFenster, ojFenster, istFenster,
-      kennzahlenFenster, monatsZeilen, park, jahrAntworten, wpVerlauf, speicherZeilen,
+      kennzahlenFenster, monatsZeilen, park, jahrAntworten, wpVerlauf, wpVerteilung, speicherZeilen,
       co2Punkte, co2Monate.length, co2Kumuliert, co2Fehler, co2Reload, zaehlerstaende,
       co2Q.data])
 

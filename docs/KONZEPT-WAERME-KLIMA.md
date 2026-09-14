@@ -786,6 +786,62 @@ Netzabruf für eine Hilfslinie.** ⚠ **Ø und Kd sind zwei Größen aus derselb
 dieselbe:** Für die **Heizgradtage** gelten nur die Stufen 1 und 2 — ein gepflegter Monats-Ø ist
 dort kein Eingang ([5.6](#56-wetternormierung--kwh-je-heizgradtag)).
 
+### 6.2b Die Verteilung — wohin der Strom gegangen ist (WK-16c, 14.09.2026)
+
+**Der Verlauf sagt *wann*, die Verteilung sagt *wofür*.** Unter dem Verlauf steht
+in allen drei Cockpit-Sichten ein weiterer parkbarer Blockteil *Verteilung &
+Verlauf*: der Wärme/Klima-Strom je **Gerät und Funktion** als Anteile, dazu die
+**Kosten je Funktion**, dazu dieselben Segmente über die Perioden — Stunden eines
+Tages, Tage eines Monats, Monate eines Jahres — mit Ø-Außentemperatur und
+Wettersymbol.
+
+**Die Segmente sind keine neue Aufteilung, sondern die vorhandene, ausgeschrieben.**
+Welche Familie ein Gerät trägt, entscheidet [Kapitel 3](#3-der-erfassungs-kanon--welcher-weg-gilt-wenn-mehrere-da-sind)
+— **je Gerät, dann summiert** (Kapitel 7/E1: Mengen ja, Kennzahlen nein):
+
+| Familie | Segmente | Rest |
+| --- | --- | --- |
+| **Summanden** (F5) | `heizen` · `warmwasser` aus den getrennten Zählern, dazu die **gemessenen** funktionsfremden Teilmengen (K4/W-16) | `system` — *System/Standby* |
+| **Teilmengen** (Betriebsart bzw. Modus) | `heizen` … `entfeuchten` | `ohne_modus` — *Ohne Modus* |
+| **keine** | — | — (die Menge bleibt, die Differenz wird genannt) |
+
+⛔ **Nie beide Familien für dasselbe Gerät** (S2a): Ein **abgeleiteter** Modus-Split
+verteilt die Menge, die die Summanden schon tragen; ihn danebenzustellen wäre die
+Doppelzählung, gegen die W-16b gebaut wurde. Die Weiche steht **einmal**
+(`core/berechnungen/waerme_verteilung.py::verteile_geraet_strom`) und ist dieselbe,
+die `wp_strom_aufteilung` für die **Menge** stellt.
+
+⚠ **Die zwei Reste stehen nebeneinander und heißen verschieden** — sie werden nie
+addiert (Kapitel 3, Zwei-Reste-Tabelle). Dass beide zugleich im Bild stehen, geht
+nur bei **zwei Geräten**; ein Gerät trägt genau eine Familie.
+
+**Die Kosten hängen am Monatstarif** (ADR-002/**P8**): kWh × `TarifFakten.wp_preis_cent`
+des jeweiligen Monats — die ganze Kaskade (Wärmepumpen-Sondertarif → allgemeiner
+Tarif → Zeitfenster → Default), dieselbe Zahl, mit der der Tagespfad rechnet. Über
+ein Jahr wird **je Monat** gerechnet und als Preis der mengengewichtete Mittelwert
+gezeigt, damit `kWh × Preis = Kosten` aufgeht (**A6**). ⛔ **Es sind die Kosten des
+verbrauchten Stroms, nicht des Netzbezugs** — welche Kilowattstunde aus der PV kam,
+ist je Gerät ohne Zuteilungsannahme nicht bekannt (dieselbe Begründung wie bei der
+Tarif-Gewichtung in `monats_fakten.py::_komponenten_preis`).
+
+**Das Wettersymbol ist der häufigste Code der Periode** (Stunde direkt, Tag =
+häufigster Stundencode, Monat = häufigster Tagescode). ⚠ **Nicht der schlechteste
+Moment:** Ein Tag mit vierzehn Sonnenstunden und einem Schauer ist ein sonniger Tag.
+Der Prognosepfad korrigiert dieselbe Verzerrung über die Bewölkung
+(`wetter_symbol_aus_tag`); hier liegen alle Stunden vor, und der **Modus** der Reihe
+ist die einfachere Antwort. **Ohne Code kein Symbol** — `wetter_code_zu_symbol(None)`
+liefert `"unknown"`, und der Client zeichnet dafür eine Sonne (P4).
+
+⚠ **Drei Differenzen, drei Sätze** (W-8) — jede wird **genannt**, keine
+hineingerechnet: *„Aufgeteilte Menge X von Y"* (ein Gerät ohne Aufteilung, W-17b),
+*„Im Verlauf erfasst X von Y"* (Perioden aus einer anderen Quelle als die
+Verteilung, s. 6.3), *„Strom ohne Stundenzuordnung"* (keine Stundenform, P4).
+
+⭐ **Kein Donut, und das ist kein Geschmack:** Der Aufteilungs-Donut ist am
+19.06.2026 (B7-Revision) durch `VerteilungsBalken` ersetzt worden — eine
+Bildsprache für **alle** Aufteilungen, mit den Werten *in* der Zeile statt in einer
+Legende. dietmar1968s Donut, der den Anlass gab, zeigt dieselbe Information.
+
 ### 6.3 Die Fenster — warum Tag und Monat um eine Stunde auseinanderliegen
 
 Liest eedc die Tageswerte aus der Langzeitstatistik von Home Assistant (der Regelfall im Add-on),
@@ -1061,7 +1117,7 @@ Fläche zweimal passiert.
 ### 10.1 Was eedc bewusst nicht sagt
 
 Die vollständige Liste steht in
-[`HANDBUCH_WAERME_KLIMA.md` §3](HANDBUCH_WAERME_KLIMA.md#3-was-eedc-bewusst-nicht-sagt) und §7 —
+[`HANDBUCH_WAERME_KLIMA.md` §3](HANDBUCH_WAERME_KLIMA.md#3-was-eedc-bewusst-nicht-sagt) und §8 —
 hier nur die Überschriften, damit sie an einem Ort nachlesbar sind: **kein SEER** · **keine
 geschätzte Kältemenge** · **keine Bewertung von Lüften und Entfeuchten** · **keine Note für die
 Anlage** · **keine 0, wo „unbekannt" gemeint ist** · **kein Vergleich passiv gegen aktiv gekühlt**
@@ -1181,6 +1237,7 @@ oder im Bericht, nicht hier.
 | **Hub-Link nur, wo der Hub hilft** | `waermepumpe_kennzahl.py::GRUENDE_HUB_HILFT` · `::hub_hilft`; Client liest nur das Flag | `test_n441_geraete_identitaet.py::test_p11_der_hub_link_erscheint_nur_wo_der_hub_hilft`; `test_r2_je_funktion.py::test_hub_hilft_nur_bei_gruenden_die_der_hub_beantwortet` ⚠ **Client-seitig ohne eigene Probe** — der Client vergleicht keine Texte, er liest ein Flag | Regression (Backend) |
 | **A3a — eine Sicht zeigt EINE Periode** | `CockpitTagV4.tsx`, `CockpitMonatV4.tsx`, `CockpitJahrV4.tsx`, `ZaehlerstaendeBlock.tsx` (Marke · Paarung · Beschriftung) | `CockpitTagEinTag.test.tsx`, `CockpitMonatEinePeriode.test.tsx`, `CockpitJahrEinePeriode.test.tsx` ⛔ **maschinelles Gegenstück bewusst keines** — so steht es im Style-Guide | Regression |
 | **D-Sicht — Kacheln nur mit Zahl, ein Kasten je Sicht** | Klasse an der Grund-Konstante (`GRUND_KLASSE`, `HANDGRIFF_JE_GRUND`), Zusammenstellung in `services/waerme_klima_block.py`, Anzeige `src/v4/waermeKlimaSicht.ts` + `KomponentenSektionen.tsx` | Backend `test_wk16_e1b_d_sicht.py` (jeder Grund trägt genau eine Klasse · **jeder Ausstattungs-Grund einen Handgriff** · **kein Zeitraum-Grund einen** · jeder Grund genau einmal im Kasten · Größen-Namen als Vertrag); Client `src/v4/waermeKlimaSicht.test.tsx` (12 Proben: „≥" nur bei Schranke **und Gegenprobe** · Kachel entfällt nur mit Kasten-Eintrag **und Gegenprobe** · Kasten mit Handgriff und Link · Tabelle je Gerät) | **Wächter** (über die Klassen-Tabelle) + Regression |
+| **Verteilung je Gerät und Funktion — eine Familie je Gerät, zwei Reste, Kosten am Monatstarif** | `core/berechnungen/waerme_verteilung.py::verteile_geraet_strom` (die Weiche) · `services/waerme_verteilung.py` (Eingänge, Preise, Wetter) · `services/energie_profil/waerme_verteilung_tag.py` (Stunden) · Client `src/v4/waermeVerteilung.ts` | Backend `test_wk16c_verteilung_verlauf.py` (24 Proben: Familien-Weiche · K4 neben den Achsen · **Doppelzählung mit Gegenprobe** · gemessene 0 ist kein Segment · beide Reste getrennt · Σ Geräte = Anlagenstapel · Zeitfilter · Kosten von Hand nachgerechnet · zwei Tarife, ein gewichteter Preis · häufigster Wettercode · kein Symbol ohne Code); Client `src/v4/waermeVerteilung.test.tsx` (13 Proben: Reihenfolge Funktion vor Gerät · `null` statt 0 · kein Stapel ohne Verlaufsmenge · drei Differenz-Sätze) | Regression |
 | **A6 — eine Kennzahl zeigt ihre eingesetzten Werte** | Kacheln in Cockpit und Hub | `npm run check:formel-herleitung` (Wrapper `src/test/check-formel-herleitung.test.ts`) — TypeScript-AST über `src/**`, zwei Trägerformen (Objektliteral inkl. Shorthand, JSX-Attribut), drei Prüfungen, **abschmelzende** Allowlist mit Pflicht-Begründung; dazu `TKonto.a6-herleitung.test.tsx`, `KomponentenSektionen.jaz-herleitung.test.tsx`, `test_a6_arbeitszahl_je_funktion_herleitung.py` | **Wächter** + Regression |
 | **Keine Inline-Hex-Farben außerhalb des Farb-SoT** | `src/lib/colors.ts` | `npm run check:design` | **Wächter** |
 

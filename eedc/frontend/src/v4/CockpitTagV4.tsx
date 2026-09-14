@@ -203,6 +203,16 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
     [anlageId, datum],
     { enabled: !!anlageId, swrKey: `v4-tag-waermeverlauf:${anlageId}:${datum}`, keepPreviousData: true }, /* de-de-allow: Cache-Key, keine Anzeige */
   )
+  // WK-16c: Verteilung & Verlauf — **dieselbe Bauform wie der Verlauf darüber**,
+  // inklusive Paarung: gezeigt wird die Verteilung nur zu IHREN Kacheln (A3a).
+  const wpVerteilungQ = useApiData(
+    async () => ({
+      datum,
+      v: await energieProfilApi.getWaermeVerteilung(anlageId!, { sicht: 'tag', datum }),
+    }),
+    [anlageId, datum],
+    { enabled: !!anlageId, swrKey: `v4-tag-waermeverteilung:${anlageId}:${datum}`, keepPreviousData: true }, /* de-de-allow: Cache-Key, keine Anzeige */
+  )
   const stunden = useMemo<StundenWert[]>(() => tagQ.data?.stunden ?? [], [tagQ.data])
   const serien = useMemo<SerieInfo[]>(() => tagQ.data?.serien ?? [], [tagQ.data]) // volle Serien (Komponenten-Klassifikation)
   const tag: TagWerte | null = tagQ.data?.tag ?? null
@@ -229,6 +239,7 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
   // gezeigt. Das ist die Klausel, die zwei Tage in einem Block ausschließt,
   // egal welche der beiden Abfragen zuerst antwortet.
   const wpVerlaufStunden = wpVerlaufQ.data?.datum === angezeigterTag ? wpVerlaufQ.data.verlauf : null
+  const wpVerteilung = wpVerteilungQ.data?.datum === angezeigterTag ? wpVerteilungQ.data.v : null
 
   // B1: Scroll-Position beim Tageswechsel halten (siehe CockpitMonatV4).
   const rootRef = useRef<HTMLDivElement>(null)
@@ -328,7 +339,7 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
     // Komponenten-Detailblöcke (aktiv-gegated) + Finanz-Teaser — dieselben Bauer
     // wie Cockpit/Monat (period='tag'). `tagDetail` füttert die tagesgenauen
     // Zusatzwerte (WP-Strom-Split, Speicher-Netzladung/Ladepreis).
-    if (tag) list.push(...baueTagKomponentenUndFinanz(tag, stunden, serien, park, tagDetail, wpVerlaufStunden))
+    if (tag) list.push(...baueTagKomponentenUndFinanz(tag, stunden, serien, park, tagDetail, wpVerlaufStunden, wpVerteilung))
     // #377: nur wenn wirklich ein Zähler gepflegt IST — ein leerer Block wäre
     // eine Anzeige über eine Funktion, die dieser Anwender nicht benutzt.
     if (zaehlerstaende && zaehlerstaende.length > 0 && !zaehlerParkIds(zaehlerstaende).every((id) => park.istGeparkt(id))) list.push({
@@ -340,7 +351,7 @@ function CockpitTagInner({ anlageId }: { anlageId: number | undefined }) {
       ),
     })
     return list
-  }, [tag, vortag, wtStats, stunden, serien, angezeigterTag, tagDetail, park, anlageId, laden, zaehlerstaende, wpVerlaufStunden])
+  }, [tag, vortag, wtStats, stunden, serien, angezeigterTag, tagDetail, park, anlageId, laden, zaehlerstaende, wpVerlaufStunden, wpVerteilung])
 
   if (!anlageId) {
     return (

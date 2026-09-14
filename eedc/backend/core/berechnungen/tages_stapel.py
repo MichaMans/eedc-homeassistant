@@ -440,6 +440,17 @@ class StundenVerteilung:
     stunden: list[TagesStapel]
     #: Menge, für die es keine Stundenform gab — sie fehlt in den Stunden (P4).
     ohne_stundenform_kwh: float = 0.0
+    #: ⭐ **Dieselben Stunden, nur noch je Gerät aufgeschlüsselt** (WK-16c,
+    #: 14.09.2026) — ``{inv_id: [24 TagesStapel]}``. Sie entstehen in der
+    #: Schleife darunter ohnehin und wurden bis dahin unmittelbar addiert; die
+    #: Verteilungs-Sicht braucht sie getrennt, weil ein Segment dort *Gerät ×
+    #: Funktion* ist („WP Heizen" neben „Klima Heizen", Konzept Kap. 7/E1:
+    #: Mengen ja, Kennzahlen nein).
+    #:
+    #: ⚠ **Die Summe über die Geräte ist ``stunden``, bitgleich** — es ist keine
+    #: zweite Rechnung, sondern dieselbe eine Stufe früher abgegriffen. Wer hier
+    #: etwas anderes summiert, hat einen Fehler, keine zweite Wahrheit.
+    je_geraet: dict[str, list[TagesStapel]] = field(default_factory=dict)
 
 
 def verteile_menge(
@@ -519,8 +530,14 @@ def _modus_form(stunden: Sequence[ModusStunde], gehoert_dazu) -> list[float]:
     return form
 
 
-def _gesamt_form(inv_id: str, formen: StundenFormen) -> list[Optional[float]]:
-    """Gesamtstrom je Slot: Zählerpfad, sonst Leistungspfad der Stundenzeilen."""
+def gesamt_form(inv_id: str, formen: StundenFormen) -> list[Optional[float]]:
+    """Gesamtstrom je Slot: Zählerpfad, sonst Leistungspfad der Stundenzeilen.
+
+    ⚠ **Seit WK-16c öffentlich** (14.09.2026): Die Verteilungs-Sicht verteilt
+    den Zähler-Rest eines F5-Geräts über **dieselbe** Restform wie Zweig 1
+    darunter. Sie mit einem führenden Unterstrich privat zu lassen und daneben
+    nachzubauen wäre die F-56-Klasse; sie zu kopieren erst recht.
+    """
     gesamt = formen.gesamt_je_inv.get(inv_id)
     if gesamt and any(v is not None for v in gesamt):
         return list(gesamt)
@@ -535,6 +552,8 @@ def verteile_tages_stapel_auf_stunden(
     tag = _falte(beitraege)
     seg = ("heizen", "warmwasser", "kuehlen", "lueften", "entfeuchten", "rest")
     je_stunde = {k: [0.0] * STUNDEN for k in seg}
+    # WK-16c: dieselben Zahlen, eine Stufe früher abgegriffen (s. `je_geraet`).
+    je_geraet: dict[str, list[TagesStapel]] = {}
     ohne = 0.0
 
     for b in beitraege:
@@ -551,7 +570,7 @@ def verteile_tages_stapel_auf_stunden(
                 roh[feld] = [float(v) if v is not None else 0.0 for v in
                              (list(form) + [None] * STUNDEN)[:STUNDEN]]
             rest_form: list[float] = []
-            gesamt = _gesamt_form(b.inv_id, formen)
+            gesamt = gesamt_form(b.inv_id, formen)
             for h in range(STUNDEN):
                 z = modus_strom_zeile({f: w[h] for f, w in verteilt.items()})
                 geraet["heizen"][h] = z.heizen_kwh
@@ -591,6 +610,24 @@ def verteile_tages_stapel_auf_stunden(
             ohne += max(0.0, tageswert - sum(geraet[key]))
             for h in range(STUNDEN):
                 je_stunde[key][h] += geraet[key][h]
+        # WK-16c: die Stunden DIESES Geräts, bevor sie in die Summe fallen. Das
+        # Tor (`hat_split`/`hat_gemessen`/`abdeckung_h`) ist das des Tages —
+        # dieselbe Begründung wie bei `stunden_stapel` unten.
+        je_geraet[b.inv_id] = [
+            TagesStapel(
+                heizen_kwh=geraet["heizen"][h],
+                warmwasser_kwh=geraet["warmwasser"][h],
+                kuehlen_kwh=geraet["kuehlen"][h],
+                lueften_kwh=geraet["lueften"][h],
+                entfeuchten_kwh=geraet["entfeuchten"][h],
+                nicht_aufgeteilt_kwh=geraet["rest"][h],
+                bezug_kwh=sum(geraet[k][h] for k in seg),
+                abdeckung_h=b.abdeckung_h,
+                hat_split=True,
+                hat_gemessen=b.gemessen,
+            )
+            for h in range(STUNDEN)
+        ]
 
     stunden_stapel = [
         TagesStapel(
@@ -616,4 +653,5 @@ def verteile_tages_stapel_auf_stunden(
     return StundenVerteilung(
         stunden=stunden_stapel,
         ohne_stundenform_kwh=ohne if ohne > 1e-6 else 0.0,
+        je_geraet=je_geraet,
     )

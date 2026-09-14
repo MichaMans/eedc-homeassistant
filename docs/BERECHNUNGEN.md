@@ -1341,6 +1341,68 @@ derselbe wie dort — **E7/Option A**, also der **Abzug** und nicht die Menge.
 > meinen. Die Systemzahl ist eine dritte Größe mit eigenem Namen, und im Block
 > steht die Zahl **je Gerät** direkt daneben.
 
+#### 3.5b-V Verteilung des Wärme/Klima-Stroms und **Kosten je Funktion** (WK-16c, 14.09.2026)
+
+**Die Frage:** *„Wohin ist der Strom dieses Geräts gegangen — und was hat es gekostet?"*
+SoT der Aufteilung: `core/berechnungen/waerme_verteilung.py::verteile_geraet_strom`;
+SoT der Eingänge, Preise und Perioden: `services/waerme_verteilung.py`.
+
+**Die Segmente je Gerät** (Konzept Wärme/Klima Kap. 3 — der Erfassungs-Kanon entscheidet
+je Gerät, welche **Familie** gilt; addiert wird erst danach, Kap. 7/E1):
+
+```text
+Summanden-Familie (getrennte Strommessung, mindestens eine gepflegte Achse):
+    heizen      = strom_heizen_kwh                     (gemessen)
+    warmwasser  = strom_warmwasser_kwh                 (gemessen)
+    kuehlen/lueften/entfeuchten = die Betriebsart-Zähler, NUR wenn gemessen  (K4/W-16)
+    system      = wp_strom_aufteilung(...).nicht_aufgeteilt_kwh              (K5)
+  ⇒ Σ Segmente = Menge des Geräts
+
+Teilmengen-Familie (sonst, wenn eine Betriebsart-Aufteilung vorliegt):
+    heizen … entfeuchten = modus_strom_zeile(...)      (gemessen ODER abgeleitet)
+    ohne_modus  = max(0; modus_bezug − Σ Teilmengen)                          (K5)
+  ⇒ Σ Segmente = Bezugsmenge der Aufteilung
+
+sonst: keine Segmente — die Menge bleibt, die Differenz wird GENANNT (W-17b).
+```
+
+⛔ **Nie beide Familien für dasselbe Gerät.** Ein **abgeleiteter** Modus-Split verteilt
+die Menge, die die Summanden schon tragen — ihn danebenzustellen zählte denselben Strom
+zweimal (W-16b). Die Weiche ist dieselbe, die `wp_strom_aufteilung` für die **Menge**
+stellt; sie steht an **einer** Stelle.
+
+⚠ **Zwei Reste, nie addiert:** `system` (*System/Standby*) ist der **Zähler**-Rest —
+Gesamtzähler minus Summanden-Achsen, also Steuerung, Umwälzpumpen, Standby (WK-16d).
+`ohne_modus` ist der **Modus**-Rest — Stunden ohne Signal, nicht gemessene Betriebsarten.
+Sie beschreiben zwei **verschiedene** Aufteilungen derselben Menge; ein Gerät trägt immer
+nur einen von beiden.
+
+**Die Kosten je Funktion:**
+
+```text
+Kosten(Segment, Monat) = kWh(Segment, Monat) × TarifFakten.wp_preis_cent(Monat) / 100
+Kosten(Segment, Zeitraum) = Σ über die Monate
+Preis(Segment, Zeitraum)  = Kosten × 100 / kWh      (mengengewichtet)
+```
+
+⭐ **Der Preis kommt aus den Monats-Fakten und wird nicht selbst aufgelöst**
+(ADR-002/**P8**): `wp_preis_cent` ist die ganze Kaskade — Wärmepumpen-Sondertarif →
+allgemeiner Tarif → Zeitfenster (HT/NT, über den gemessenen Netzbezug gewichtet) →
+Default, je zum **Monatsersten**. Der Tagespfad rechnet mit demselben Wert
+(*„Tagestarif = Monatstarif je Tag"*), und genau deshalb steht hier eine Quelle statt
+zweier. Über ein Jahr wird **je Monat** gerechnet; der gezeigte Preis ist der
+mengengewichtete Mittelwert, damit `kWh × Preis = Kosten` aufgeht (**A6**).
+
+⛔ **Es sind die Kosten des VERBRAUCHTEN Stroms, nicht des Netzbezugs.** Welcher Anteil
+einer Gerätestunde aus der PV kam, ist ohne eine Zuteilungsannahme nicht bekannt —
+dieselbe Begründung, mit der `monats_fakten.py::_komponenten_preis` den Zeittarif über
+den **Haus**-Netzbezug gewichtet.
+
+⚠ **Ein Segment unterhalb der Anzeigegenauigkeit erscheint nicht** (0,02 kWh). Steht ein
+Gesamtzähler exakt auf der Summe seiner Achsen, ist der Rest ein Fließkomma-Wert; als
+Zeile *„System/Standby 0,0 kWh"* stünde eine Größe im Bild, die es nicht gibt. **Die
+Menge bleibt unberührt** (K1).
+
 #### 3.5c Abgeleitete Heizwärme und die JAZ-Sperre (#263 K-2, Konzept §3.4/§3.5)
 
 Ohne Wärmemengenzähler wird die Heizwärme aus dem modus-aufgeteilten Strom gerechnet:

@@ -2128,6 +2128,18 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # sie ein zweites Mal gebraucht. Jetzt lädt **eine** Funktion, und Hub,
     # Monat und Jahr lesen dasselbe Ergebnis.
     "backend/services/waermepumpe_kennzahlen_je_geraet.py::lade_kennzahlen_je_geraet",
+    # WK-16c (2026-09-14): die Strom-Verteilung JE GERÄT und Funktion für den
+    # Blockteil *Verteilung & Verlauf*. **Dieselbe Begründung wie die Zeile
+    # darüber**, an derselben Fläche: `WpFakten` trägt die Wärmepumpen-Größen
+    # der **Anlage** und führt die Geräte nur als ID-Mengen
+    # (`geraete_mit_strom`/`geraete_mit_waerme`) — keine kWh je Gerät. Ein
+    # Segment „Wärmepumpe Heizen" neben „Klimaanlage Heizen" ist daraus
+    # strukturell nicht ablesbar.
+    #
+    # ⚠ **Was die Schicht trotzdem liefert, kommt aus ihr:** der Monatstarif
+    # (P8) für die Kosten je Funktion — `_wp_preise_je_monat` liest
+    # `TarifFakten.wp_preis_cent` und löst keinen Preis selbst auf.
+    "backend/services/waerme_verteilung.py::_monatszeilen",
 })
 
 #: **Offene Schuld.** Diese Funktionen falten eine ANLAGEN-weite Monatszeile

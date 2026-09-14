@@ -63,6 +63,9 @@ from ._shared import (
     TagStatusResponse,
     TagesZusammenfassungResponse,
     TagWerteResponse,
+    VerteilungPeriodeResponse,
+    VerteilungSegmentResponse,
+    VerteilungVerlaufResponse,
     WaermeVerlaufStundeResponse,
     WaermeVerlaufStundenResponse,
     WaermeVerlaufTagResponse,
@@ -699,6 +702,62 @@ async def get_waerme_verlauf_stunden(
         funktion_ohne_stundenform_kwh=(
             round(funktion_ohne, 2) if funktion_ohne > 0.005 else None
         ),
+    )
+
+
+@router.get(
+    "/{anlage_id}/waerme-verteilung",
+    response_model=VerteilungVerlaufResponse,
+)
+async def get_waerme_verteilung(
+    anlage_id: int,
+    sicht: str = Query(
+        ..., description="tag | monat | jahr — die Cockpit-Sicht",
+    ),
+    jahr: Optional[int] = Query(None, description="Jahr (Sicht monat/jahr)"),
+    monat: Optional[int] = Query(None, description="Monat 1–12 (Sicht monat)"),
+    datum: Optional[date] = Query(None, description="Tag (Sicht tag)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verteilung des Wärme/Klima-Stroms und ihr Verlauf (WK-16c).
+
+    **Eine Route für alle drei Cockpit-Sichten** — die Auflösung der Perioden
+    folgt aus ``sicht`` (Jahr → Monate, Monat → Tage, Tag → Stunden). Drei
+    Routen wären dreimal dieselbe Regel; die Rechnung selbst steht ohnehin an
+    **einer** Stelle (``services/waerme_verteilung.py``).
+
+    ⚠ **Sie lädt NEBEN der Sicht**, wie der Wärme/Klima-Verlauf daneben: Bleibt
+    sie aus, fehlt genau dieser Blockteil und sonst nichts.
+    """
+    result = await db.execute(select(Anlage).where(Anlage.id == anlage_id))
+    anlage = result.scalar_one_or_none()
+    if not anlage:
+        raise not_found("Anlage", anlage_id)
+
+    if sicht not in ("tag", "monat", "jahr"):
+        raise bad_request("sicht muss tag, monat oder jahr sein")
+    if sicht in ("monat", "jahr") and jahr is None:
+        raise bad_request("jahr ist für diese Sicht erforderlich")
+    if sicht == "monat" and not (monat and 1 <= monat <= 12):
+        raise bad_request("monat (1–12) ist für die Monatssicht erforderlich")
+    if sicht == "tag" and datum is None:
+        raise bad_request("datum ist für die Tagessicht erforderlich")
+
+    from backend.services.waerme_verteilung import lade_verteilung_verlauf
+
+    v = await lade_verteilung_verlauf(
+        db, anlage, sicht=sicht, jahr=jahr, monat=monat, datum=datum,
+    )
+    return VerteilungVerlaufResponse(
+        sicht=v.sicht,
+        stufe=v.stufe,
+        segmente=[VerteilungSegmentResponse(**vars(s)) for s in v.segmente],
+        perioden=[VerteilungPeriodeResponse(**vars(p)) for p in v.perioden],
+        menge_kwh=v.menge_kwh,
+        aufgeteilt_kwh=v.aufgeteilt_kwh,
+        kosten_gesamt_euro=v.kosten_gesamt_euro,
+        verlauf_kwh=v.verlauf_kwh,
+        ohne_stundenform_kwh=v.ohne_stundenform_kwh,
     )
 
 

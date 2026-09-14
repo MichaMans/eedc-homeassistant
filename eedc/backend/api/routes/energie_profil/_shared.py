@@ -447,6 +447,73 @@ class WaermeVerlaufStundenResponse(BaseModel):
     funktion_ohne_stundenform_kwh: Optional[float] = None
 
 
+# ── Verteilung & Verlauf (WK-16c) ────────────────────────────────────────────
+#
+# ⭐ **Ein Antworttyp für alle drei Stufen.** Was sich zwischen *Tag*, *Monat*
+# und *Jahr* ändert, ist allein die Auflösung der Perioden (Stunden · Tage ·
+# Monate) — die Segmente, die Kosten und die Temperatur-Linie sind dieselben.
+# Drei Typen wären drei Stellen, an denen dieselbe Regel driftet.
+
+
+class VerteilungSegmentResponse(BaseModel):
+    """Ein Segment der Verteilung — **ein Gerät, eine Funktion**."""
+
+    #: ``"<investition_id>:<funktion>"`` — der Schlüssel, unter dem die Perioden
+    #: ihre Mengen tragen.
+    schluessel: str
+    #: ``heizen`` · ``warmwasser`` · ``kuehlen`` · ``lueften`` · ``entfeuchten``
+    #: · ``system`` (Zähler-Rest) · ``ohne_modus`` (Modus-Rest).
+    funktion: str
+    funktion_label: str
+    geraet: str
+    investition_id: int
+    kwh: float
+    #: Anteil an der **aufgeteilten** Menge, nicht an der Gesamtmenge (W-17b).
+    anteil_prozent: float
+    #: ``gemessen`` · ``abgeleitet`` · ``rest``.
+    herkunft: str
+    #: Der Arbeitspreis, mit dem gerechnet wurde (ct/kWh) — über mehrere Monate
+    #: mengengewichtet, damit ``kwh × preis = kosten`` aufgeht (A6).
+    preis_cent: Optional[float] = None
+    kosten_euro: Optional[float] = None
+
+
+class VerteilungPeriodeResponse(BaseModel):
+    """Eine Periode des Verlaufs."""
+
+    schluessel: str
+    label: str
+    #: ``{Segment-Schlüssel: kWh}`` — nur Segmente mit Menge. Eine Periode ohne
+    #: Aufteilung trägt ein leeres Objekt, **keine** Reihe von Nullen (P4).
+    kwh_je_segment: dict[str, float] = {}
+    temperatur_c: Optional[float] = None
+    #: Symbol-Name des Live-Dashboards (``sunny`` · ``cloudy`` · …). ``None``,
+    #: wo kein WMO-Code vorliegt — kein Symbol statt eines erfundenen.
+    wetter_symbol: Optional[str] = None
+
+
+class VerteilungVerlaufResponse(BaseModel):
+    """Die Verteilung eines Zeitraums **und** ihr Verlauf (WK-16c)."""
+
+    #: ``tag`` · ``monat`` · ``jahr`` — die angefragte Cockpit-Sicht.
+    sicht: str
+    #: ``stunde`` · ``tag`` · ``monat`` — die Auflösung der Perioden.
+    stufe: str
+    segmente: list[VerteilungSegmentResponse] = []
+    perioden: list[VerteilungPeriodeResponse] = []
+    #: Der **gesamte** Wärme/Klima-Strom des Zeitraums (K1).
+    menge_kwh: float = 0.0
+    #: Σ der Segmente. Die Differenz zu ``menge_kwh`` nennt der Client als
+    #: *„Aufgeteilte Menge X von Y kWh"* — sie wird nicht hineingerechnet.
+    aufgeteilt_kwh: float = 0.0
+    kosten_gesamt_euro: Optional[float] = None
+    #: Σ aller Perioden — bei *Monat* und *Tag* **nicht** ``aufgeteilt_kwh``
+    #: (andere Quelle, anderes Fenster). Der Client nennt die Differenz.
+    verlauf_kwh: float = 0.0
+    #: Nur bei ``stufe == "stunde"``: was sich keiner Stunde zuordnen ließ (P4).
+    ohne_stundenform_kwh: Optional[float] = None
+
+
 class TagWerteResponse(BaseModel):
     """Tageszeile für die Werte/Tabelle-Embed-Sicht in Tagesgranularität
     (IA v4 E3, Cockpit/Monat). Feldnamen sind **deckungsgleich mit den

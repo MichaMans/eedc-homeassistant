@@ -11,6 +11,59 @@
 
 ## v4.0.45 — 14. September 2026
 
+**Wohin ist der Strom deiner Wärmepumpe gegangen — und was hat er gekostet?**
+
+**Betrifft dich das?** Ja, sobald du im Cockpit den Block *Wärme/Klima* offen
+hast und **irgendeine** Aufteilung erfasst: getrennte Stromzähler für Heizen und
+Warmwasser, einen Betriebsart-Zähler oder einen Betriebsmodus-Sensor.
+
+**Was war:** Der Block sagte, **wie viel** Strom deine Geräte verbraucht haben
+und — seit dem Verlauf — **wann**. Das **Wofür** stand nur als ein Balken für
+die ganze Anlage da, und was es gekostet hat, nirgends je Funktion.
+
+**Was jetzt:** Unter dem Verlauf steht ein neuer Teil **„Verteilung & Verlauf"**
+mit drei Bildern zu einer Frage — in *Cockpit → Tag, Monat und Jahr*:
+
+1. **Die Anteile je Gerät und Funktion.** Eine Zeile für *Wärmepumpe · Heizen*,
+   eine für *Wärmepumpe · Warmwasser*, eine für *Klimaanlage · Kühlen* — mit
+   Kilowattstunden und Prozent. Jedes Gerät teilt dabei auf dem Weg auf, den
+   **seine** Zähler hergeben; die Spalte *Herkunft* sagt dir, ob die Menge
+   **gemessen** oder aus dem Betriebsmodus **abgeleitet** ist.
+2. **Die Kosten je Funktion.** Dieselben Zeilen mit Arbeitspreis und Betrag, dazu
+   eine Summe. Gerechnet wird mit dem Tarif des **jeweiligen Monats** — deinem
+   Wärmepumpen-Sondertarif, wenn du einen hast. Eine Preiserhöhung im Juli
+   schreibt den Januar also nicht um.
+3. **Der Verlauf dieser Verteilung.** Dieselben Segmente über die Zeit: je
+   Stunde am Tag, je Tag im Monat, je Monat im Jahr. Darüber die
+   **Ø-Außentemperatur** als Linie und, wo eedc den Wettercode kennt, ein
+   **Wettersymbol** über der Zeitachse — damit ein hoher Monat einzuordnen ist.
+
+⚠ **Zwei Restmengen, und sie heißen verschieden.** *System/Standby* ist echter
+Verbrauch: Dein Gesamtzähler misst mehr als deine Funktionszähler zusammen —
+Steuerung, Umwälzpumpen, Standby. *Ohne Modus* heißt dagegen, dass für diese
+Stunden kein Betriebsmodus-Signal vorlag. **Addiere die beiden nicht** — ein
+Gerät trägt immer nur eine von beiden; stehen beide da, gehören sie zu
+**verschiedenen** Geräten.
+
+⛔ **Es sind die Kosten des verbrauchten Stroms, nicht deines Netzbezugs.** Ob
+eine Kilowattstunde aus deiner PV oder aus dem Netz kam, weiß eedc je Gerät
+nicht — dafür bräuchte es eine Annahme, und die wäre erfunden.
+
+⭐ **Das Wettersymbol ist der häufigste Code der Periode**, nicht der
+schlechteste Moment des Tages: Ein Tag mit vierzehn Sonnenstunden und einem
+Schauer ist ein sonniger Tag. Fehlt der Code, fehlt das Symbol — geraten wird
+nichts.
+
+⚠ **Drei Zeilen benennen, was das Bild nicht zeigen kann:** *„Aufgeteilte Menge
+X von Y kWh"* (ein Gerät ohne jede Aufteilung), *„Im Verlauf erfasst X von Y
+kWh"* (die Säulen kommen aus dem, was eedc täglich mitschreibt, die Anteile aus
+deiner Monatszeile) und *„Strom ohne Stundenzuordnung"*. Verteilt wird nichts
+davon — genannt schon.
+
+→ [Wärme & Klima: Verteilung und Verlauf](HANDBUCH_WAERME_KLIMA.md#7-verteilung-und-verlauf--wohin-der-strom-gegangen-ist)
+
+---
+
 **Das Cockpit zeigt, was deine Daten hergeben**
 
 **Betrifft dich das?** Ja, wenn du im Cockpit den Block *Wärme/Klima* offen hast

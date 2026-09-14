@@ -288,6 +288,24 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
   )
   // Die Punkte baut eine reine Funktion (`waermeVerlauf.ts`) — dort ist eine
   // vergessene Durchreichung prüfbar, hier im `useMemo` war sie unsichtbar.
+  // WK-16c: Verteilung & Verlauf — **dieselbe Bauform wie der Verlauf darüber**,
+  // inklusive Paarung über `ref` (A3a: eine Sicht zeigt EINE Periode).
+  const verteilungQ = useApiData(
+    async () => ({
+      ref: gewaehlt!,
+      v: await energieProfilApi.getWaermeVerteilung(anlageId!, {
+        sicht: 'monat', jahr: gewaehlt!.jahr, monat: gewaehlt!.monat,
+      }),
+    }),
+    [anlageId, gewaehlt?.jahr, gewaehlt?.monat],
+    {
+      enabled: !!anlageId && !!gewaehlt,
+      swrKey: `v4-monat-waermeverteilung:${anlageId}:${gewaehlt?.jahr}-${gewaehlt?.monat}`, /* de-de-allow: Cache-Key, keine Anzeige */
+      keepPreviousData: true,
+    },
+  )
+  const wpVerteilung = gleicherMonat(verteilungQ.data?.ref, angezeigterMonat)
+    ? verteilungQ.data!.v : null
   const wpVerlaufTage = gleicherMonat(verlaufQ.data?.ref, angezeigterMonat) ? verlaufQ.data!.tage : null
   const wpVerlauf = useMemo<WaermeVerlaufPunkt[]>(
     () => punkteAusVerlaufsTagen(wpVerlaufTage ?? []),
@@ -482,7 +500,7 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
       // /Park-Lage (Element-Park-Doktrin).
       ...(monatAusw ? baueMonatAuswertungBloecke(monatAusw, park, monatData?.nicht_vergueteter_erloes_euro) : []),
       // Komponenten-Detailblöcke (aktiv-gegatet, B6/B7).
-      ...(monatData ? baueKomponentenBloecke(monatData, park, 'monat', null, wpVerlauf) : []),
+      ...(monatData ? baueKomponentenBloecke(monatData, park, 'monat', null, wpVerlauf, null, wpVerteilung) : []),
       // Finanz-Teaser (B5) — bewusst GANZ UNTEN: Netto-Ertrag/Monatsergebnis stehen
       // bereits in den Kennzahlen (D), hier nur Aufschlüsselung + Tarif + Cross-Link.
       // #377 — Verbrauchszähler: nur wenn wirklich einer gepflegt ist.
@@ -496,7 +514,7 @@ function CockpitMonatInner({ anlageId }: { anlageId: number | undefined }) {
       }] : []),
       ...(finanzBlock ? [finanzBlock] : []),
     ]
-  }, [angezeigterMonat, tage, monatData, monatAusw, vormonatAgg, glMonStats, park, zaehlerstaende, wpVerlauf])
+  }, [angezeigterMonat, tage, monatData, monatAusw, vormonatAgg, glMonStats, park, zaehlerstaende, wpVerlauf, wpVerteilung])
 
   if (!anlageId) {
     return (

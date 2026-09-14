@@ -27,6 +27,7 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { ChartLegende, eedcTooltipProps } from '../components/ui'
+import { WetterIcon } from '../components/aussicht'
 import { xAchse, yAchse, achsenEinheit, achsenTick, ACHSEN_MARGIN_TOP, fmtZahl } from '../lib'
 import { useLegendenToggle, useSchmaleAchse } from '../hooks'
 
@@ -53,8 +54,38 @@ export interface WaermeVerlaufRow {
   [serie: string]: number | string | null
 }
 
+/**
+ * Das Wettersymbol einer Periode, als Tick einer **zweiten** x-Achse (WK-16c).
+ *
+ * ⭐ **Warum eine zweite Achse und kein Streifen daneben:** Beide Achsen teilen
+ * dieselbe Kategorien-Skala, also fluchten die Symbole mit den Balken — ohne
+ * dass irgendwo eine Pixelbreite nachgerechnet wird. Genau daran ist der Versuch
+ * „Chart + Streifen" in der Aussicht-Fläche gescheitert (dort steht heute ein
+ * CSS-Grid statt eines Charts).
+ *
+ * ⚑ Gezeichnet wird in einem ``foreignObject``: Der Symbolsatz ist die
+ * eingeführte SoT-Komponente {@link WetterIcon} (Lucide + Tailwind-Tonwerte),
+ * und die gilt für HTML. Sie in SVG nachzubauen wäre eine zweite Bauform für
+ * dieselben zehn Symbole.
+ */
+function WetterTick({ x, y, payload, symbole }: {
+  x?: number; y?: number
+  payload?: { value?: string | number }
+  symbole: Record<string, string>
+}) {
+  const symbol = symbole[String(payload?.value ?? '')]
+  if (!symbol || x == null || y == null) return null
+  return (
+    <foreignObject x={x - 8} y={y - 16} width={16} height={16}>
+      <div className="flex items-center justify-center">
+        <WetterIcon symbol={symbol} className="h-4 w-4" />
+      </div>
+    </foreignObject>
+  )
+}
+
 export function WaermeVerlaufChart({
-  rows, stapel, linien = [], einheit = 'kWh', rechteEinheit, tall,
+  rows, stapel, linien = [], einheit = 'kWh', rechteEinheit, tall, wetterSymbole,
 }: {
   rows: WaermeVerlaufRow[]
   stapel: VerlaufStapel[]
@@ -63,6 +94,8 @@ export function WaermeVerlaufChart({
   /** Einheit der zweiten Achse — nur nötig, wenn eine Linie `achse: 'rechts'` trägt. */
   rechteEinheit?: string
   tall?: boolean
+  /** `{Zeilen-Name: Symbol}` — Wettersymbole über der Zeitachse (WK-16c). */
+  wetterSymbole?: Record<string, string>
 }) {
   const schmal = useSchmaleAchse()
   // B7-Standard: Serien per Legenden-Klick aus-/einblenden. Reset, wenn sich
@@ -85,6 +118,12 @@ export function WaermeVerlaufChart({
   }
 
   const hatRechte = linien.some((l) => l.achse === 'rechts')
+  // ⚠ **Symbole nur, wo sie nebeneinander passen.** Ein 16-px-Icon je Periode
+  // braucht Platz; auf einem schmalen Gerät reicht er für zwölf Monate, nicht
+  // für 31 Tage. Wo er fehlt, erscheint die Reihe gar nicht — überlappende
+  // Symbole wären eine Auskunft, die niemand lesen kann.
+  const zeigtWetter = !!wetterSymbole && Object.keys(wetterSymbole).length > 0
+    && rows.length <= (schmal ? 12 : 31)
 
   return (
     <div className={tall ? 'h-[420px]' : 'h-72'}>
@@ -92,6 +131,17 @@ export function WaermeVerlaufChart({
         <ComposedChart data={rows} margin={{ top: ACHSEN_MARGIN_TOP, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
           <XAxis dataKey="name" {...xAchse(schmal)} interval="preserveStartEnd" /* achsen-allow: Zeit-/Kategorie-Achse */ />
+          {zeigtWetter && (
+            <XAxis
+              xAxisId="wetter" dataKey="name" orientation="top" type="category"
+              axisLine={false} tickLine={false} height={20} interval={0}
+              // Custom-Renderer: Er zeichnet je Periode ein **Icon** statt eines
+              // Textes und bestimmt Größe wie Ausrichtung selbst — deshalb weder
+              // 10-px-Tick noch −45° (s. `check-achsen.mjs`, X_HORIZONTAL_OK).
+              tick={(props) => <WetterTick {...props} symbole={wetterSymbole!} />}
+              /* achsen-allow: Zeit-/Kategorie-Achse */
+            />
+          )}
           <YAxis yAxisId="menge" {...yAchse(schmal, 48)} tickFormatter={achsenTick} label={achsenEinheit(einheit)} />
           {hatRechte && (
             <YAxis
