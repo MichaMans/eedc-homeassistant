@@ -17,10 +17,22 @@
 #      sensor_mapping WP4/WB5, kumulative sensor_snapshots (WP-Wärme/JAZ, E-Mob).
 #   4) Optional: leere Test-Anlage „Ferienhaus Süd" (Sammel-Screen/Leerzustand)
 #      aus einer vorhandenen DB übernehmen.
+#   4e) Prüfstand Wärme/Klima (WK-15): Split-Klimaanlage in der Demo-Anlage +
+#      zweite Anlage mit den Handbuch-Lagen G/D/F. Idempotent, eigener Seeder.
 #   5) Laufzeit-Cruft (api_cache, Streu-Zeilen jenseits der Seed-Daten) leeren.
 #
 # Aufruf:
 #   scripts/build-demo-db.sh OUTPUT.db [--extra-anlage-from DB.db]
+#   scripts/build-demo-db.sh OUTPUT.db --basis eedc/data/devbox-r27-demo.db
+#
+# ⛔ **--basis ist kein Komfort, sondern der Weg, der heute funktioniert.**
+# Gemessen am 14.09.2026: Der Master `eedc/data/eedc.db` trägt **0 Anlagen,
+# 0 Investitionen, 0 Monatsdaten** (nur `activity_log` und `migrations` sind
+# gefüllt) — die Dev-Box-DB ist irgendwann geleert worden. Schritt 3 bricht
+# darauf mit `IndexError` ab, weil `reseed-v4-tag-demo.py` keine TEP-Tage
+# findet. Solange das so ist, entsteht die nächste Demo-DB als **Kopie der
+# letzten plus Seed**: `--basis` nimmt dann die Vorgänger-DB statt des Masters
+# und überspringt die Schritte 2–4d, die dort schon gelaufen sind.
 # Default OUTPUT: ./scratch-demo.db
 set -euo pipefail
 
@@ -30,20 +42,30 @@ MASTER="$REPO/eedc/data/eedc.db"
 
 OUT="${1:-$REPO/scratch-demo.db}"
 EXTRA_ANLAGE_DB=""
-if [ "${2:-}" = "--extra-anlage-from" ]; then
-  EXTRA_ANLAGE_DB="${3:?--extra-anlage-from braucht eine DB}"
-fi
+BASIS=""
+shift || true
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --extra-anlage-from) EXTRA_ANLAGE_DB="${2:?--extra-anlage-from braucht eine DB}"; shift 2;;
+    --basis)             BASIS="${2:?--basis braucht eine DB}"; shift 2;;
+    *) echo "Unbekannte Option: $1"; exit 2;;
+  esac
+done
 
-[ -f "$MASTER" ] || { echo "FEHLER: Master-DB fehlt: $MASTER"; exit 1; }
+QUELLE="${BASIS:-$MASTER}"
+[ -f "$QUELLE" ] || { echo "FEHLER: Quell-DB fehlt: $QUELLE"; exit 1; }
 
 # Letzter geseedeter Tag = Obergrenze; alles darüber ist Laufzeit-Cruft.
 SEED_BIS="2026-06-23"
 
-echo "==> [1/6] Master → $OUT"
-cp "$MASTER" "$OUT"
+echo "==> [1/7] Quelle ($QUELLE) → $OUT"
+cp "$QUELLE" "$OUT"
 rm -f "$OUT-wal" "$OUT-shm"
 
-echo "==> [2/6] Aussicht-Historie: TEP +175 Tage (2025-10-15..12-30 → 2026)"
+if [ -n "$BASIS" ]; then
+  echo "==> [2..4d/7] uebersprungen (--basis: die Vorgaenger-DB traegt sie schon)"
+else
+echo "==> [2/7] Aussicht-Historie: TEP +175 Tage (2025-10-15..12-30 → 2026)"
 TEP_COLS="anlage_id,datum,stunde,pv_kw,verbrauch_kw,einspeisung_kw,netzbezug_kw,batterie_kw,waermepumpe_kw,wallbox_kw,wp_starts_anzahl,ueberschuss_kw,defizit_kw,temperatur_c,globalstrahlung_wm2,bewoelkung_prozent,niederschlag_mm,wetter_code,soc_prozent,strompreis_cent,boersenpreis_cent,komponenten,source_provenance,created_at,wp_betriebsstunden"
 TEP_SEL="anlage_id,date(datum,'+175 days'),stunde,pv_kw,verbrauch_kw,einspeisung_kw,netzbezug_kw,batterie_kw,waermepumpe_kw,wallbox_kw,wp_starts_anzahl,ueberschuss_kw,defizit_kw,temperatur_c,globalstrahlung_wm2,bewoelkung_prozent,niederschlag_mm,wetter_code,soc_prozent,strompreis_cent,boersenpreis_cent,komponenten,source_provenance,created_at,wp_betriebsstunden"
 sqlite3 "$OUT" "
@@ -115,21 +137,31 @@ sqlite3 "$OUT" "
   WHERE NOT EXISTS (SELECT 1 FROM infothek_eintraege WHERE anlage_id=1 AND bezeichnung='Wartungsvertrag Wärmepumpe');
 "
 
+fi
+
 if [ -n "$EXTRA_ANLAGE_DB" ]; then
-  echo "==> [5/6] Leere Test-Anlage Ferienhaus Sued (Sammel-Screen) aus $EXTRA_ANLAGE_DB uebernehmen"
+  echo "==> [5/7] Leere Test-Anlage Ferienhaus Sued (Sammel-Screen) aus $EXTRA_ANLAGE_DB uebernehmen"
   sqlite3 "$OUT" "ATTACH '$EXTRA_ANLAGE_DB' AS src;
     INSERT OR IGNORE INTO anlagen SELECT * FROM src.anlagen WHERE id=2;
     DETACH src;"
 else
-  echo "==> [5/6] (keine Extra-Anlage)"
+  echo "==> [5/7] (keine Extra-Anlage)"
 fi
 
-echo "==> [6/6] Laufzeit-Cruft leeren (api_cache + Streu-Zeilen > $SEED_BIS)"
+echo "==> [6/7] Laufzeit-Cruft leeren (api_cache + Streu-Zeilen > $SEED_BIS)"
 sqlite3 "$OUT" "
   DELETE FROM api_cache;
   DELETE FROM tages_zusammenfassung WHERE datum > '$SEED_BIS';
   DELETE FROM tages_energie_profil  WHERE datum > '$SEED_BIS';
 "
+# ⛔ **Der Pruefstand-Seed laeuft NACH dem Aufraeumen, nicht davor.** Schritt 6
+# loescht alle Tageszeilen jenseits von $SEED_BIS — die Pruefstand-Anlage
+# reicht mit ihrem Tagesfenster aber bis kurz vor „heute", damit der LAUFENDE
+# Monat aus den Tages-Snapshots entsteht. Vor dem Aufraeumen geseedet waere
+# genau dieser Teil wieder weg.
+echo "==> [7/7] Pruefstand Waerme/Klima (WK-15)"
+python3 "$SCRIPT_DIR/seed-pruefstand-waerme-klima.py" --db "$OUT"
+
 sqlite3 "$OUT" "VACUUM;"
 rm -f "$OUT-wal" "$OUT-shm"
 

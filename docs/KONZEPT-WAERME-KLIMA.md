@@ -724,11 +724,14 @@ entscheidet. Die Auflösung der Anlagensumme ist etwas anderes als die Summe der
 Geräte, sobald zwei Geräte verschiedene Zählerlagen haben.
 
 **Eine Kennzahl je Funktion gibt es für die Anlage nur, wenn jedes Gerät sie je Funktion misst.**
-Trägt ein Gerät seine Wärme mit einem gemeinsamen Zähler, sagen die Funktions-Zeilen der Anlage
-*„Wärme nicht je Funktion gemessen"* — auch wenn ein zweites Gerät seine beiden Achsen sauber
-trennt. Das ist R2, nicht Vorsicht: Die Heizwärme des einen Geräts durch den Heizstrom beider
-zu teilen ergäbe eine Zahl, deren Zähler und Nenner nicht dasselbe Gerät meinen. Monat und Tag
-entscheiden das gleich (ODER über die Geräte).
+Trägt ein Gerät seine Wärme mit einem gemeinsamen Zähler, bleiben die Funktions-Zeilen der Anlage
+ohne Zahl — auch wenn ein zweites Gerät seine beiden Achsen sauber trennt. Das ist R2, nicht
+Vorsicht: Die Heizwärme des einen Geräts durch den Heizstrom beider zu teilen ergäbe eine Zahl,
+deren Zähler und Nenner nicht dasselbe Gerät meinen. **Den Grund nennt die Vorrangkette aus
+[4.2](#42-die-vorrangkette--welcher-grund-gewinnt):** am Gerät steht *„Wärme nicht je Funktion
+gemessen"*, anlagenweit der genauere Satz *„Nutzenergie und Strom dieser Funktion stammen von
+verschiedenen Geräten"* (gemessen 14.09.2026 an der nachgestellten Prüfstand-Anlage). Monat und
+Tag entscheiden das gleich (ODER über die Geräte).
 
 **E1 (Entscheid Gernot, 26.08.2026): Geräte verschiedener Bauart werden nicht zu einer Kennzahl
 zusammengefasst.** Eine Luft-Wasser-Wärmepumpe und eine Split-Klimaanlage haben verschiedene
