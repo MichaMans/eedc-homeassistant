@@ -27,7 +27,10 @@ from __future__ import annotations
 from typing import Iterable, Optional
 
 from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
-from backend.core.berechnungen.waermepumpe_kennzahl import waerme_gesamt_kwh
+from backend.core.berechnungen.waermepumpe_kennzahl import (
+    heizwaerme_kwh,
+    waerme_gesamt_kwh,
+)
 from backend.core.field_definitions import (
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
@@ -225,7 +228,7 @@ def berechne_wp_alternativkosten_ersparnis(
             # jemand Gesamtzaehler **und** Aufteilung pflegt.
             thermisch = waerme_gesamt_kwh(
                 daten.get("waerme_kwh"),
-                daten.get("heizenergie_kwh"),
+                heizwaerme_kwh(daten),   # N-398
                 get_wp_warmwasser_kwh(daten, wp.parameter),
             )
             strom = get_wp_strom_kwh(daten, wp.parameter)

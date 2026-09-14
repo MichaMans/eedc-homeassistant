@@ -421,3 +421,38 @@ describe('Achse III — der Tag sagt, warum die Wärme fehlt (W-18)', () => {
     expect(screen.queryByText(/keine Zählerstände/)).toBeNull()
   })
 })
+
+// ══ R-C · Nutzenergie Lüften/Entfeuchten im Cockpit-Block (WK-16f, N-398) ═══
+
+describe('R-C — Menge ja, Kennzahl nein (E4 bleibt)', () => {
+  const MIT_ZAEHLER = {
+    wp_strom_kwh: 400,
+    wp_modus_gemessen: true,
+    wp_modus_strom_heizen_kwh: 250,
+    wp_modus_strom_kuehlen_kwh: 50,
+    wp_modus_strom_lueften_kwh: 60,
+    wp_modus_strom_entfeuchten_kwh: 40,
+    wp_modus_strom_bezug_kwh: 400,
+    wp_modus_nicht_aufgeteilt_kwh: 0,
+  }
+
+  it('zeigt die abgegebene Menge neben ihrem Strom', () => {
+    rendereWpBlock({
+      ...MIT_ZAEHLER,
+      wp_modus_nutzenergie_lueften_kwh: 150,
+      wp_modus_nutzenergie_entfeuchten_kwh: 90,
+    })
+
+    expect(screen.getByText('Nutzenergie Lüften')).toBeInTheDocument()
+    expect(screen.getByText('Nutzenergie Entfeuchten')).toBeInTheDocument()
+  })
+
+  it('DIE GEGENPROBE: ohne Zähler steht die Zeile nicht da', () => {
+    // D-Sicht: nur mit Zahl. Ohne diese Zeile hielte die Probe darüber nur
+    // fest, dass irgendein Text existiert.
+    rendereWpBlock(MIT_ZAEHLER)
+
+    expect(screen.queryByText('Nutzenergie Lüften')).toBeNull()
+    expect(screen.queryByText('Nutzenergie Entfeuchten')).toBeNull()
+  })
+})

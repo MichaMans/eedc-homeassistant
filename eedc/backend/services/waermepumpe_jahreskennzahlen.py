@@ -58,6 +58,15 @@ class WpBetriebsarten:
     abdeckung_h: float
     bezug_kwh: float
     gemessen: bool
+    #: **R-C (WK-16f, N-398):** die abgegebene **Nutzenergie** derselben zwei
+    #: Betriebsarten. Menge, keine Kennzahl — E4 bleibt.
+    #:
+    #: ⚠ **Mit Default, und deshalb am Ende:** Die Felder darüber sind ohne
+    #: Default deklariert; ein Default dazwischen wäre ein ``TypeError`` beim
+    #: Import. Der Default selbst ist gewollt — ein Aufrufer, der nur die
+    #: Ströme kennt, soll die Klasse weiter bauen können.
+    nutzenergie_lueften_kwh: float = 0.0
+    nutzenergie_entfeuchten_kwh: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -281,6 +290,9 @@ def waermepumpe_jahreskennzahlen(
         warmwasser_kwh=sum(f.wp.modus_strom_warmwasser_kwh for f in fakten),
         lueften_kwh=sum(f.wp.modus_strom_lueften_kwh for f in fakten),
         entfeuchten_kwh=sum(f.wp.modus_strom_entfeuchten_kwh for f in fakten),
+        nutzenergie_lueften_kwh=sum(f.wp.nutzenergie_lueften_kwh for f in fakten),
+        nutzenergie_entfeuchten_kwh=sum(
+            f.wp.nutzenergie_entfeuchten_kwh for f in fakten),
         nicht_aufgeteilt_kwh=sum(f.wp.modus_nicht_aufgeteilt_kwh for f in fakten),
         abdeckung_h=sum(f.wp.modus_abdeckung_h for f in fakten),
         bezug_kwh=sum(f.wp.modus_strom_bezug_kwh for f in fakten),

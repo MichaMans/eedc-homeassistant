@@ -325,6 +325,13 @@ export interface WaermepumpeDashboardResponse {
     /** E4 (Konzept §2.3): nur aus **gemessenen** Betriebsart-Zählern. */
     modus_strom_lueften_kwh?: number
     modus_strom_entfeuchten_kwh?: number
+    /** **R-C (WK-16f, N-398): die abgegebene Nutzenergie** derselben zwei
+     *  Betriebsarten — als **Menge** neben ihrem Strom. E4 bleibt: daraus
+     *  entsteht keine Arbeitszahl, weil eedc den Nutzen von Lüften und
+     *  Entfeuchten nicht bewerten kann. Nur gesetzt, wenn ein Zähler etwas
+     *  gemeldet hat; sonst steht die Zeile nicht da (D-Sicht). */
+    modus_nutzenergie_lueften_kwh?: number
+    modus_nutzenergie_entfeuchten_kwh?: number
     modus_nicht_aufgeteilt_kwh?: number
     modus_abdeckung_h?: number
     /** **W-17b** — die Grundmenge, auf die sich die Aufteilung bezieht.

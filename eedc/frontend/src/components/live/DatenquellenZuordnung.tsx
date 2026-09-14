@@ -335,6 +335,9 @@ export default function DatenquellenZuordnung() {
     // `inaktiv` gesetzt). Der Hinweis erklärt dann, was hier hingehört — also
     // ohne Klick zeigen und rot einfärben (Style-Guide D1: Pflicht-Marker `*`,
     // Fehler rot unter dem Feld; Signal-Rot ist seit F2 der Fehler-Kanon).
+    // R-A: die Wegbeschreibungen kommen fertig aus dem Backend (SoT
+    // `core/feld_auswertungen.py`) — hier wird nur gerendert.
+    const ausgewertetIn = f.ausgewertet_in ?? []
     const offenePflicht = f.bedarf === 'pflicht' && istKeine
     const hinweisOffen = offeneHinweise.has(f.id) || offenePflicht
     return (
@@ -345,7 +348,7 @@ export default function DatenquellenZuordnung() {
             {f.bedarf === 'pflicht' && (
               <span className={`${STATUS_TEXT_CLASS.kritisch}`} title="Pflichtfeld">*</span>
             )}
-            {f.hinweis && (
+            {(f.hinweis || ausgewertetIn.length > 0) && (
               <Button
                 type="button" variant="ghost" size="icon"
                 // SoT-Button hat min-h-[36px] (app-weite Aktionshöhe) — für das
@@ -369,6 +372,22 @@ export default function DatenquellenZuordnung() {
           {hinweisOffen && f.hinweis && (
             <p className={`mt-1 max-w-prose text-xs ${offenePflicht ? STATUS_TEXT_CLASS.kritisch : 'text-gray-500 dark:text-gray-400'}`}>
               {f.hinweis}
+            </p>
+          )}
+          {/* **R-A (WK-16f, Prinzip F-7): „ausgewertet in".** Gernot: *„alle
+              zugeordneten Sensoren [müssen] in mindestens einer Auswertung
+              verarbeitet werden, da man sich anderenfalls die Frage stellt,
+              wofür habe ich diesen Sensor zugeordnet."* Die Antwort steht
+              jetzt am Feld — im selben leisen Ton wie der Hinweis darüber
+              (Konzept §9 *„Hinweis am Feld, kein Alarm"*), kein neuer Stil und
+              keine eigene Farbe.
+
+              ⚠ **Kein Satz ohne Inhalt:** Ist die Liste leer, steht hier
+              nichts. Ein „ausgewertet in: —" wäre schlechter als Schweigen. */}
+          {hinweisOffen && ausgewertetIn.length > 0 && (
+            <p className="mt-1 max-w-prose text-xs text-gray-500 dark:text-gray-400">
+              <span className="font-medium">Ausgewertet in:</span>{' '}
+              {ausgewertetIn.join(' · ')}
             </p>
           )}
           {/* §2i: diagnostische Zuordnungs-Probleme (Einheit/state_class/Redundanz/

@@ -34,6 +34,7 @@ from backend.services.datenquellen_historie import (
     vermerk_lesen,
 )
 from backend.core.betriebsmodus import betriebsmodus_klartext
+from backend.core.feld_auswertungen import sichten_fuer
 from backend.core.field_definitions import ist_zustand_feld
 from backend.services.datenquellen_resolver import resolve_effektive_quelle
 from backend.services.live_sensor_config import extract_live_config
@@ -1197,6 +1198,23 @@ async def get_datenquellen_felder(anlage_id: int, db: AsyncSession = Depends(get
             "bedarf": bedarf_je_feld.get(fid, {}).get("bedarf", "optional"),
             "bedarf_grund": bedarf_je_feld.get(fid, {}).get("grund"),
             "bedarf_text": bedarf_je_feld.get(fid, {}).get("text"),
+            # **R-A (WK-16f, Prinzip F-7): wo dieser Wert erscheint.**
+            # Eine Zuordnung ist ein Versprechen; die Fläche sagt jetzt, wo es
+            # eingelöst wird — *„ausgewertet in: Cockpit → Monat · Komponenten
+            # → Wärmepumpe"*. Die Liste kommt aus `core/feld_auswertungen.py`
+            # und **nur** von dort: eine zweite Tabelle im Client wäre genau
+            # die Drift-Bauform, an der `FeldProblem.art` schon einmal
+            # auseinandergelaufen ist (N-35/N-40).
+            #
+            # ⚠ **Der Typ des EINTRAGS, nicht der der Gruppe.** Heute sind beide
+            # deckungsgleich — die Gruppe erbt ihren Typ vom ersten Eintrag —,
+            # und genau deshalb steht hier der Eintrag: Er ist die Quelle, die
+            # Gruppe nur eine Zusammenfassung davon. Ein Sprengsatz auf die
+            # Gruppenform blieb am 14.09.2026 **still**; das war der Beleg, dass
+            # die Unterscheidung heute nichts trägt, und kein Grund, sie als
+            # Begründung stehen zu lassen. Bei den Anlagen-Feldern steht dort
+            # `basis` — so heißt der Schlüssel in der Tabelle (`TYP_ANLAGE`).
+            "ausgewertet_in": sichten_fuer(e.get("typ", ""), e.get("feld", "")),
         })
 
     # B8-2: aufgelöste positive Evidenz additiv festschreiben (guarded — nur bei

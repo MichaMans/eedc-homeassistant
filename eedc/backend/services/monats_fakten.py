@@ -430,6 +430,13 @@ class WpFakten:
     #: es nicht, und eine geschätzte Kältemenge wäre eine Zahl, die genauer
     #: aussieht als sie ist.
     nutzenergie_kuehlen_kwh: float = 0.0
+    #: **R-C (WK-16f, N-398):** die abgegebene Nutzenergie im **Lüft**- bzw.
+    #: **Entfeuchtungs**betrieb — dieselbe Familie wie die Kältemenge darüber,
+    #: nur ohne Kennzahl. **E4 bleibt:** Sie erscheinen als *Menge* neben
+    #: ``modus_strom_lueften_kwh``/``…_entfeuchten_kwh``, nie als Quotient.
+    #: Bis zum 14.09.2026 hatte kein Leser diese zwei Registry-Felder.
+    nutzenergie_lueften_kwh: float = 0.0
+    nutzenergie_entfeuchten_kwh: float = 0.0
     #: Stunden mit gültigem Modus-Signal — das Qualitätsmaß neben den Mengen.
     modus_abdeckung_h: float = 0.0
     #: #263 — die Aufteilung ist **gemessen** (Betriebsart-Zähler) statt aus
@@ -1609,6 +1616,9 @@ class _RohMonat:
         self.wp_modus_strom_funktionsfremd_abzug = 0.0
         #: W-5 — die Kältemenge, nur gemessen.
         self.wp_nutzenergie_kuehlen = 0.0
+        #: R-C/N-398 — die zwei Mengen ohne Kennzahl (E4).
+        self.wp_nutzenergie_lueften = 0.0
+        self.wp_nutzenergie_entfeuchten = 0.0
         self.wp_modus_abdeckung_h = 0.0
         #: #263 — mindestens ein Gerät bringt die Aufteilung GEMESSEN mit.
         self.wp_modus_gemessen = False
@@ -1837,6 +1847,8 @@ class _RohMonat:
                 b.wp_modus_strom_funktionsfremd_abzug
             )
             self.wp_nutzenergie_kuehlen += b.wp_nutzenergie_kuehlen
+            self.wp_nutzenergie_lueften += b.wp_nutzenergie_lueften
+            self.wp_nutzenergie_entfeuchten += b.wp_nutzenergie_entfeuchten
             # W-17: derselbe Grund wie im abgeleiteten Zweig oben — `b` ist der
             # Beitrag EINES Geraets zu diesem Monat. Beide Zweige schreiben in
             # dasselbe `_RohMonat`; das Maximum ueber beide ist deshalb das
@@ -2176,6 +2188,8 @@ async def _baue_fakt(
                 roh.wp_modus_strom_funktionsfremd_abzug
             ),
             nutzenergie_kuehlen_kwh=roh.wp_nutzenergie_kuehlen,
+            nutzenergie_lueften_kwh=roh.wp_nutzenergie_lueften,
+            nutzenergie_entfeuchten_kwh=roh.wp_nutzenergie_entfeuchten,
             modus_abdeckung_h=roh.wp_modus_abdeckung_h,
             modus_gemessen=roh.wp_modus_gemessen,
             modus_strom_bezug_kwh=roh.wp_modus_strom_bezug,

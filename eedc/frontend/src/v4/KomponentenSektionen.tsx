@@ -942,6 +942,12 @@ export function baueKomponentenBloecke(
     // Quelle als die zwei darüber (abgeleitet statt gemessen) und gehört
     // trotzdem in dieselbe Titel- und Segment-Frage.
     const wpWarmwasser = d.wp_modus_strom_warmwasser_kwh ?? 0
+    // R-C (WK-16f, N-398): die abgegebene **Nutzenergie** derselben zwei
+    // Betriebsarten — als Zeile neben ihrem Strom, nie als Balken-Segment: der
+    // Balken teilt den STROM auf. E4 bleibt, eine Kennzahl entsteht daraus
+    // nicht.
+    const wpNutzLueften = d.wp_modus_nutzenergie_lueften_kwh ?? 0
+    const wpNutzEntfeuchten = d.wp_modus_nutzenergie_entfeuchten_kwh ?? 0
     if (d.wp_modus_gemessen || (hat(d.wp_modus_abdeckung_h) && d.wp_modus_abdeckung_h! > 0)) wpEls.push({
       // W-8: Der Titel nennt die **Größe**. „Aufteilung Heizen/Kühlen" allein
       // sagte nicht, dass hier **Strom** steht — direkt darüber kann die
@@ -993,6 +999,15 @@ export function baueKomponentenBloecke(
               && Math.abs(d.wp_modus_strom_bezug_kwh! - d.wp_strom_kwh!) > 0.05
               ? [{ label: 'Aufgeteilte Menge',
                    wert: `${fmt(d.wp_modus_strom_bezug_kwh)} von ${fmt(d.wp_strom_kwh)} kWh` }]
+              : []),
+            // R-C: **nur mit Zahl** (D-Sicht) — ohne zugeordneten Zähler stünde
+            // hier an jeder Wärmepumpe eine 0-Zeile, die für fast jeden nichts
+            // sagt (E4: „Wer sie nicht erfasst, sieht sie nicht.").
+            ...(wpNutzLueften
+              ? [{ label: 'Nutzenergie Lüften', wert: `${fmt(wpNutzLueften)} kWh` }]
+              : []),
+            ...(wpNutzEntfeuchten
+              ? [{ label: 'Nutzenergie Entfeuchten', wert: `${fmt(wpNutzEntfeuchten)} kWh` }]
               : []),
           ]} />
           <ModusSplitErklaerung />

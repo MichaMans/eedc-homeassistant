@@ -125,6 +125,75 @@ def waerme_gesamt_kwh(
     return float(heizung_kwh or 0.0) + float(warmwasser_kwh or 0.0)
 
 
+def heizwaerme_kwh(daten: Optional[dict]) -> Optional[float]:
+    """Die **Heizwärme** einer Monatszeile — Gerätefeld, sonst Betriebsart (N-398).
+
+    Der Zähler von D1 auf der Heizachse, an **einer** Stelle:
+
+    1. ``heizenergie_kwh`` — der Wärmemengenzähler des Geräts.
+    2. ``heizung_kwh`` — derselbe Wert unter dem Legacy-Namen (die Lesetür
+       {@link backend.core.field_definitions.get_wp_heizenergie_kwh} kennt ihn
+       seit jeher; ihn hier zu übergehen hieße, Altbestand zu verlieren).
+    3. **Sonst** die gemessene *Nutzenergie Heizbetrieb* —
+       ``betriebsart_nutzenergie_heizen_kwh``, am Gerät oder je Innengerät.
+    4. Sonst ``None`` — **nicht 0**: „kein Zähler" und „Zähler stand auf null"
+       sind verschiedene Aussagen (ADR-002/P4).
+
+    ⭐ **Warum Stufe 3 überhaupt dazugehört (N-398, offen seit 05.09.2026).**
+    Das Feld ist seit dem 26.08.2026 zuordenbar und wurde von **nichts**
+    gelesen. Wer es pflegte — der Kanon für eine Split-Klimaanlage, die ihre
+    abgegebene Wärme je Innengerät misst —, sah im Komponenten-Hub
+    ``gesamt_heizenergie_kwh`` **0** und darunter den Grund *„kein
+    Wärmemengenzähler zugeordnet"*. Der Satz war nicht nur nutzlos, er war
+    **falsch**: Der Zähler war zugeordnet.
+
+    ⚠ **Dieselbe Weiche wie auf der Stromseite (K2), nicht eine neue.**
+    ``_aufgeloest`` entscheidet Gerätefeld-vor-Innengeräten für jedes
+    Betriebsart-Feld; hier kommt nur die Ebene darüber dazu — die **Achse**
+    (``heizenergie_kwh``) schlägt die **Teilmenge** (Betriebsart). Das ist die
+    Richtung von K1: Der gröbere, vollständigere Zähler gewinnt.
+
+    ⛔ **Eine gepflegte 0 gewinnt gegen Stufe 3.** „Diesen Monat nicht geheizt"
+    ist eine Messung und darf nicht von einem Betriebsart-Zähler verdrängt
+    werden — die F-42-Klasse. ⚠ Wie genau der Vorrang der ersten beiden Stufen
+    untereinander fällt, entscheidet dagegen **die alte Lesetür und nicht diese
+    Funktion**: Sie ist dort bitgleich nachgebaut (s. Kommentar im Rumpf), damit
+    an bestehenden Zeilen nichts kippt.
+
+    ⛔ **Sie addiert nichts.** Gerätefeld und Betriebsart-Nutzenergie beschreiben
+    dieselbe Wärme auf zwei Ebenen; sie zu summieren wäre die Doppelzählung, vor
+    der der Modulkopf von ``betriebsart_gemessen`` warnt.
+    """
+    d = daten if isinstance(daten, dict) else {}
+    # ⚠ **Die ersten beiden Zeilen sind bitgleich zu**
+    # {@link backend.core.field_definitions.get_wp_heizenergie_kwh} — mit
+    # ``or``, nicht mit ``is not None``. Das ist kein Flüchtigkeitsfehler,
+    # sondern Absicht: Eine Zeile, die ``heizenergie_kwh: 0`` **und** den
+    # Legacy-Wert ``heizung_kwh: 7`` trägt, liefert dort seit jeher 7. Diese
+    # Funktion darf an bestehenden Zeilen **nichts** verändern; sie hängt nur
+    # eine dritte Stufe an, wo bisher 0 herauskam.
+    wert = d.get("heizenergie_kwh") or d.get("heizung_kwh")
+    if wert:
+        try:
+            return float(wert)
+        except (TypeError, ValueError):
+            return None
+    # **Eine gemessene 0 ist eine Messung** (CLAUDE.md, F-42) und verdrängt den
+    # Rückfall — „diesen Monat nicht geheizt" ist eine Aussage über das Gerät.
+    if d.get("heizenergie_kwh") is not None or d.get("heizung_kwh") is not None:
+        return 0.0
+    # Lokaler Import: `betriebsart_gemessen` liest `field_definitions`, dieses
+    # Modul wird von dort NICHT gelesen — ein Import auf Modulebene wäre
+    # zulässig, bleibt aber hier, damit die Abhängigkeit an der Stelle steht,
+    # die sie braucht (dieselbe Bauform wie in `wp_strom_aufteilung`).
+    from backend.core.berechnungen.betriebsart_gemessen import (
+        betriebsart_nutzenergie_kwh,
+    )
+    from backend.core.betriebsmodus import HEIZEN
+
+    return betriebsart_nutzenergie_kwh(d, HEIZEN)
+
+
 def waerme_gesamt_je_geraet(
     gesamt_je_inv: Optional[Mapping[str, float]],
     *teile_je_inv: Optional[Mapping[str, float]],

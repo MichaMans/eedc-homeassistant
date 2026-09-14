@@ -52,6 +52,9 @@ from backend.core.berechnungen import (
     funktionsfremd_abzug_kwh,
     modus_strom_zeile,
 )
+from backend.core.berechnungen.betriebsart_gemessen import (
+    nutzenergie_ohne_kennzahl_kwh,
+)
 from backend.core.berechnungen.modus_split import heizwaerme_ist_abgeleitet
 from backend.core.betriebsmodus import KUEHLEN as BM_KUEHLEN_W5
 from backend.core.betriebsmodus import MODUS_ABDECKUNG_FELD
@@ -63,6 +66,7 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     arbeitszahl,
     arbeitszahl_je_funktion,
     arbeitszahl_kuehlen,
+    heizwaerme_kwh,
     waerme_gesamt_kwh,
 )
 from backend.core.field_definitions import (
@@ -162,6 +166,10 @@ class GeraetFaltung:
     modus_warmwasser_kwh: float = 0.0
     modus_lueften_kwh: float = 0.0
     modus_entfeuchten_kwh: float = 0.0
+    #: **R-C (WK-16f, N-398):** die abgegebene Nutzenergie derselben zwei
+    #: Betriebsarten — als **Menge** neben ihrem Strom, ohne Kennzahl (E4).
+    nutzenergie_lueften_kwh: float = 0.0
+    nutzenergie_entfeuchten_kwh: float = 0.0
     modus_abdeckung_h: float = 0.0
     modus_bezug_kwh: float = 0.0
     modus_gemessen: bool = False
@@ -246,6 +254,15 @@ def mengen_aus_monatszeilen(
     # Beim Umhängen am 14.09.2026 war genau das der **einzige** Unterschied in
     # der Hub-Bilanz (``gesamt_heizenergie_kwh`` 0 gegen 0.0, gemessen an der
     # Demo r28). Wer hier aufräumt, ändert eine ausgelieferte Antwort.
+    #
+    # ⛔ **Auf der Heizwärme-Achse hält der int-Start seit WK-16f nicht mehr,
+    # und das ist bewusst.** ``heizwaerme_kwh`` liefert ``float`` — es muss, es
+    # ist eine Lesetür mit drei Quellen. Gemessen an r27 **und** r28 (14.09.):
+    # genau **ein** Unterschied, ``gesamt_heizenergie_kwh`` 17500 → 17500.0 in
+    # der Demo-Anlage; der **Wert** ist unverändert, das JSON-Literal nicht.
+    # Ihn zu retten hieße, den Rohzugriff wieder danebenzustellen, den dieses
+    # Paket gerade entfernt — ein Literal ist das nicht wert. Die **Null** bleibt
+    # ``int``: Ohne Zeile mit Wert wird nie addiert.
     strom = heizung = warmwasser = 0
     strom_heizen = strom_warmwasser = 0
     waerme = 0.0
@@ -256,6 +273,7 @@ def mengen_aus_monatszeilen(
     f = GeraetFaltung()
     modus_heizen = modus_kuehlen = modus_warmwasser = 0.0
     modus_lueften = modus_entfeuchten = 0.0
+    nutz_lueften = nutz_entfeuchten = 0.0
     modus_abdeckung = modus_bezug = 0.0
     modus_gemessen = ww_je_erfasst = False
     jaz_je_monat: list[dict] = []
@@ -274,6 +292,11 @@ def mengen_aus_monatszeilen(
         modus_warmwasser += _zeile.warmwasser_kwh
         modus_lueften += _zeile.lueften_kwh
         modus_entfeuchten += _zeile.entfeuchten_kwh
+        # R-C/N-398: die Mengen ohne Kennzahl — ueber den Layer-SoT, damit die
+        # Aufloesung Geraetefeld-vor-Innengeraeten auch hier gilt (K2).
+        _nutz = nutzenergie_ohne_kennzahl_kwh(d)
+        nutz_lueften += _nutz.lueften_kwh
+        nutz_entfeuchten += _nutz.entfeuchten_kwh
         # ⭐ **N-462: die Lage steht NICHT vor der Schleife.** E7/Option A fragt
         # „steckt der funktionsfremde Anteil im Nenner?", und das entscheidet
         # die **Stufe der Monatszeile** (K3), nicht das Kennzeichen des Geräts.
@@ -293,7 +316,7 @@ def mengen_aus_monatszeilen(
         strom += _zeilen_strom
         # ⚠ **Der EINZELwert, nicht die Wärme des Geräts** (N-391): Er trägt die
         # Kachel *Heizwärme* und den Zähler der Heiz-Arbeitszahl.
-        heizung += d.get('heizenergie_kwh', 0)
+        heizung += heizwaerme_kwh(d) or 0
         # N-379: die eine Lesetuer statt des Rohzugriffs.
         _ww = get_wp_warmwasser_kwh(d, wp.parameter)
         warmwasser += _ww
@@ -305,7 +328,7 @@ def mengen_aus_monatszeilen(
         # ⭐ **Die Zeile liest ihre Wärme wie der Layer (N-441, Fall K)** — mit
         # dem kanonischen Vorrang „Gesamtwert vor Summanden" (D1).
         _md_waerme = waerme_gesamt_kwh(
-            d.get('waerme_kwh'), d.get('heizenergie_kwh'), _ww,
+            d.get('waerme_kwh'), heizwaerme_kwh(d), _ww,
         )
         zeilen.append((_md_waerme, _zeilen_strom))
         # P12: dieselbe Rechnung wie die Gesamtzahl, nur je Zeile.
@@ -321,7 +344,7 @@ def mengen_aus_monatszeilen(
             abgrenzung_verletzt=GRUND_JE_ABGRENZUNG.get(_stoerung or ""),
         )
         _md_az_funktion = arbeitszahl_je_funktion(
-            heizung_kwh=d.get('heizenergie_kwh'),
+            heizung_kwh=heizwaerme_kwh(d),
             strom_heizen_kwh=d.get('strom_heizen_kwh'),
             # N-379: `None` NUR, wenn das Geraet die Groesse nicht hat.
             warmwasser_kwh=(
@@ -359,7 +382,7 @@ def mengen_aus_monatszeilen(
             strom_heizen += d.get('strom_heizen_kwh', 0)
             strom_warmwasser += d.get('strom_warmwasser_kwh', 0)
             # ⚠ Die EINZELwerte, nicht die Wärme des Monats (N-391).
-            heizung_getrennt += d.get('heizenergie_kwh', 0)
+            heizung_getrennt += heizwaerme_kwh(d) or 0
             warmwasser_getrennt += _ww
             waerme_ist_gesamt_getrennt = (
                 waerme_ist_gesamt_getrennt or bool(d.get('waerme_kwh'))
@@ -398,6 +421,8 @@ def mengen_aus_monatszeilen(
         modus_warmwasser_kwh=modus_warmwasser,
         modus_lueften_kwh=modus_lueften,
         modus_entfeuchten_kwh=modus_entfeuchten,
+        nutzenergie_lueften_kwh=nutz_lueften,
+        nutzenergie_entfeuchten_kwh=nutz_entfeuchten,
         modus_abdeckung_h=modus_abdeckung,
         modus_bezug_kwh=modus_bezug,
         modus_gemessen=modus_gemessen,

@@ -77,6 +77,13 @@ export interface CockpitUebersicht {
   wp_modus_strom_warmwasser_kwh?: number | null
   wp_modus_strom_lueften_kwh?: number | null
   wp_modus_strom_entfeuchten_kwh?: number | null
+  /** **R-C (WK-16f, N-398): die abgegebene Nutzenergie** derselben zwei
+   *  Betriebsarten — als **Menge** neben ihrem Strom. E4 bleibt: daraus
+   *  entsteht keine Arbeitszahl, weil eedc den Nutzen von Lüften und
+   *  Entfeuchten nicht bewerten kann. Nur gesetzt, wenn ein Zähler etwas
+   *  gemeldet hat; sonst steht die Zeile nicht da (D-Sicht). */
+  wp_modus_nutzenergie_lueften_kwh?: number | null
+  wp_modus_nutzenergie_entfeuchten_kwh?: number | null
   wp_modus_nicht_aufgeteilt_kwh?: number | null
   wp_modus_abdeckung_h?: number | null
   wp_modus_strom_bezug_kwh?: number | null

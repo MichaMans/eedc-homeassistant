@@ -62,7 +62,10 @@ from backend.core.berechnungen.ust_eigenverbrauch import (
     bemessungsgrundlage_aus_investitionen,
     ust_eigenverbrauch_fuer_anlage,
 )
-from backend.core.berechnungen.waermepumpe_kennzahl import waerme_gesamt_kwh
+from backend.core.berechnungen.waermepumpe_kennzahl import (
+    heizwaerme_kwh,
+    waerme_gesamt_kwh,
+)
 from backend.core.field_definitions import (
     get_emob_pv_netz_kwh,
     get_wp_strom_kwh,
@@ -1544,7 +1547,7 @@ async def get_finanz_prognose(
                 # `wp_ersparnis_je_inv` liess das Geraet leer ausgehen.
                 thermisch = waerme_gesamt_kwh(
                     daten.get("waerme_kwh"),
-                    daten.get("heizenergie_kwh"),
+                    heizwaerme_kwh(daten),   # N-398
                     get_wp_warmwasser_kwh(daten, wp.parameter),
                 )
                 gesamt_wp_thermisch += thermisch

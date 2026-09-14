@@ -47,7 +47,7 @@ from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, hub_hilft,
     abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
-    systemarbeitszahl, waerme_gesamt_kwh,
+    heizwaerme_kwh, systemarbeitszahl, waerme_gesamt_kwh,
 )
 from backend.core.berechnungen import (
     sonstiges_richtung,
@@ -97,15 +97,17 @@ from backend.core.wirtschaftlichkeit_defaults import (
     NETZBEZUG_DEFAULT_CENT,
 )
 from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+from backend.core.betriebsmodus import BETRIEBSART_NUTZENERGIE_FELD
+from backend.core.betriebsmodus import HEIZEN as BM_HEIZEN
 from backend.core.betriebsmodus import KUEHLEN as BM_KUEHLEN
 from backend.core.betriebsmodus import MODUS_STROM_FELD
 from backend.core.field_definitions import (
     FEINE_STROM_FELDER,
     SONSTIGES_ABGABE_LABEL,
+    basis_feld_key,
     get_eauto_ladung_kwh,
     get_emob_pv_netz_kwh,
     get_speicher_netzladung_kwh,
-    get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     ist_abgabe_kategorie,
@@ -480,6 +482,11 @@ class AktuellerMonatResponse(BaseModel):
     wp_kaelte_kwh: Optional[float] = None
     wp_modus_strom_lueften_kwh: Optional[float] = None
     wp_modus_strom_entfeuchten_kwh: Optional[float] = None
+    #: **R-C (WK-16f, N-398):** die abgegebene Nutzenergie derselben zwei
+    #: Betriebsarten — **nur mit Zahl** (D-Sicht). E4 bleibt: Menge, keine
+    #: Kennzahl. Bis zum 14.09.2026 las diese zwei Registry-Felder niemand.
+    wp_modus_nutzenergie_lueften_kwh: Optional[float] = None
+    wp_modus_nutzenergie_entfeuchten_kwh: Optional[float] = None
     wp_modus_nicht_aufgeteilt_kwh: Optional[float] = None
     wp_modus_abdeckung_h: Optional[float] = None
     #: **W-17b** — die Grundmenge, auf die sich die Aufteilung bezieht.
@@ -1520,7 +1527,11 @@ def _baue_investition_financial(
                 inv_berechnung = f"{entl_kwh:.1f} kWh × {erg.spread_cent_kwh:.2f} ct/kWh"
 
     elif inv.typ == "waermepumpe":
-        waerme = get_wp_heizenergie_kwh(data)
+        # N-398: dieselbe Weiche wie im Layer — Geraetefeld, sonst die gemessene
+        # Nutzenergie Heizbetrieb. Ohne sie blieb die Zeile „Ersparnis vs.
+        # Alternative" an einer Split-Klimaanlage leer, die ihre Waerme je
+        # Innengeraet misst.
+        waerme = heizwaerme_kwh(data)
         # N-379: die eine Lesetuer — an einem Geraet ohne Warmwasserkreis ist 0.
         ww = get_wp_warmwasser_kwh(data, inv.parameter)
         strom = get_wp_strom_kwh(data, inv.parameter) or None
@@ -1922,6 +1933,48 @@ async def get_aktueller_monat(
     direct_fields = set(resolved.keys()) - teilzeitraum
     ersetzbar = set(teilzeitraum)
 
+    def _wp_heizwaerme_eintrag(inv_id: int):
+        """Die Heizwaerme dieses Geraets aus den Nicht-DB-Quellen (N-398).
+
+        Dieselbe Weiche wie im Layer ({@link heizwaerme_kwh}), nur auf der
+        anderen Datenform: ``resolved`` traegt ``inv_<id>_<feld>`` statt einer
+        ``verbrauch_daten``-Zeile. Der **Regel**-Teil bleibt im Layer — hier
+        wird nur die Zeile zusammengesetzt, die er lesen kann.
+
+        ⚠ **Ohne das faellt der laufende Monat hinter den abgeschlossenen
+        zurueck.** Der DB-Zweig kommt ueber die Monats-Fakten und hat die
+        Aufloesung seit dem Layer-Eingriff; eine Klimaanlage, die ihre
+        Nutzenergie je Innengeraet ueber MQTT oder HA meldet, saehe sonst im
+        laufenden Monat 0 und im Folgemonat die Zahl — zwei Sichten, zwei
+        Auskuenfte (Konzept §6/S1).
+
+        Returns:
+            ``(menge, DatenquelleInfo)`` wie jeder andere ``resolved``-Eintrag,
+            oder ``None``.
+        """
+        direkt = resolved.get(f"inv_{inv_id}_heizenergie_kwh")
+        if direkt is not None:
+            return direkt
+        praefix = f"inv_{inv_id}_"
+        zeile = {
+            k[len(praefix):]: v[0]
+            for k, v in resolved.items() if k.startswith(praefix)
+        }
+        menge = heizwaerme_kwh(zeile)
+        if menge is None:
+            return None
+        # Die Herkunfts-Marke des Wertes, der die Menge getragen hat — bei
+        # mehreren Innengeraeten die des ersten gefundenen (dieselbe Naeherung,
+        # die `_wp_waerme_d1` darunter fuer die Summanden macht).
+        quelle = next(
+            (v[1] for k, v in resolved.items()
+             if k.startswith(praefix)
+             and basis_feld_key(k[len(praefix):])
+             == BETRIEBSART_NUTZENERGIE_FELD[BM_HEIZEN]),
+            None,
+        )
+        return (menge, quelle) if quelle is not None else None
+
     def _wp_waerme_d1(inv_id: int) -> None:
         """D1 je Geraet — der Gesamtwert verdraengt nur die EIGENE Aufteilung.
 
@@ -1939,8 +1992,8 @@ async def get_aktueller_monat(
         """
         _gesamt = resolved.get(f"inv_{inv_id}_waerme_kwh")
         _teile = [
-            resolved.get(f"inv_{inv_id}_{s}")
-            for s in ("heizenergie_kwh", "warmwasser_kwh")
+            _wp_heizwaerme_eintrag(inv_id),
+            resolved.get(f"inv_{inv_id}_warmwasser_kwh"),
         ]
         if _gesamt is None and all(t is None for t in _teile):
             return
@@ -2821,6 +2874,8 @@ async def get_aktueller_monat(
     wp_modus_warmwasser = None
     wp_modus_lueften = None
     wp_modus_entfeuchten = None
+    wp_nutz_lueften = None
+    wp_nutz_entfeuchten = None
     wp_modus_rest = None
     wp_modus_abdeckung = None
     wp_modus_gemessen = None
@@ -2844,6 +2899,10 @@ async def get_aktueller_monat(
             wp_modus_warmwasser = round(mf_wp.modus_strom_warmwasser_kwh, 2)
             wp_modus_lueften = round(mf_wp.modus_strom_lueften_kwh, 2)
             wp_modus_entfeuchten = round(mf_wp.modus_strom_entfeuchten_kwh, 2)
+            # R-C: nur mit Zahl (D-Sicht) — `or None` statt einer 0-Zeile.
+            wp_nutz_lueften = round(mf_wp.nutzenergie_lueften_kwh, 2) or None
+            wp_nutz_entfeuchten = (
+                round(mf_wp.nutzenergie_entfeuchten_kwh, 2) or None)
             wp_modus_rest = round(mf_wp.modus_nicht_aufgeteilt_kwh, 2)
             wp_modus_abdeckung = round(mf_wp.modus_abdeckung_h, 1)
             wp_modus_gemessen = mf_wp.modus_gemessen
@@ -3407,6 +3466,8 @@ async def get_aktueller_monat(
         ),
         wp_modus_strom_lueften_kwh=wp_modus_lueften,
         wp_modus_strom_entfeuchten_kwh=wp_modus_entfeuchten,
+        wp_modus_nutzenergie_lueften_kwh=wp_nutz_lueften,
+        wp_modus_nutzenergie_entfeuchten_kwh=wp_nutz_entfeuchten,
         wp_modus_nicht_aufgeteilt_kwh=wp_modus_rest,
         wp_modus_abdeckung_h=wp_modus_abdeckung,
         wp_modus_strom_bezug_kwh=wp_modus_bezug,

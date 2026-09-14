@@ -155,6 +155,11 @@ class CockpitUebersichtResponse(BaseModel):
     wp_modus_strom_warmwasser_kwh: Optional[float] = None
     wp_modus_strom_lueften_kwh: Optional[float] = None
     wp_modus_strom_entfeuchten_kwh: Optional[float] = None
+    #: **R-C (WK-16f, N-398):** die abgegebene Nutzenergie derselben zwei
+    #: Betriebsarten — **nur mit Zahl** (D-Sicht), sonst ``None``. E4 bleibt:
+    #: daraus entsteht keine Kennzahl, sie steht als Menge neben ihrem Strom.
+    wp_modus_nutzenergie_lueften_kwh: Optional[float] = None
+    wp_modus_nutzenergie_entfeuchten_kwh: Optional[float] = None
     wp_modus_nicht_aufgeteilt_kwh: Optional[float] = None
     wp_modus_abdeckung_h: Optional[float] = None
     wp_modus_strom_bezug_kwh: Optional[float] = None
@@ -579,6 +584,8 @@ async def get_cockpit_uebersicht(
         "warmwasser": _wpk.betriebsarten.warmwasser_kwh,
         "lueften": _wpk.betriebsarten.lueften_kwh,
         "entfeuchten": _wpk.betriebsarten.entfeuchten_kwh,
+        "nutz_lueften": _wpk.betriebsarten.nutzenergie_lueften_kwh,
+        "nutz_entfeuchten": _wpk.betriebsarten.nutzenergie_entfeuchten_kwh,
         "rest": _wpk.betriebsarten.nicht_aufgeteilt_kwh,
         "abdeckung": _wpk.betriebsarten.abdeckung_h,
         "bezug": _wpk.betriebsarten.bezug_kwh,
@@ -961,6 +968,13 @@ async def get_cockpit_uebersicht(
         wp_modus_strom_warmwasser_kwh=round(_wp_modus["warmwasser"], 1) if _wp_hat_modus else None,
         wp_modus_strom_lueften_kwh=round(_wp_modus["lueften"], 1) if _wp_hat_modus else None,
         wp_modus_strom_entfeuchten_kwh=round(_wp_modus["entfeuchten"], 1) if _wp_hat_modus else None,
+        # R-C: die Zeile erscheint **nur mit Zahl** — ohne Zaehler gaebe es
+        # sonst an jeder Waermepumpe zwei 0-Zeilen (E4: „Wer sie nicht erfasst,
+        # sieht sie nicht.").
+        wp_modus_nutzenergie_lueften_kwh=(
+            round(_wp_modus["nutz_lueften"], 1) or None),
+        wp_modus_nutzenergie_entfeuchten_kwh=(
+            round(_wp_modus["nutz_entfeuchten"], 1) or None),
         wp_modus_nicht_aufgeteilt_kwh=round(_wp_modus["rest"], 1) if _wp_hat_modus else None,
         wp_modus_abdeckung_h=round(_wp_modus["abdeckung"], 1) if _wp_hat_modus else None,
         wp_modus_strom_bezug_kwh=round(_wp_modus["bezug"], 1) if _wp_hat_modus else None,

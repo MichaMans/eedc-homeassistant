@@ -45,6 +45,7 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     abgrenzungs_grund,
     arbeitszahl,
     ersparnis_vorbehalt,
+    heizwaerme_kwh,
     waerme_gesamt_kwh,
 )
 from backend.services.wp_wirtschaftlichkeit import berechne_wp_ersparnis
@@ -1696,7 +1697,7 @@ async def calculate_investition_sensors(
             }
             gesamt_waerme_kanonisch += waerme_gesamt_kwh(
                 d.get("waerme_kwh"),
-                d.get("heizenergie_kwh"),
+                heizwaerme_kwh(d),   # N-398
                 # N-379: die eine Lesetuer — sonst traegt der HA-Sensor eine
                 # Waermemenge, die es am Geraet nicht gibt.
                 get_wp_warmwasser_kwh(d, investition.parameter),
@@ -1866,9 +1867,9 @@ async def calculate_investition_sensors(
                 bewertbar = False
                 for md in monatsdaten:
                     d = md.verbrauch_daten or {}
-                    m_waerme = waerme_gesamt_kwh(   # N-391 (D1), N-379
+                    m_waerme = waerme_gesamt_kwh(   # N-391 (D1), N-379, N-398
                         d.get("waerme_kwh"),
-                        d.get("heizenergie_kwh"),
+                        heizwaerme_kwh(d),
                         get_wp_warmwasser_kwh(d, investition.parameter),
                     )
                     m_strom = get_wp_strom_kwh(d, investition.parameter)

@@ -52,6 +52,8 @@ __all__ = [
     "hat_gemessene_betriebsart",
     "ModusStromZeile",
     "modus_strom_zeile",
+    "NutzenergieOhneKennzahl",
+    "nutzenergie_ohne_kennzahl_kwh",
 ]
 
 
@@ -372,3 +374,50 @@ def funktionsfremd_abzug_kwh(zeile: ModusStromZeile, *, hat_split: bool) -> floa
     if hat_split and not zeile.gemessen:
         return 0.0
     return zeile.funktionsfremd_kwh
+
+
+@dataclass(frozen=True)
+class NutzenergieOhneKennzahl:
+    """Die gemessene **Nutzenergie** der beiden Betriebsarten ohne Kennzahl (E4).
+
+    ⭐ **Warum es diese Klasse gibt und nicht einfach zwei ``get``-Aufrufe:**
+    Lüften und Entfeuchten bekommen nach **E4** bewusst keine Arbeitszahl — sie
+    erzeugen keine Nutzenergie, die eedc bewerten könnte. *Erfassen* lässt sie
+    sich trotzdem, und seit dem 26.08.2026 steht je Betriebsart ein
+    Nutzenergie-Feld in der Registry. Bis zum 14.09.2026 hat sie **niemand
+    gelesen** (N-398): vier zuordenbare Felder, vier Zähler, kein Ort, an dem
+    ihre Zahl erschien.
+
+    ⚠ **Menge ja, Kennzahl nein — und das ist keine halbe Lösung, sondern E4.**
+    Die beiden Zeilen stehen als *Mengen* neben „Strom Lüften"/„Strom
+    Entfeuchten"; ein Quotient aus ihnen wäre eine Effizienz-Aussage über einen
+    Vorgang, dessen Nutzen eedc nicht kennt.
+
+    ⛔ **Heizen und Kühlen stehen hier NICHT.** Für sie gibt es je einen
+    eigenen, älteren Weg, und ein dritter Ort für dieselbe Menge wäre die
+    W-3-Klasse: Die Nutzenergie **Heizen** ist Heizwärme und trägt **D1**
+    ({@link backend.core.berechnungen.waermepumpe_kennzahl.heizwaerme_kwh}), die
+    Nutzenergie **Kühlen** ist die Kältemenge und trägt die *Arbeitszahl Kühlen*
+    ({@link backend.core.berechnungen.waermepumpe_kennzahl.arbeitszahl_kuehlen}).
+    """
+
+    lueften_kwh: float = 0.0
+    entfeuchten_kwh: float = 0.0
+    #: Liegt für **mindestens eine** der beiden ein Wert vor? `is not None`,
+    #: nicht truthy: eine gemessene 0 ist eine Messung (CLAUDE.md, F-42).
+    gemessen: bool = False
+
+
+def nutzenergie_ohne_kennzahl_kwh(daten: Optional[dict]) -> NutzenergieOhneKennzahl:
+    """Nutzenergie **Lüften** und **Entfeuchten** einer Zeile (E4, N-398).
+
+    Gerätefeld schlägt Σ Innengeräte wie bei jedem Betriebsart-Feld — die Regel
+    steht in {@link _aufgeloest} und nur dort.
+    """
+    lueften = betriebsart_nutzenergie_kwh(daten, LUEFTEN)
+    entfeuchten = betriebsart_nutzenergie_kwh(daten, ENTFEUCHTEN)
+    return NutzenergieOhneKennzahl(
+        lueften_kwh=lueften or 0.0,
+        entfeuchten_kwh=entfeuchten or 0.0,
+        gemessen=lueften is not None or entfeuchten is not None,
+    )

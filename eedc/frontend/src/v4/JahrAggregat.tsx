@@ -391,6 +391,12 @@ export function baueJahrAlsMonat(
     ),
     wp_modus_strom_lueften_kwh: k?.wp_modus_strom_lueften_kwh ?? summe(f('wp_modus_strom_lueften_kwh')),
     wp_modus_strom_entfeuchten_kwh: k?.wp_modus_strom_entfeuchten_kwh ?? summe(f('wp_modus_strom_entfeuchten_kwh')),
+    // R-C (WK-16f/N-398): dieselbe Bauform wie die zwei Zeilen darüber —
+    // Jahres-Kennzahl der Route, sonst die Summe über die Monate.
+    wp_modus_nutzenergie_lueften_kwh:
+      k?.wp_modus_nutzenergie_lueften_kwh ?? summe(f('wp_modus_nutzenergie_lueften_kwh')),
+    wp_modus_nutzenergie_entfeuchten_kwh:
+      k?.wp_modus_nutzenergie_entfeuchten_kwh ?? summe(f('wp_modus_nutzenergie_entfeuchten_kwh')),
     wp_modus_strom_bezug_kwh: k?.wp_modus_strom_bezug_kwh ?? summe(f('wp_modus_strom_bezug_kwh')),
     // Kennzahlen NUR aus der Route (P12) — ohne sie bleibt „—", aber mit Grund,
     // wo die Route einen liefert.

@@ -1222,6 +1222,59 @@ bleibt der Weg über seine eigenen Einstellungen.
 
 *Gemeldet von Radiocarbonat im simon42-Forum.*
 
+### Jedes Feld sagt jetzt, wo sein Wert erscheint
+
+**Betrifft dich das?** Ja, wenn du unter *Einstellungen → Datenquellen* Sensoren
+zuordnest.
+
+**Was war:** Du hast einen Zähler zugeordnet, und danach stellte sich die Frage,
+die niemand beantwortete: *Wofür eigentlich?* Die Fläche sagte, was in ein Feld
+gehört — nicht, wo der Wert danach auftaucht.
+
+**Was jetzt:** Klick auf das Info-Symbol neben einem Feld, und dort steht
+zusätzlich eine Zeile:
+
+> **Ausgewertet in:** Cockpit → Monat · Komponenten → Wärmepumpe · HA-Sensoren
+
+Dieselbe Angabe findest du in der [Sensor-Referenz](SENSOR-REFERENZ.md) als
+eigene Spalte.
+
+**Und das ist mehr als ein Satz:** Damit eedc ihn schreiben kann, führt es jetzt
+eine vollständige Liste *Feld → Auswertung* — und prüft sie bei jedem Bau gegen
+die Felder, die die Fläche anbietet. Ein Feld, das nirgends ankommt, fällt damit
+auf, **bevor** es bei dir landet. Genau so ist die Korrektur unten gefunden
+worden.
+
+### Eine gemessene Wärme, die nirgends ankam
+
+**Betrifft dich das?** Ja, wenn du an einer Klimaanlage oder Wärmepumpe die
+Felder *Nutzenergie Heizbetrieb*, *Nutzenergie Lüftbetrieb* oder *Nutzenergie
+Entfeuchtungsbetrieb* zugeordnet hast.
+
+**Was war:** Diese drei Felder ließen sich seit August zuordnen — und **kein
+einziger** Wert daraus erschien irgendwo. Wer die abgegebene Wärme seiner
+Multisplit-Anlage je Innengerät maß, sah im Komponenten-Hub *Heizwärme 0* und
+darunter als Grund *„kein Wärmemengenzähler zugeordnet"*. Dieser Satz war nicht
+nur nutzlos, er war falsch: Der Zähler war zugeordnet.
+
+**Was jetzt:**
+
+- **Nutzenergie Heizbetrieb ist die Heizwärme deines Geräts.** Hast du am Gerät
+  keinen eigenen Wärmemengenzähler (*Heizwärme* bzw. *Wärme gesamt*), rechnet
+  eedc mit ihr — in *Cockpit → Monat und Jahr*, im Komponenten-Hub, in Ersparnis,
+  CO₂ und den HA-Sensoren. Mehrere Innengeräte werden summiert; ein Wert am Gerät
+  schlägt die Summe seiner Innengeräte und wird nie dazuaddiert.
+- **Nutzenergie Lüften und Entfeuchten** stehen als eigene **Mengenzeile** neben
+  ihrem Strom — im Hub und im Wärme/Klima-Block, und nur, wenn ein Zähler etwas
+  gemeldet hat.
+
+⛔ **Eine Kennzahl bekommen Lüften und Entfeuchten weiterhin nicht**, und sie
+zählen in keine Wärmesumme: Sie erzeugen keinen Nutzen, den eedc bewerten könnte.
+Was sich ändert, ist nur, dass ihre Zahl jetzt irgendwo steht.
+
+**Was du tun musst:** nichts. Pflegst du die Felder nicht, ändert sich für dich
+gar nichts.
+
 ---
 
 ## v4.0.44 — 9. September 2026

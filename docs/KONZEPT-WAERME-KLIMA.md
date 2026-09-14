@@ -1139,6 +1139,53 @@ Nutzenergie ist thermisch. Als eigener Beitrag stünde die Wärmepumpe in der Ta
   Satz steht **am verdrängten Feld**, im Info-Ton, mit Info-Symbol — und **ohne** Knopf, der das
   falsche Feld leeren würde.
 
+* ⭐ **Kein Feld ohne Auswertung — und die Fläche nennt sie (R-A, 14.09.2026).** Ein Feld, das
+  die Fläche anbietet, wird in mindestens einer **Sicht** (Cockpit · Komponenten · Auswertungen ·
+  Monatsbericht) **oder** als **HA-Sensor/MQTT-Publish** verarbeitet — und am Feld steht, wo:
+  *„Ausgewertet in: Cockpit → Monat · Komponenten → Wärmepumpe."*
+
+  **Der Grund gilt der Kategorie, nicht dem Auslöser:** Eine Zuordnung ist ein **Versprechen an
+  den Anwender**. Ein Feld, das nirgends erscheint, bricht es **still** — und still ist das
+  Problem: Der Anwender sieht eine 0 oder einen Strich und sucht den Fehler bei sich. Das ist die
+  ADR-002/**P4**-Klasse eine Ebene früher: Nicht die Zahl fehlt, sondern jede Zahl.
+
+  ⛔ **Daten-Checker und Vorschlags-Logik zählen NICHT als Auswertung.** Sie *prüfen* bzw.
+  *schlagen vor*; beides beantwortet die Frage „wofür habe ich das zugeordnet?" gerade nicht. Ein
+  Feld, das nur sie lesen, gilt als Feld ohne Auswertung und steht mit Begründung in
+  ``FELDER_OHNE_AUSWERTUNG_BEKANNT`` (heute zwei, beide außerhalb Wärme/Klima: der Monatswert am
+  *Wechselrichter*, der seit dem 24.08.2026 bewusst nichts mehr tut, und der *Tachostand*, aus dem
+  nur der km-Vorschlag entsteht).
+
+  ⚠ **Eine Quelle, kein zweiter Turm:** Die Liste steht in ``core/feld_auswertungen.py``, die
+  Route liefert sie als ``ausgewertet_in``, der Client zeigt sie. Die Spalte in
+  [`SENSOR-REFERENZ.md`](SENSOR-REFERENZ.md) ist von dort abgeschrieben und handgepflegt — es gibt
+  keinen Generator.
+
+* ⭐ **Nutzenergie Heizbetrieb ist Heizwärme (R-B, N-398).** Sie war seit dem 26.08.2026
+  zuordenbar und hatte **keinen Leser**; wer sie pflegte, sah *Heizwärme 0* und den **falschen**
+  Grund *„kein Wärmemengenzähler zugeordnet"*. Es gilt jetzt dieselbe Weiche wie beim Strom:
+  Gerätefeld ``heizenergie_kwh`` (bzw. der Legacy-Name) schlägt sie; **fehlt es, trägt die Summe
+  der gemessenen Nutzenergie Heizbetrieb** — je Innengerät aufgelöst wie jedes Betriebsart-Feld
+  (**K2**: Gerätefeld schlägt Σ Innengeräte, nie addiert). Damit fließt sie in **D1** (Wärme gesamt
+  aus Summanden, wenn kein Gesamtwert) und in jede Kennzahl, die auf D1 steht. Eine gepflegte **0**
+  im Gerätefeld bleibt eine Messung und verdrängt den Rückfall.
+
+  ⚠ **Sie stellt keinen NENNER — entschieden (Fable, 14.09.2026, Abnahme WK-16f).** Ein gemessener
+  Betriebsart-*Strom Heizen* wird **kein** Nenner einer Funktions-Arbeitszahl; der bleibt der
+  getrennt gemessene Strom dieser Funktion (``getrennte_strommessung``, E7). Begründet an der
+  Kategorie *Gerät mit / ohne Warmwasser-Achse*: **Ohne** Warmwasser-Achse (Luft-Luft) trägt die
+  **Gesamt**-Arbeitszahl dieselbe Zahl — Heizwärme ÷ (Strom − gemessener Kühlstrom, E7/Option A) —,
+  eine zweite Kachel wäre dieselbe Zahl unter zweitem Namen (W-3-Klasse). **Mit** Warmwasser-Achse
+  enthält der Betriebsart-Strom *Heizen* den Warmwasser-Strom (Kap. 5.6) und wäre als
+  Funktions-Nenner zu groß. Wer es doch will, bringt ein Gerät mit, bei dem die Gesamt-Arbeitszahl
+  eine andere Zahl trägt als die gewünschte Funktions-Arbeitszahl.
+
+* ⭐ **Nutzenergie Lüften/Entfeuchten sind Mengenzeilen (R-C).** **E4 bleibt: keine Kennzahl.**
+  Ihre Auswertung ist eine Zeile *„Nutzenergie Lüften"* / *„Nutzenergie Entfeuchten"* neben
+  *„Strom Lüften/Entfeuchten"* — im Komponenten-Hub und im Wärme/Klima-Block von Cockpit →
+  Monat/Jahr. **D-Sicht: nur mit Zahl.** Sie sind **kein** Segment des Strom-Balkens und zählen in
+  **keine** Wärmesumme; kein Feld verlässt die Registry, keine Migration.
+
 ⛔ **Warum dieser Hinweis nicht in den Daten-Checker gehört** (Entscheid Gernot, 12.09.2026): Der
 Checker meldet den Fall nicht, und eine zweite Meldung über denselben Sachverhalt wäre ein zweiter
 Turm. Ein statischer Feld-Hinweis wiederum kennt den Zustand nicht und stünde auch dort, wo nichts
@@ -1299,6 +1346,8 @@ oder im Bericht, nicht hier.
 | **Verteilung je Gerät und Funktion — eine Familie je Gerät, zwei Reste, Kosten am Monatstarif** | `core/berechnungen/waerme_verteilung.py::verteile_geraet_strom` (die Weiche) · `services/waerme_verteilung.py` (Eingänge, Preise, Wetter) · `services/energie_profil/waerme_verteilung_tag.py` (Stunden) · Client `src/v4/waermeVerteilung.ts` | Backend `test_wk16c_verteilung_verlauf.py` (24 Proben: Familien-Weiche · K4 neben den Achsen · **Doppelzählung mit Gegenprobe** · gemessene 0 ist kein Segment · beide Reste getrennt · Σ Geräte = Anlagenstapel · Zeitfilter · Kosten von Hand nachgerechnet · zwei Tarife, ein gewichteter Preis · häufigster Wettercode · kein Symbol ohne Code); Client `src/v4/waermeVerteilung.test.tsx` (13 Proben: Reihenfolge Funktion vor Gerät · `null` statt 0 · kein Stapel ohne Verlaufsmenge · drei Differenz-Sätze) | Regression |
 | **S5 — fünf Quellen im laufenden Monat, und die leere Kachel nennt ihren Grund** | Präzedenz in `core/berechnungen/datenquellen.py` (`merge_datenquellen(tagesebene=…)`, `mqtt_teilzeitraum_felder`), Rückfall in `services/snapshot/reader.py::delta_mit_rand` + `mqtt_energy_history_service.py::mqtt_monats_mengen`, fünfte Quelle in `aktueller_monat.py::_collect_tagesebene_data`, **Wärme/Klima je Gerät** in `services/energie_profil/waerme_verlauf.py::lade_waerme_monatsmengen_je_geraet` (derselbe Leser wie der Verlauf), Wortlaut in `core/monatswert_grund.py` | Backend `test_n472_laufender_monat_quellen.py` (25 Proben: Rückfall nennt seinen Zeitpunkt · **ohne Schalter bitgleich** (F-66) · Stand am Ersten bitgleich · **Rücksprung bekommt keinen Rückfall, auch mit Rand knapp vor dem Monat** · Tagesebene füllt nur Lücken · gespeicherte Zeile schlägt sie · Komponentenwert ersetzt sie (#361-Klasse) · abgeschlossener Monat bleibt aus · Abdeckung wird ausgewiesen · Grund nur an den Basis-Größen · **WP-Strom/Wärme/JAZ aus der Tagesebene** · **Tabelle je Gerät ohne Monatszeile** · **gepflegte Zeile schlägt sie auch bei der WP** · ohne Tagesspur bleibt es beim Grund); Client `src/v4/MonatBilanz.test.tsx` (Grund-Gruppe, 3 Proben) + `src/v4/ProvenanzQuellen.test.tsx` (MQTT-Teilzeitraum · „Tageswerte" schweigt ab dem Ersten) | Regression |
 | **A6 — eine Kennzahl zeigt ihre eingesetzten Werte** | Kacheln in Cockpit und Hub | `npm run check:formel-herleitung` (Wrapper `src/test/check-formel-herleitung.test.ts`) — TypeScript-AST über `src/**`, zwei Trägerformen (Objektliteral inkl. Shorthand, JSX-Attribut), drei Prüfungen, **abschmelzende** Allowlist mit Pflicht-Begründung; dazu `TKonto.a6-herleitung.test.tsx`, `KomponentenSektionen.jaz-herleitung.test.tsx`, `test_a6_arbeitszahl_je_funktion_herleitung.py` | **Wächter** + Regression |
+| **R-A — kein Feld ohne Auswertung, und die Fläche nennt sie** | Liste `core/feld_auswertungen.py` (je Registry-Feld Sicht · Datei · Symbol, dazu `FELDER_OHNE_AUSWERTUNG_BEKANNT` mit Obergrenze); Route `api/routes/datenquellen.py::get_datenquellen_felder` (`ausgewertet_in`); Client `components/live/DatenquellenZuordnung.tsx` | `test_jedes_feld_hat_eine_auswertung.py` — leitet seine Referenzmenge bei **jedem Lauf** aus den Registries ab (`alle_registry_felder`, inkl. `BASIS_ENERGY_TOPICS` und `KUMULATIVE_COUNTER_FELDER`) und prüft je Eintrag: Datei existiert · Symbol ist dort definiert · Feldname **oder** die deklarierten Trägertoken stehen im Quelltext genau dieser Funktion. Dazu: ein modus-generischer Leser (`betriebsart_*_kwh(daten, modus)`) muss **seinen Modus** nennen — ohne diese Klausel belegte er alle vier Betriebsarten und reproduzierte den N-398-Blindfleck (an einem Sprengsatz gemessen, 14.09.2026). Baseline **0** für `waermepumpe`. Client `DatenquellenZuordnung.ausgewertet-in.test.tsx` (3 Proben, mit Gegenprobe „ohne Auswertung kein Satz") | **Wächter** (über die Registries) + Regression |
+| **R-B/R-C — jede gemessene Betriebsart-Nutzenergie erscheint** | `waermepumpe_kennzahl.py::heizwaerme_kwh` (D1-Stufe 3, die **eine** Weiche) · `betriebsart_gemessen.py::nutzenergie_ohne_kennzahl_kwh` (E4: Menge ohne Kennzahl) · die Lesestellen von D1 (Layer · Hub/Cockpit je Gerät · Geldpfade · HA-Export) | `test_n398_nutzenergie_je_betriebsart.py` (25 Proben: die Weiche und ihre drei Stufen · **Bitgleichheit zur alten Lesetür** für Bestandszeilen · Anlage F4h über Hub, Cockpit → Monat und Jahr · Gegenprobe ohne Zähler · Gerätefeld und Gesamtwert gewinnen · Mengenzeile nur mit Zahl · keine Kennzahl für Lüften/Entfeuchten · keine Wärmesumme); Client `WaermepumpeNutzenergieZeilen.test.tsx` + `KomponentenSektionen.soll-waerme-klima.test.tsx` (je mit Gegenprobe) | Regression |
 | **Keine Inline-Hex-Farben außerhalb des Farb-SoT** | `src/lib/colors.ts` | `npm run check:design` | **Wächter** |
 
 ### 11.5 Erfassung, Checker und Doku

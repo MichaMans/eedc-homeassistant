@@ -110,6 +110,7 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_JE_ABGRENZUNG,
     abgrenzungs_grund,
     ersparnis_vorbehalt,
+    heizwaerme_kwh,
     waerme_gesamt_kwh,
     waerme_herkunft,
     arbeitszahl,
@@ -924,6 +925,8 @@ async def get_waermepumpe_dashboard(
         gesamt_modus_warmwasser = _faltung.modus_warmwasser_kwh
         gesamt_modus_lueften = _faltung.modus_lueften_kwh
         gesamt_modus_entfeuchten = _faltung.modus_entfeuchten_kwh
+        gesamt_nutz_lueften = _faltung.nutzenergie_lueften_kwh
+        gesamt_nutz_entfeuchten = _faltung.nutzenergie_entfeuchten_kwh
         gesamt_modus_funktionsfremd_abzug = _mengen.funktionsfremd_abzug_kwh
         gesamt_modus_abdeckung_h = _faltung.modus_abdeckung_h
         gesamt_modus_bezug = _faltung.modus_bezug_kwh
@@ -983,7 +986,7 @@ async def get_waermepumpe_dashboard(
             # gemeinsamem Wärmemengenzähler leer, obwohl ihre Wärme gemessen ist.
             m_waerme = waerme_gesamt_kwh(
                 d.get('waerme_kwh'),
-                d.get('heizenergie_kwh'),
+                heizwaerme_kwh(d),                       # N-398
                 get_wp_warmwasser_kwh(d, wp.parameter),  # N-379
             )
             # B3/H-1 (05.09.2026): **dieselbe** Strom-Definition wie Nenner (W-15)
@@ -1194,6 +1197,16 @@ async def get_waermepumpe_dashboard(
             zusammenfassung['modus_strom_warmwasser_kwh'] = round(gesamt_modus_warmwasser, 1)
             zusammenfassung['modus_strom_lueften_kwh'] = round(gesamt_modus_lueften, 1)
             zusammenfassung['modus_strom_entfeuchten_kwh'] = round(gesamt_modus_entfeuchten, 1)
+            # R-C (WK-16f/N-398): die **Mengen**zeile neben dem Strom — nur mit
+            # Zahl (D-Sicht). Ein Feld, das die Datenquellen-Flaeche anbietet,
+            # muss irgendwo erscheinen; eine 0-Zeile an jeder Waermepumpe waere
+            # dagegen genau die Zeile, die fuer fast jeden nichts sagt (E4).
+            if gesamt_nutz_lueften:
+                zusammenfassung['modus_nutzenergie_lueften_kwh'] = round(
+                    gesamt_nutz_lueften, 1)
+            if gesamt_nutz_entfeuchten:
+                zusammenfassung['modus_nutzenergie_entfeuchten_kwh'] = round(
+                    gesamt_nutz_entfeuchten, 1)
             # „nicht aufgeteilt" wird NIE gespeichert, sondern immer gerechnet
             # (Konzept §3.1, Folge 2) — damit ist es für Altmonate, Ausfälle
             # und Handpflege gleichermaßen vollständig. Auf 0 geklemmt: die

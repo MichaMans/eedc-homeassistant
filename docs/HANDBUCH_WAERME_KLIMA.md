@@ -125,7 +125,7 @@ Dieser Abschnitt ist so wichtig wie die Tabelle darüber. **Mehrere Dinge fehlen
 
 **Keine geschätzte Kältemenge.** Ohne Kältemengenzähler gibt es keine Arbeitszahl Kühlen. Man könnte sie aus einem angenommenen Wirkungsgrad rechnen — dann käme genau der Faktor zurück, mit dem gerechnet wurde. Das wäre keine Messung, sondern eine Rückgabe der eigenen Annahme.
 
-**Keine Bewertung von Lüften und Entfeuchten.** Beide Betriebsarten **erscheinen** in der Aufteilung, wenn du dafür Zähler hast. Eine Kennzahl bekommen sie nicht: Sie erzeugen keine Nutzenergie, die sich messen ließe. Ihr Strom fällt deshalb auch **aus dem Nenner der Arbeitszahl** — sonst drückte er eine Zahl, mit der er nichts zu tun hat.
+**Keine Bewertung von Lüften und Entfeuchten.** Beide Betriebsarten **erscheinen** in der Aufteilung, wenn du dafür Zähler hast. Eine Kennzahl bekommen sie nicht: Sie erzeugen keinen Nutzen, den eedc bewerten könnte. Ihr Strom fällt deshalb auch **aus dem Nenner der Arbeitszahl** — sonst drückte er eine Zahl, mit der er nichts zu tun hat. ⭐ **Misst du zusätzlich ihre abgegebene Nutzenergie** (*Nutzenergie Lüftbetrieb* / *Nutzenergie Entfeuchtungsbetrieb*), steht sie seit v4.0.45 als eigene **Mengenzeile** neben ihrem Strom — im Komponenten-Hub und im Wärme/Klima-Block von Cockpit → Monat/Jahr, und nur dann, wenn ein Zähler etwas gemeldet hat. **An der Kennzahl ändert das nichts**, und in eine Wärmesumme zählt sie nicht: Ein Zähler macht aus Lüften keine Heizung.
 
 > ⚑ **Die Kachel zeigt, womit sie gerechnet hat.** Wer auf die Arbeitszahl zeigt (auf dem Telefon: antippen), sieht neben der Formel die beiden eingesetzten Zahlen — *„210,0 kWh Wärme ÷ 313,6 kWh Strom"*. Damit lässt sich eine unplausible Zahl sofort einordnen: Passt eine der beiden nicht zu dem, was dein Gerät meldet, liegt es an der Zuordnung, nicht an der Rechnung. ⚠ **Der Nenner ist nicht immer der volle Stromverbrauch** — Kühlen, Lüften und Entfeuchten sind abgezogen, wenn du den Betriebsmodus erfasst (sonst stünde Kühlstrom im Nenner, ohne dass die Kältemenge im Zähler steht). ⭐ **Dasselbe gilt in der Monatstabelle** unter *Komponenten → Wärmepumpe*: Wo die Arbeitszahl eines Monats mit anderen Zahlen gebildet wurde als in seiner Zeile stehen, steht die Rechnung klein darunter — „210 ÷ 96 kWh“. Wo Zähler und Nenner die Spalten daneben sind, geht die Zeile ohne Zusatz auf, und es steht nichts da.
 
@@ -385,6 +385,31 @@ Es gibt **zwei Wege**, und **gemessen schlägt abgeleitet**:
 **Weg A — Betriebsart-Zähler (genauer).** Du ordnest *Strom Heizbetrieb*, *Strom Kühlbetrieb*, *Strom Lüftbetrieb*, *Strom Entfeuchtungsbetrieb* zu, soweit vorhanden. eedc rechnet nichts, es liest ab.
 
 > ⚑ **Für Warmwasser gibt es hier bewusst kein Feld.** Wer seinen Warmwasser-Strom getrennt misst, trägt ihn unter *Strom Warmwasser* ein (Schritt 2) und bekommt daraus seine *Arbeitszahl · Warmwasser*. Ein zweites Feld für dieselbe Zahl wäre nur eine Gelegenheit, beide versehentlich zu addieren.
+
+> ### Die Nutzenergie je Betriebsart — was eedc daraus macht
+>
+> Neben den vier Strom-Feldern gibt es vier **thermische**: *Nutzenergie Heizbetrieb*,
+> *Nutzenergie Kühlbetrieb*, *Nutzenergie Lüftbetrieb*, *Nutzenergie Entfeuchtungsbetrieb*. Sie
+> sind optional — ohne Wärmemengenzähler gibt es diese Werte nicht, und eedc rechnet sie nicht
+> herbei. Was aus jedem von ihnen wird, steht hier:
+>
+> | Feld | Was eedc daraus macht |
+> |---|---|
+> | **Nutzenergie Heizbetrieb** | Das ist die **Heizwärme deines Geräts**. Hast du am Gerät keinen eigenen Wärmemengenzähler (*Heizwärme* bzw. *Wärme gesamt*), trägt sie die Wärme-Kachel und die Arbeitszahl — in Cockpit, Hub, Ersparnis, CO₂ und den HA-Sensoren. |
+> | **Nutzenergie Kühlbetrieb** | Die **Kältemenge** — der einzige Weg zur *Arbeitszahl Kühlen* (Kältemenge ÷ Kühlstrom). |
+> | **Nutzenergie Lüft-/Entfeuchtungsbetrieb** | Eine **Mengenzeile** neben ihrem Strom. Keine Kennzahl (siehe [Was eedc bewusst nicht sagt](#3-was-eedc-bewusst-nicht-sagt)), keine Wärmesumme. |
+>
+> ⭐ **Mehrere Innengeräte werden summiert.** Ein Wert **am Gerät** schlägt die Summe seiner
+> Innengeräte — und wird nie dazuaddiert: Beide beschreiben dieselbe Menge auf zwei Ebenen.
+>
+> ⛔ **Ein Gerätezähler gewinnt gegen die Betriebsart.** Steht unter *Heizwärme* oder *Wärme
+> gesamt* ein Wert, gilt er: Er misst mehr als eine einzelne Betriebsart. Auch eine gepflegte
+> **0** gewinnt — sie heißt „diesen Monat nicht geheizt" und ist damit eine Aussage, keine Lücke.
+>
+> ⚑ **Bis v4.0.44 wurden die drei Felder außer *Kühlbetrieb* nirgends gelesen.** Wer sie pflegte,
+> sah *Heizwärme 0* und als Grund *„kein Wärmemengenzähler zugeordnet"* — der Zähler war
+> zugeordnet, eedc las ihn nur nicht. Gepflegte Werte aus dieser Zeit wirken jetzt rückwirkend,
+> ohne dass du etwas tun musst.
 
 **Weg B — Betriebsmodus-Sensor (bequemer).** Du ordnest einen Sensor zu, der sagt, *was das Gerät gerade tut*. eedc schreibt ihn stündlich mit und teilt den Verbrauch danach auf.
 
