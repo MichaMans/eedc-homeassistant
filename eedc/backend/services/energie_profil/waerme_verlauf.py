@@ -52,6 +52,10 @@ from backend.services.snapshot.aggregator import (
 )
 from backend.services.snapshot.bereichs_leser import lade_tageswerte_je_feld
 
+#: N-391: der gemeinsame Wärmemengenzähler. Er steht bewusst NICHT in
+#: `WAERME_AUSGABE_KEYS` (dort wird summiert), wird aber je Tag mitgelesen —
+#: die Auflösung unten ist die Vorrangregel D1, nicht eine zweite Summe.
+_WAERME_GESAMT_KEY = "wp_waerme_kwh"
 #: Die Wärme-Felder, die der Verlauf als Linie zeichnet — ein **Ausschnitt** aus
 #: der einen Feldtabelle, keine zweite Liste.
 #:
@@ -61,7 +65,7 @@ from backend.services.snapshot.bereichs_leser import lade_tageswerte_je_feld
 _WAERME_FELDER = {
     schluessel: key
     for schluessel, key in TAGESDETAIL_AUSGABE.items()
-    if key in WAERME_AUSGABE_KEYS
+    if key in WAERME_AUSGABE_KEYS or key == _WAERME_GESAMT_KEY
 }
 #: Die Kälte (Bauschnitt 6b) — Gerätefeld oder Σ Innengeräte, dieselbe Regel
 #: wie im Tagespfad (der Bereichs-Leser löst den Suffix seit 6a auf).
@@ -156,8 +160,16 @@ async def lade_waerme_verlauf(
         )
         werte = nutzenergie_je_tag.get(tag, {})
         # ⛔ Nie `sum(werte.values())` — seit 6b steht dort auch die Kälte.
+        # N-391/D1: **Gesamtwert vor Summanden.** Trägt der gemeinsame
+        # Wärmemengenzähler den Tag, ist er die Wärme; sonst ist sie die Summe
+        # ihrer beiden Achsen. Ihn einfach in `WAERME_AUSGABE_KEYS` zu legen
+        # hieße, ihn zur Aufteilung zu ADDIEREN — dieselbe Wärme zweimal.
         waerme_teile = [v for k, v in werte.items() if k in WAERME_AUSGABE_KEYS]
-        waerme = sum(waerme_teile) if waerme_teile else None
+        _waerme_gesamt = werte.get(_WAERME_GESAMT_KEY)
+        if _waerme_gesamt:
+            waerme = _waerme_gesamt
+        else:
+            waerme = sum(waerme_teile) if waerme_teile else None
         kaelte = werte.get(_KAELTE_KEY)
         strom = sum(zaehler.values()) if zaehler else None
         if stapel.ist_leer and waerme is None and kaelte is None:

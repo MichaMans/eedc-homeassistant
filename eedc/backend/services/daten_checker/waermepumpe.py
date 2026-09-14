@@ -28,7 +28,10 @@ from backend.core.berechnungen.betriebsart_gemessen import (
     funktionsfremd_abzug_kwh,
     modus_strom_zeile,
 )
-from backend.core.berechnungen.waermepumpe_kennzahl import arbeitszahl
+from backend.core.berechnungen.waermepumpe_kennzahl import (
+    arbeitszahl,
+    waerme_gesamt_kwh,
+)
 from backend.core.field_definitions import (
     get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
@@ -116,7 +119,13 @@ class WaermepumpeChecks:
                 waerme_w = get_wp_warmwasser_kwh(daten, params)
                 if not strom:
                     continue
-                waerme = (waerme_h or 0) + (waerme_w or 0)
+                # N-391: **kanonisch wie die Anzeige** (D1) — sonst sähe der
+                # Prüfer an einer Wärmepumpe mit gemeinsamem Wärmemengenzähler
+                # gar keine Wärme und schwiege zu jeder Auffälligkeit, während
+                # Hub und Cockpit die Zahl längst zeigen.
+                waerme = waerme_gesamt_kwh(
+                    daten.get("waerme_kwh"), waerme_h, waerme_w,
+                )
                 if waerme <= 0:
                     continue
                 # Derselbe Nenner-Abzug wie in der Anzeige — und zwar der

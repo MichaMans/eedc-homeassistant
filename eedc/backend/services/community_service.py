@@ -460,10 +460,36 @@ def _monatswert(
     wp = fakt.wp
     if wp.strom_kwh > 0:
         monatswert_data["wp_stromverbrauch_kwh"] = round(wp.strom_kwh, 1)
-        if wp.heizung_kwh > 0:
-            monatswert_data["wp_heizwaerme_kwh"] = round(wp.heizung_kwh, 1)
-        if wp.warmwasser_kwh > 0:
-            monatswert_data["wp_warmwasser_kwh"] = round(wp.warmwasser_kwh, 1)
+        # ⭐ **N-391 (14.09.2026): die Gesamtwärme erreicht das Feld, wenn es
+        # keinen Heiz-Einzelwert gibt.** Wer Heizung und Warmwasser über EINEN
+        # Wärmemengenzähler misst, trägt seinen Wert unter *Wärme gesamt* ein —
+        # ohne diese Zeile käme im Payload gar keine Wärme an, und der Server
+        # sähe eine Anlage mit Strom und ohne Wärme (Arbeitszahl gesperrt,
+        # Mengen fehlend).
+        #
+        # ⚠ **Kein neues Payload-Feld, und das ist gemessen, nicht bequem:**
+        # `wp_heizwaerme_kwh` wird serverseitig ausschließlich **in der Summe**
+        # mit `wp_warmwasser_kwh` gelesen (`core/wp_jaz.py`, `api/stats.py`,
+        # `api/statistics.py`, `api/benchmark.py`); kein `.tsx` rendert es
+        # allein. Ein eigenes Feld kostete sieben Query-Stellen, eine Spalte,
+        # eine Migration und einen koordinierten Deploy — für eine Zahl, die
+        # der Server ohnehin nur summiert. Die **Bedeutung** steht im Docstring
+        # von `MonatswertInput` (Community-Repo): bei gemeinsamem Zähler trägt
+        # das Feld die Gesamtwärme.
+        #
+        # ⚠ **Gesendet wird die Aufteilung der KANONISCHEN Wärme** (D1), nicht
+        # die Rohspalte: `wp_heizwaerme_kwh` trägt, was von `wp.waerme_kwh` neben
+        # dem Warmwasser übrig bleibt. Ohne Gesamtzähler ist das bitgleich der
+        # bisherige Wert (dort IST die Wärme Heizung + Warmwasser); mit
+        # Gesamtzähler kommt seine Menge vollständig an, auch wenn nur EINE der
+        # beiden Achsen daneben gepflegt ist. Ein blankes „sonst die
+        # Gesamtwärme" verlöre in dieser Lage die Differenz.
+        _ww_gesendet = wp.warmwasser_kwh if wp.warmwasser_kwh > 0 else 0.0
+        _heiz_gesendet = max(wp.waerme_kwh - _ww_gesendet, 0.0)
+        if _heiz_gesendet > 0:
+            monatswert_data["wp_heizwaerme_kwh"] = round(_heiz_gesendet, 1)
+        if _ww_gesendet > 0:
+            monatswert_data["wp_warmwasser_kwh"] = round(_ww_gesendet, 1)
         # ⭐ **ADR-002/P12 (02.09.2026): Darf aus diesem Monat eine Arbeitszahl
         # gebildet werden?** Lokal entscheidet das seit dem 26.08. der Layer;
         # der Server bildet seinen JAZ aber selbst — an **vier** Stellen

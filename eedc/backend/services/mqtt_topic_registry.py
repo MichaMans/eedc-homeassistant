@@ -21,6 +21,7 @@ from backend.models.investition import Investition
 from backend.utils.investition_filter import aktiv_jetzt
 from backend.core.field_definitions import (
     BASIS_LIVE_FELDER,
+    BEDARF_GRUPPEN_ALTERNATIV,
     basis_feld_key,
     einheit_fuer,
     get_alle_felder_fuer_investition,
@@ -243,7 +244,18 @@ async def build_expected_topics(
                 # N-456: Pflicht UND am Gerät geltend — `bedarf` allein reicht
                 # nicht: `strom_heizen_kwh` trägt „pflicht" auch an einem Gerät
                 # ohne getrennte Strommessung, wo es die Größe gar nicht gibt.
-                "pflicht_am_geraet": basis_feld_key(feld["feld"]) in _pflicht_am_geraet,
+                # ⛔ **Nicht für ALTERNATIV-Gruppen** (N-391): Dort ist die
+                # Gruppe Pflicht, nicht das einzelne Feld — ein belegtes
+                # Geschwisterfeld DARF das leere verdrängen. Genau umgekehrt zu
+                # `wp_strom`, wo zwei gleichzeitig gültige Pflichtfelder
+                # **Summanden** sind (N-456). Die Unterscheidung steht einmal,
+                # an der Gruppe (`BEDARF_GRUPPEN_ALTERNATIV`).
+                "pflicht_am_geraet": (
+                    basis_feld_key(feld["feld"]) in _pflicht_am_geraet
+                    and get_feld_bedarf(
+                        inv.typ, feld["feld"], inv.parameter,
+                    )[1] not in BEDARF_GRUPPEN_ALTERNATIV
+                ),
                 # R1: an dieser Bauart untypisch, aber möglich (`weich`). Roh
                 # durchgereicht wie `bedingung`/`nur_manuell` — die Fläche
                 # entscheidet, ob das Feld in der ersten Reihe steht oder hinter

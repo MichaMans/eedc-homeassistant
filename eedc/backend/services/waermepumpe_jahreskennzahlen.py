@@ -235,6 +235,12 @@ def waermepumpe_jahreskennzahlen(
         warmwasser_kwh=sum(f.wp.warmwasser_kwh for f in fakten if f.wp.hat_split),
         strom_warmwasser_kwh=strom_ww,
         hat_split=hat_split,
+        # N-391: gefragt sind dieselben Monate wie oben — nur die mit getrennter
+        # Strommessung tragen die Funktions-Quotienten. Ein Monat mit gemeinsamem
+        # Wärmemengenzähler liefert für sie keinen Zähler, sondern einen Grund.
+        waerme_ist_gesamt=any(
+            f.wp.waerme_ist_gesamt for f in fakten if f.wp.hat_split
+        ),
         waerme_abgeleitet_kwh=waerme_abgeleitet,
         abgrenzung_verletzt=abgrenzung,
         abgrenzung_je_funktion_grund=_je_funktion_grund,

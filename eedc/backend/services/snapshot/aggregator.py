@@ -1051,6 +1051,11 @@ TAGESDETAIL_AUSGABE: dict[tuple[str, str], str] = {
     # ausgeschlossen, hier für Tages-JAZ/Wärme).
     ("waermepumpe", "heizenergie_kwh"): "wp_heizung_kwh",
     ("waermepumpe", "warmwasser_kwh"): "wp_warmwasser_kwh",
+    # N-391: der gemeinsame Wärmemengenzähler. Er ist der **Gesamtwert** über
+    # den beiden Achsen (D1) — deshalb steht er NICHT in `WAERME_AUSGABE_KEYS`
+    # (dort wird summiert; er würde dieselbe Wärme ein zweites Mal in die Linie
+    # legen). Der Tag löst ihn mit derselben Vorrangregel auf wie der Monat.
+    ("waermepumpe", "waerme_kwh"): "wp_waerme_kwh",
     # Kälte (Bauschnitt 6): eine **eigene Rolle**, kein Wärme-Sonderfall —
     # deshalb NICHT in `WAERME_AUSGABE_KEYS` (Konzept Wärme/Klima §8). Das Feld
     # gibt es auch je Innengerät; `get_tagesdetail_kwh` und der Bereichs-Leser

@@ -100,6 +100,14 @@ class ImdTypBeitrag:
     #: *ist der Nenner die feine Summe?*, wie bei
     #: {@link funktionsfremd_abzug_kwh}. Ein Wort, zwei Fragen.
     wp_hat_split: bool = False
+    #: N-391: Trägt die Zeile eine **gemessene Gesamtwärme** (Feld
+    #: ``waerme_kwh``, EIN gemeinsamer Wärmemengenzähler)? Dann gilt sie (D1) —
+    #: und die Kennzahlen **je Funktion** haben für die Funktionen ohne eigenen
+    #: Wärmewert keinen Zähler, sondern einen Grund
+    #: ({@link GRUND_WAERME_NICHT_JE_FUNKTION}).
+    #: ⚠ Die MENGE steht schon in ``wp_waerme``; dies hier ist ihre **Herkunft**,
+    #: und nur die kann die Frage „je Funktion?" beantworten.
+    wp_waerme_ist_gesamt: bool = False
     # #263 K-2 (S3): der Modus-Split. NICHT mit `wp_strom_heizen` verwechseln —
     # das ist der SUMMAND bei getrennter Strommessung (zwei physische Zähler),
     # dies hier sind TEILMENGEN von `wp_strom` (ein Zähler, Modus mitgeschrieben).
@@ -283,7 +291,8 @@ def imd_typ_beitrag(
         # D1: waerme_kwh hat Vorrang, sonst Heizung + Warmwasser (kanonisch).
         # Seit 2026-08-26 im Layer-SoT `waermepumpe_kennzahl.waerme_gesamt_kwh`
         # — der Client hatte dieselbe Regel als zweite Stelle (Befund W-9).
-        waerme = waerme_gesamt_kwh(_f(data, "waerme_kwh"), heizung, warmwasser)
+        _waerme_gesamt = _f(data, "waerme_kwh")
+        waerme = waerme_gesamt_kwh(_waerme_gesamt, heizung, warmwasser)
         # F-56: die Weiche liegt im Layer-SoT `modus_strom_zeile` — sie stand
         # bis dahin hier inline und war im HA-Export daneben nachgebaut, ohne
         # den Gemessen-Zweig. Eine Regel, zwei Codestellen, eine Drift.
@@ -298,6 +307,8 @@ def imd_typ_beitrag(
             wp_strom_heizen=_f(data, "strom_heizen_kwh"),
             wp_strom_warmwasser=_f(data, "strom_warmwasser_kwh"),
             wp_hat_split=hat_split,
+            # N-391: die Herkunft der Wärme, nicht ihre Menge — s. Feld-Docstring.
+            wp_waerme_ist_gesamt=bool(_waerme_gesamt),
             # #263 — **gemessen schlägt abgeleitet** (ADR-002/P8), und zwar
             # **ganz oder gar nicht je Zeile**.
             #

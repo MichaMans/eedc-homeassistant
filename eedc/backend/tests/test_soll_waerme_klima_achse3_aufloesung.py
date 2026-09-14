@@ -488,7 +488,8 @@ def test_handbuch_waerme_klima_zitiert_die_gruende_woertlich():
 
     from backend.core.berechnungen.waermepumpe_kennzahl import (
         GRUND_FREMDWAERME, GRUND_GERAETE_OHNE_WAERME,
-        GRUND_KEINE_KAELTEMENGE, GRUND_STROM_NICHT_JE_FUNKTION, GRUND_ZEITRAUM,
+        GRUND_KEINE_KAELTEMENGE, GRUND_STROM_NICHT_JE_FUNKTION,
+        GRUND_WAERME_NICHT_JE_FUNKTION, GRUND_ZEITRAUM,
     )
     from backend.core.tageswert_grund import TAGESWERT_GRUND_TEXT
 
@@ -498,6 +499,10 @@ def test_handbuch_waerme_klima_zitiert_die_gruende_woertlich():
     sperr_gruende = [
         GRUND_GERAETE_OHNE_WAERME, GRUND_FREMDSTROM, GRUND_FREMDWAERME,
         GRUND_ZEITRAUM, GRUND_STROM_NICHT_JE_FUNKTION, GRUND_KEINE_KAELTEMENGE,
+        # N-391: der Spiegel auf der Wärmeseite — er ist der erste neue Grund
+        # seit dem Umbau dieses Prüfers und gehört in dieselbe Liste, sonst wäre
+        # er der einzige ohne Nachschlagestelle.
+        GRUND_WAERME_NICHT_JE_FUNKTION,
         "kein Stromverbrauch erfasst",
         "nur Kühlbetrieb in diesem Zeitraum",
         "Wärme ist gerechnet, nicht gemessen",

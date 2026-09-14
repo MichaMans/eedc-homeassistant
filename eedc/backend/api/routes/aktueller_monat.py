@@ -2387,6 +2387,10 @@ async def get_aktueller_monat(
         warmwasser_kwh=wp_warmwasser,
         strom_warmwasser_kwh=wp_strom_warmwasser,
         hat_split=bool(mf_wp is not None and mf_wp.hat_split),
+        # N-391: Misst EIN gemeinsamer Wärmemengenzähler beide Funktionen, gibt
+        # es die Wärme je Funktion nicht — die Zeile sagt dann den Grund, statt
+        # die Gesamtwärme durch den Heizstrom zu teilen (gemessen: 5,0 statt 3,0).
+        waerme_ist_gesamt=bool(mf_wp is not None and mf_wp.waerme_ist_gesamt),
         waerme_abgeleitet_kwh=wp_waerme_abgeleitet_kwh,
         abgrenzung_verletzt=wp_abgrenzung_verletzt,
         abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion,

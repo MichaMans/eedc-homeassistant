@@ -79,7 +79,20 @@ def test_feld_herabgestuft_ist_die_frage_des_zusatz_hinweises():
 
 
 def test_pflicht_felder_je_geraet_ohne_if_wp_art():
-    assert pflicht_felder_am_geraet("waermepumpe", LUFT_WASSER) == ["stromverbrauch_kwh", "heizenergie_kwh"]
+    """Die Ausnahmen kommen aus der Registry, nicht aus einem ``if wp_art``.
+
+    ⚠ **`waerme_kwh` steht seit N-391 (14.09.2026) mit in der Liste** — der
+    gemeinsame Wärmemengenzähler. Er ist mit `heizenergie_kwh` **eine
+    Alternativ-Gruppe** (`wp_waerme`): eedc erwartet die abgegebene Wärme, und
+    zwar auf einem der beiden Wege. Dass ein belegter Weg den anderen
+    **verdrängt**, entscheidet nicht diese Liste, sondern
+    `BEDARF_GRUPPEN_ALTERNATIV` dort, wo verdrängt wird (`mqtt_topic_registry`
+    → `stufe_bedarf_ein`). Die Aussage der Probe ist unverändert: **keine
+    Bauart-Frage im Frager.**
+    """
+    assert pflicht_felder_am_geraet("waermepumpe", LUFT_WASSER) == [
+        "stromverbrauch_kwh", "heizenergie_kwh", "waerme_kwh",
+    ]
     z = lambda p: pflicht_felder_am_geraet("waermepumpe", p, gruppe="wp_strom")  # noqa: E731
     assert z(LUFT_WASSER) == ["stromverbrauch_kwh"], "die Zählerfrage kennt keine Heizwärme"
     assert z({**LUFT_WASSER, **GETRENNT}) == ["strom_heizen_kwh", "strom_warmwasser_kwh"]

@@ -480,7 +480,7 @@ async def get_waerme_verlauf_stunden(
     verteilte_felder = {
         ausgabe: detail.felder_je_inv.get(ausgabe, {})
         for ausgabe in (
-            *sorted(WAERME_AUSGABE_KEYS), "wp_kaelte_kwh",
+            *sorted(WAERME_AUSGABE_KEYS), "wp_waerme_kwh", "wp_kaelte_kwh",
             "wp_strom_heizen_kwh", "wp_strom_warmwasser_kwh",
         )
     }
@@ -553,7 +553,17 @@ async def get_waerme_verlauf_stunden(
             ohne_linie += rest
         return (summe if sum(summe) > 1e-9 else [None] * STUNDEN), ohne_linie
 
-    waerme_je_slot, waerme_ohne = _linie(sorted(WAERME_AUSGABE_KEYS))
+    # N-391/D1 — **Gesamtwert vor Summanden, auch in der Linie.** Der gemeinsame
+    # Wärmemengenzähler steht bewusst NICHT in `WAERME_AUSGABE_KEYS`: die Menge
+    # dort wird **summiert**, und ein Gerät mit Gesamtzähler UND Aufteilung
+    # zeichnete seine Wärme dann zweimal. Gemessen wird deshalb dieselbe
+    # Vorrangfrage wie im Monat — trug der Gesamtzähler den Tageswert, ist er
+    # die Linie; sonst sind es die beiden Achsen.
+    _waerme_linien_keys = (
+        ("wp_waerme_kwh",) if detail.felder_je_inv.get("wp_waerme_kwh")
+        else tuple(sorted(WAERME_AUSGABE_KEYS))
+    )
+    waerme_je_slot, waerme_ohne = _linie(_waerme_linien_keys)
     kaelte_je_slot, kaelte_ohne = _linie(("wp_kaelte_kwh",))
 
     # ── Der Funktions-Stapel (WK-09 B2, SOLL §3.3/S2a) ─────────────────────
@@ -850,8 +860,14 @@ async def get_tag_detail(
     # nimmt. Die Wärme ist im Tag **immer gemessen** (nur ein zugeordneter
     # Wärmemengenzähler kommt hier an), deshalb gibt es keinen abgeleiteten
     # Anteil und die Sperre greift nur über die beiden Mengen selbst.
+    # ⭐ **N-391: das erste Argument ist seit dem 14.09.2026 belegt.** Hier stand
+    # `None`, weil es den gemeinsamen Wärmemengenzähler als Feld nicht gab — der
+    # Tag konnte die Vorrangregel D1 also gar nicht anwenden. Mit dem Feld
+    # *Wärme gesamt* kommt sein Tageswert über den Aggregator an
+    # (`TAGESDETAIL_AUSGABE`), und Tag, Monat und Jahr lesen dieselbe Regel.
     _wp_waerme_tag = waerme_gesamt_kwh(
-        None, detail.get("wp_heizung_kwh"), detail.get("wp_warmwasser_kwh"),
+        detail.get("wp_waerme_kwh"),
+        detail.get("wp_heizung_kwh"), detail.get("wp_warmwasser_kwh"),
     )
     wp_waerme_tag = round(_wp_waerme_tag, 2) if _wp_waerme_tag > 0 else None
     _tz_alle = (await db.execute(
@@ -1069,6 +1085,11 @@ async def get_tag_detail(
         warmwasser_kwh=detail.get("wp_warmwasser_kwh"),
         strom_warmwasser_kwh=detail.get("wp_strom_warmwasser_kwh"),
         hat_split=_wp_getrennte_strommessung_tag,
+        # N-391: derselbe Eingang wie im Monat, nur aus dem Tagesdetail. Trägt
+        # der Tag einen Wert des gemeinsamen Wärmemengenzählers, sagen die zwei
+        # Zeilen „Wärme nicht je Funktion gemessen" statt „kein Zähler
+        # zugeordnet" — der Zähler ist zugeordnet.
+        waerme_ist_gesamt=bool(detail.get("wp_waerme_kwh")),
         abgrenzung_verletzt=wp_abgrenzung_tag,
         abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion_tag,
         # W-18 je Funktion: dieselbe Sperre wie oben bei der Gesamt-Arbeitszahl,

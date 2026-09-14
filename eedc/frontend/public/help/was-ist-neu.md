@@ -11,6 +11,46 @@
 
 ## Unveröffentlicht — kommt mit der nächsten Version
 
+**Ein gemeinsamer Wärmemengenzähler hat jetzt sein eigenes Feld**
+
+**Betrifft dich das?** Nur, wenn deine Wärmepumpe Heizung und Warmwasser über
+**einen** gemeinsamen Wärmemengenzähler misst. Wer zwei getrennte Zähler hat
+oder gar keinen, sieht keinen Unterschied.
+
+**Was war:** Viele Wärmepumpen machen beides über denselben Kreis und messen die
+abgegebene Wärme mit einem Zähler. Für diesen Wert gab es nur das Feld
+*Heizwärme* — die Gesamtwärme stand also unter einem Namen, der nur die Hälfte
+meint. Zählst du deinen Strom zusätzlich getrennt nach Heizen und Warmwasser,
+entstand daraus eine **zu hohe Arbeitszahl Heizen**: die ganze Wärme geteilt
+durch den Heizstrom allein — an einer nachgestellten Anlage **5,0 statt 3,0**.
+Die Zahl sah dabei gut aus, und im Handbuch stand sogar, dass es sie in diesem
+Fall gar nicht gibt.
+
+**Was jetzt:** Es gibt den Monatswert **Wärme gesamt** — im Monatsabschluss unter
+den beiden Einzelwerten, auf der Datenquellen-Fläche als eigener Slot und in der
+CSV-Vorlage als eigene Spalte. Trägst du deinen Zählerwert dort ein, rechnet eedc
+Wärmemenge, Arbeitszahl, Ersparnis und CO₂ wie bisher, und alle Sichten nennen
+dieselbe Zahl. Bei *Arbeitszahl Heizen* und *Arbeitszahl Warmwasser* steht dann
+**„Wärme nicht je Funktion gemessen"** statt einer Zahl, die zwei verschiedene
+Dinge ins Verhältnis setzt — getrennte Arbeitszahlen brauchen zwei
+Wärmemengenzähler.
+
+⭐ **Ein gepflegter Gesamtwert gilt vor den beiden Einzelwerten.** Er ist die
+Wärme deines Geräts; *Heizwärme* und *Warmwasser-Wärme* stehen dann nur noch als
+Aufteilung daneben. Ist die Aufteilung zusammen **größer** als der Gesamtwert,
+sagt der Daten-Checker es dir — dann meint einer der Werte etwas anderes als
+gedacht.
+
+⚠ **Misst dein einziger Zähler nur den Heizkreis**, bleibt es beim Feld
+*Heizwärme* — deine *Arbeitszahl Heizen* ist dort richtig und bleibt stehen. In
+den Daten sehen die beiden Anlagen gleich aus; deshalb entscheidet dein Eintrag
+und keine Vermutung von eedc.
+
+**Was du tun kannst:** Trag deinen Zählerwert künftig unter *Wärme gesamt* ein
+und lass *Heizwärme* leer — im Monatsabschluss, oder gleich als Sensor unter
+*Einstellungen → Datenquellen*. **eedc verschiebt nichts von allein:** Deine
+bisherigen Monate bleiben, wie du sie gepflegt hast, bis du sie umträgst.
+
 **„Leistung Kühlen" wird jetzt auch angezeigt**
 
 **Betrifft dich das?** Nur, wenn dein Gerät kühlt **und** du dafür einen eigenen

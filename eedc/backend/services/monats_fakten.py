@@ -383,6 +383,12 @@ class WpFakten:
     strom_warmwasser_kwh: float = 0.0
     #: True, sobald **eine** aktive WP getrennte Strommessung führt.
     hat_split: bool = False
+    #: N-391: True, sobald **eine** aktive WP ihre Wärme mit EINEM gemeinsamen
+    #: Wärmemengenzähler misst (Feld ``waerme_kwh``). Die MENGE steht in
+    #: ``waerme_kwh`` oben; dies ist ihre Herkunft — und die entscheidet, ob es
+    #: eine Arbeitszahl **je Funktion** geben kann
+    #: ({@link backend.core.berechnungen.waermepumpe_kennzahl.arbeitszahl_je_funktion}).
+    waerme_ist_gesamt: bool = False
 
     # ── Modus-Split (#263 K-2) ───────────────────────────────────────────────
     #: **Teilmengen** von ``strom_kwh``, keine Summanden — nie addieren
@@ -1570,6 +1576,9 @@ class _RohMonat:
         self.wp_strom_heizen = 0.0
         self.wp_strom_warmwasser = 0.0
         self.wp_hat_split = False
+        #: N-391: mindestens ein Gerät des Monats misst die Wärme mit EINEM
+        #: gemeinsamen Zähler (Feld ``waerme_kwh``).
+        self.wp_waerme_ist_gesamt = False
         self.wp_modus_strom_heizen = 0.0
         self.wp_modus_strom_kuehlen = 0.0
         #: N-336 — nur aus dem abgeleiteten Split; die Gegenrichtung zu E4.
@@ -1790,6 +1799,9 @@ class _RohMonat:
             self.wp_strom_heizen += b.wp_strom_heizen
             self.wp_strom_warmwasser += b.wp_strom_warmwasser
             self.wp_hat_split = self.wp_hat_split or b.wp_hat_split
+            self.wp_waerme_ist_gesamt = (
+                self.wp_waerme_ist_gesamt or b.wp_waerme_ist_gesamt
+            )
             self.wp_modus_strom_heizen += b.wp_modus_strom_heizen
             self.wp_modus_strom_kuehlen += b.wp_modus_strom_kuehlen
             self.wp_modus_strom_warmwasser += b.wp_modus_strom_warmwasser
@@ -2131,6 +2143,7 @@ async def _baue_fakt(
             strom_heizen_kwh=roh.wp_strom_heizen,
             strom_warmwasser_kwh=roh.wp_strom_warmwasser,
             hat_split=roh.wp_hat_split,
+            waerme_ist_gesamt=roh.wp_waerme_ist_gesamt,
             modus_strom_heizen_kwh=roh.wp_modus_strom_heizen,
             modus_strom_kuehlen_kwh=roh.wp_modus_strom_kuehlen,
             modus_strom_warmwasser_kwh=roh.wp_modus_strom_warmwasser,

@@ -678,7 +678,7 @@ describe('KOMPONENTEN_ADAPTER — spezifische Blöcke (Inc. 3b)', () => {
     monatsdaten: [{ jahr: 2025, monat: 11, verbrauch_daten: { heizenergie_kwh: 1000 } }],
   })
 
-  const sekundaer = (g: { sekundaer?: { kpis: { title: string; formel?: string; berechnung?: string; subtitle?: string }[] } }, titel: string) => {
+  const sekundaer = (g: { sekundaer?: { kpis: { title: string; value?: string | number; formel?: string; berechnung?: string; subtitle?: string }[] } }, titel: string) => {
     const k = g.sekundaer!.kpis.find((x) => x.title === titel)
     expect(k, `Kachel „${titel}" muss es geben`).toBeDefined()
     return k!
@@ -735,6 +735,33 @@ describe('KOMPONENTEN_ADAPTER — spezifische Blöcke (Inc. 3b)', () => {
     // unerreichbar und ist entfernt. Die Aussage „ohne Warmwasser-Achse KEINE
     // Ein-Segment-Aufteilung" — der Gegenstand dieser Probe — bleibt oben.
     expect(g.verlauf).toBeUndefined()
+  })
+
+  it('WP N-391: mit gemeinsamem Wärmemengenzähler steht die Menge, aber keine Heizwärme', async () => {
+    // Lage B, wie die Route sie seit dem 14.09.2026 liefert: Die Wärme des
+    // Geräts steht in `gesamt_waerme_kwh` (3.000), einen Heiz-EINZELwert gibt
+    // es nicht — und die beiden Funktions-Arbeitszahlen tragen ihren Grund
+    // statt einer Zahl. Vorher stand hier 3.000 unter „Heizwärme" und eine
+    // Arbeitszahl Heizen von 5,0.
+    getWaermepumpeDashboard.mockResolvedValue([{
+      investition: inv({ typ: 'waermepumpe' }),
+      zusammenfassung: { durchschnitt_cop: 3.0, gesamt_waerme_kwh: 3000, gesamt_stromverbrauch_kwh: 1000,
+        gesamt_heizenergie_kwh: 0, gesamt_warmwasser_kwh: 0, ersparnis_euro: 33.33,
+        hat_warmwasser_achse: false, waerme_herkunft: 'gemessen',
+        gesamt_strom_heizen_kwh: 600, gesamt_strom_warmwasser_kwh: 400,
+        jaz_heizen: null, jaz_heizen_grund: 'Wärme nicht je Funktion gemessen',
+        jaz_warmwasser: null, jaz_warmwasser_grund: 'Wärme nicht je Funktion gemessen' },
+      monatsdaten: [{ jahr: 2025, monat: 7, verbrauch_daten: { waerme_kwh: 3000 } }],
+    }])
+    const [g] = await KOMPONENTEN_ADAPTER.waermepumpe.fetch(1)
+    const waerme = g.status.find((k) => k.title === 'Wärme erzeugt')!
+    expect(waerme.value).toContain('3.000')
+    // Keine Ein-Segment-Aufteilung, und nichts nennt die Gesamtmenge „Heizung".
+    expect(g.aufteilung).toBeUndefined()
+    // Die beiden Funktions-Zeilen sagen, warum es sie nicht gibt (S3).
+    expect(sekundaer(g, 'JAZ Heizen').subtitle).toBe('Wärme nicht je Funktion gemessen')
+    expect(String(sekundaer(g, 'JAZ Heizen').value ?? '')).not.toContain('5')
+    expect(sekundaer(g, 'JAZ Warmwasser').subtitle).toBe('Wärme nicht je Funktion gemessen')
   })
 
   it('WP: keine Sekundär ohne getrennte/238-Daten', async () => {

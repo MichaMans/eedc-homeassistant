@@ -1060,6 +1060,30 @@ Anwenders.
 **Funktion:** `berechne_waermepumpe_einsparung()` in `core/calculations.py`
 **Verwendet in:** ROI-Dashboard (`investitionen.py`)
 
+> #### Die gemessene Wärme eines Geräts — **Gesamtwert vor Summanden** (Regel D1)
+>
+> **SoT:** `core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh`. Jede Sicht, die eine
+> Wärmemenge auswertet, bekommt sie von dort — Monats-Fakten, Komponenten-Hub, HA-Export,
+> Community-Payload und der Tag.
+>
+> ```
+> Wärme_kWh = waerme_kwh            , wenn gepflegt        (EIN gemeinsamer Wärmemengenzähler)
+>           = heizenergie_kwh + warmwasser_kwh, sonst      (getrennte Zähler)
+> ```
+>
+> **Warum der Gesamtwert gewinnt (K1):** Die Gesamtmenge ist die Messung; jede Aufteilung steht
+> daneben, nie an ihrer Stelle. ⚠ **Bewusst die Gegenrichtung zur Stromseite** (`wp_strom_stufe`):
+> Dort gewinnt die vollständige feine Aufteilung, weil das Kennzeichen *Getrennte Strommessung*
+> erklärt, dass die zwei Zähler zusammen das Ganze sind. Auf der Wärmeseite gibt es keine solche
+> Erklärung.
+>
+> **Folge für die Kennzahlen je Funktion (N-391, 14.09.2026):** Trägt `waerme_kwh` die Wärme, gibt
+> es für die Funktionen ohne eigenen Wärmewert **keine** Arbeitszahl, sondern den Grund
+> *„Wärme nicht je Funktion gemessen"*. Vorher landete ein gemeinsamer Zähler mangels Feld unter
+> *Heizwärme*, und bei getrennter Strommessung entstand daraus `Gesamtwärme ÷ Heizstrom` — gemessen
+> 5,0 statt 3,0. Wer Gesamtwert **und** Aufteilung pflegt, behält seine Funktions-Zahlen: sie sind
+> gemessen und tragen dieselbe Abgrenzung.
+
 #### 3 Effizienz-Modi
 
 **Modus A: `gesamt_jaz` (Standard - gemessene Jahresarbeitszahl)**

@@ -499,7 +499,41 @@ INVESTITION_FELDER: dict = {
             # selbst beklagt: „dieselbe Anlage, zwei Flächen, gegenteilige
             # Aussage."
             "bedingung": "!luft_luft",
-            "hinweis": "Abgegebene Warmwasser-Wärme (thermisch) in kWh, kumulativ oder Tagessensor. Optional — sonst in der Heizwärme enthalten.",
+            "hinweis": "Abgegebene Warmwasser-Wärme (thermisch) in kWh, kumulativ oder Tagessensor. Optional — misst EIN Zähler Heizung und Warmwasser zusammen, gehört sein Wert unter „Wärme gesamt“.",
+        },
+        {
+            # N-391 — **der Ort für EINEN gemeinsamen Wärmemengenzähler.**
+            #
+            # ⛔ **Warum es das Feld bis zum 14.09.2026 nicht gab und was das
+            # gekostet hat.** Eine Luft-Wasser-Wärmepumpe mit Umschaltventil hat
+            # EINEN Vorlauf; der Wärmemengenzähler sitzt dort und misst Heizung
+            # **und** Warmwasser. Wer so misst, trug seine Zahl mangels
+            # Alternative unter *Heizwärme* ein (so stand es im Handbuch) — und
+            # bei getrennter Strommessung (F5) rechnete eedc daraus
+            # `Gesamtwärme ÷ Heizstrom`: gemessen **5,0** statt 3,0, ohne
+            # jeden Grund daneben. Eine Zahl, die gut aussieht und nichts misst.
+            #
+            # ⭐ **Der LESE-Vertrag stand schon** (D1,
+            # `waermepumpe_kennzahl.waerme_gesamt_kwh`, seit 26.08.): „Liegt eine
+            # gemessene Gesamtwärme vor, gilt sie. Sonst ist die Wärme die Summe
+            # ihrer beiden Achsen." Es fehlte allein der **Erfassungsweg** —
+            # ohne Registry-Eintrag gibt es kein Formularfeld, keinen
+            # Zuordnungs-Slot und keinen `csv_suffix`.
+            #
+            # ⚠ **Keine `bedingung`** (Entscheid 14.09.): Die Bilanzgröße gibt es
+            # an jedem Gerät, wie `stromverbrauch_kwh` auf der Stromseite. Sie an
+            # eine Bauart zu binden wäre die Bauform, die R1 abgelöst hat — was
+            # ein Gerät liefern kann, sagt der zugeordnete Zähler.
+            #
+            # ⚠ **Und die Vorrangregel ist bewusst die Gegenrichtung zur
+            # Stromseite:** Dort (`wp_strom_stufe`, K3) gewinnt die vollständige
+            # feine Aufteilung, weil `getrennte_strommessung` erklärt, dass die
+            # zwei Zähler zusammen das Ganze sind. Auf der Wärmeseite gibt es
+            # keine solche Erklärung ⇒ K1 greift ungebremst: die Gesamtmenge ist
+            # die Wahrheit, die Aufteilung steht daneben.
+            "feld": "waerme_kwh", "label": "Wärme gesamt", "einheit": "kWh",
+            "csv_suffix": "Waerme_Gesamt_kWh",
+            "hinweis": "Abgegebene Wärme GESAMT (thermisch, NICHT Strom!) in kWh, kumulativ oder Tagessensor — für EINEN Wärmemengenzähler, der Heizung und Warmwasser zusammen misst. Wer getrennte Zähler hat, lässt das Feld leer. Trägt hier ein Wert, gilt er als die Wärme des Geräts; Heizwärme und Warmwasser-Wärme stehen dann nur noch als Aufteilung daneben.",
         },
         # #263 — GEMESSENER Verbrauch je Betriebsart (Split-Klimaanlage).
         # Erzeugt aus dem Kanon (`core/betriebsmodus.py`), siehe
@@ -1086,7 +1120,13 @@ FELD_BEDARF: dict[tuple[str, str], tuple[str, Optional[str]]] = {
     ("waermepumpe", "strom_heizen_kwh"): ("pflicht", "wp_strom"),
     ("waermepumpe", "strom_warmwasser_kwh"): ("pflicht", "wp_strom"),
     # Ausnahme Split-Klimaanlage: s. KLIMA_OHNE_WAERMEMENGE unter der Tabelle.
-    ("waermepumpe", "heizenergie_kwh"): ("pflicht", None),
+    #
+    # N-391: **eine ALTERNATIV-Gruppe** (`BEDARF_GRUPPEN_ALTERNATIV` unter der
+    # Tabelle) — wer EINEN gemeinsamen Wärmemengenzähler hat, trägt seinen Wert
+    # unter *Wärme gesamt* ein, und *Heizwärme* ist damit gedeckt. Beide Wege
+    # führen zur selben Größe; keiner ist ein Summand des anderen.
+    ("waermepumpe", "heizenergie_kwh"): ("pflicht", "wp_waerme"),
+    ("waermepumpe", "waerme_kwh"): ("pflicht", "wp_waerme"),
     ("waermepumpe", "warmwasser_kwh"): ("optional", None),
     ("waermepumpe", "leistung_w"): ("optional", None),
     ("waermepumpe", "leistung_heizen_w"): ("optional", None),
@@ -1128,6 +1168,32 @@ FELD_BEDARF: dict[tuple[str, str], tuple[str, Optional[str]]] = {
 # Default für alles, was nicht in der Tabelle steht (u. a. „sonstiges", dessen
 # Felder kategorie-abhängig erzeugt werden): nie rot, nie als Lücke gezählt.
 FELD_BEDARF_DEFAULT: tuple[str, Optional[str]] = ("optional", None)
+
+# Die Gruppen, deren Mitglieder **Alternativen** sind — ein belegtes Feld deckt
+# die Gruppe, die übrigen sind dann nichts mehr einzutragen.
+#
+# ⭐ **Warum diese Menge existiert (N-391, 14.09.2026).** Die Spalte
+# `bedarf_gruppe` trug bis dahin ZWEI Bedeutungen in einem Wort:
+#
+# * **Alternativen** — Anlagen-Gesamtzähler *oder* Komponentenzähler
+#   (`pv_energie`), kombinierter *oder* getrennter Netz-Live-Sensor
+#   (`netz_live`), gemeinsamer *oder* getrennte Wärmemengenzähler (`wp_waerme`).
+#   Ein belegtes Mitglied macht die Gruppe vollständig.
+# * **Summanden** — `wp_strom` bei getrennter Strommessung: `strom_heizen_kwh`
+#   und `strom_warmwasser_kwh` tragen **zusammen** den Verbrauch, jedes einzeln
+#   nur die Hälfte. Genau das hat N-456 (13.09.) festgestellt und mit
+#   `pflicht_am_geraet` abgesichert.
+#
+# ⛔ **Ohne die Unterscheidung an EINER Stelle wäre N-391 an N-456 gescheitert:**
+# `heizenergie_kwh` und `waerme_kwh` sind an jedem Gerät beide „pflicht", also
+# hätte die Regel von N-456 („zwei Pflichtfelder derselben Gruppe sind
+# Summanden") sie beide gefordert — die Zuordnungs-Fläche und der Daten-Checker
+# hätten einen zweiten Wärmemengenzähler angemahnt, den es nicht gibt.
+# Die Alternative wären zwei Sonderregeln in zwei Konsumenten gewesen; die
+# benannte Menge sagt es einmal.
+BEDARF_GRUPPEN_ALTERNATIV: frozenset[str] = frozenset({
+    "pv_energie", "pv_live", "netz_live", "wp_waerme",
+})
 
 # Felder, deren Pflicht bei einer Split-Klimaanlage (`wp_art="luft_luft"`) entfällt.
 #
@@ -1238,6 +1304,13 @@ def pflicht_felder_am_geraet(
     entfällt die Warmwasser-Seite (kein Warmwasserkreis, N-304/B5), an einer
     Brauchwasser-Wärmepumpe die Heiz-Seite (erweitert, A6). **Kein `if wp_art`
     im Frager** — die Ausnahmen stehen in der Registry, einmal.
+
+    ⚠ **Felder einer ALTERNATIV-Gruppe stehen hier weiterhin mit drin**
+    (`heizenergie_kwh`): Die Liste sagt, was eedc an diesem Gerät **erwartet**,
+    und das tut sie weiter. Ob ein belegtes Geschwisterfeld sie **verdrängen**
+    darf, ist eine andere Frage — sie wird dort beantwortet, wo verdrängt wird
+    (`mqtt_topic_registry` setzt `pflicht_am_geraet`, `stufe_bedarf_ein` liest
+    es), und zwar an `BEDARF_GRUPPEN_ALTERNATIV`.
     """
     felder = INVESTITION_FELDER.get(typ)
     if not isinstance(felder, list):
@@ -2492,6 +2565,10 @@ _SNAPSHOT_OHNE_KOMPONENTEN_BEITRAG: dict[tuple[str, str], str] = {
         "THERMISCH (~ Strom × COP), nicht elektrisch — gehört nicht in die "
         "Energiebilanz, nur in die JAZ-Rechnung",
     ("waermepumpe", "warmwasser_kwh"): "thermisch, s. heizenergie_kwh",
+    # N-391: der gemeinsame Wärmemengenzähler — thermisch wie seine beiden
+    # Achsen. Er ist zusätzlich der Gesamtwert ÜBER ihnen (D1); stünde er in der
+    # Energiebilanz, zählte dieselbe Wärme zweimal.
+    ("waermepumpe", "waerme_kwh"): "thermisch, s. heizenergie_kwh",
 }
 
 # #263 — die gemessenen Betriebsart-Zähler, aus zwei verschiedenen Gründen:

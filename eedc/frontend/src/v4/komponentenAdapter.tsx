@@ -700,8 +700,13 @@ export const KOMPONENTEN_ADAPTER: Record<string, KompAdapter> = {
         // hatte der Balken EIN Segment „Heizung · 100 %" — an einem Gerät mit einem
         // Gesamt-Wärmemengenzähler (Lage B in N-391) ist das die Behauptung, alles
         // sei Heizung, und die kann eedc nicht wissen. Ein Balken mit einem Segment
-        // teilt nichts auf; die Menge steht in der Kachel darüber. Die Modellfrage
-        // (Gesamtfeld oder Schalter) bleibt bei N-391 offen.
+        // teilt nichts auf; die Menge steht in der Kachel darüber.
+        //
+        // ⭐ **Die Modellfrage ist seit dem 14.09.2026 entschieden** (N-391, Weg 1):
+        // Der gemeinsame Zähler bekommt ein eigenes Feld *Wärme gesamt*, keinen
+        // Schalter. Wer es pflegt, hat `gesamt_heizenergie_kwh` = 0 — dieser Zweig
+        // greift dann aus dem zweiten Grund nicht, und die Menge steht als
+        // *Wärme erzeugt* in der Kachel.
         aufteilung: (z.hat_warmwasser_achse !== false
             && (z.gesamt_heizenergie_kwh > 0 || z.gesamt_warmwasser_kwh > 0)) ? {
           titel: 'Wärme nach Zweck', segmente: [

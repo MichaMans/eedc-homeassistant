@@ -1126,11 +1126,16 @@ async def test_a9_gegenprobe_die_luft_wasser_wp_behaelt_alles(db):
 # genau die „Bauart-Schublade", die das SOLL in §3.2a verwirft: sie behauptete
 # einen Gerätetyp, wo eine Anlagen-Konfiguration vorliegt.
 #
-# ⚠ **Was diese Proben NICHT decken.** Wer EINEN Wärmemengenzähler über die
-# Gesamtwärme hat, trägt seine Zahl mangels Gesamtfeld unter `heizenergie_kwh`
-# ein — dort steht dann Heizung **und** Warmwasser unter dem Namen „Heizwärme".
-# Diese Lage ist von 8ears in den Daten nicht zu unterscheiden und bleibt hier
-# ungelöst; sie ist ein eigener Befund, kein Anbau an diese Achse.
+# ⭐ **Die Nachbarlage hat seit dem 14.09.2026 ihr eigenes Feld (N-391).** Wer
+# EINEN Wärmemengenzähler über die Gesamtwärme hat, trug seine Zahl mangels
+# Gesamtfeld unter `heizenergie_kwh` ein — dort stand dann Heizung **und**
+# Warmwasser unter dem Namen „Heizwärme", in den Daten nicht von 8ears Anlage zu
+# unterscheiden. Mit dem Monatswert *Wärme gesamt* (`waerme_kwh`) sagen die
+# Daten es jetzt selbst: A10 bleibt eine Anlage **ohne** Warmwasserkreis und
+# behält ihre Arbeitszahl Heizen, die andere Lage bekommt statt einer Zahl den
+# Grund „Wärme nicht je Funktion gemessen". Die Proben dazu stehen in
+# `test_n391_gesamtwaerme.py` — dort auch die Gegenprobe, dass **diese** Achse
+# unberührt bleibt.
 
 HEIZ_KWH_8EAR = 4200.0
 STROM_KWH_8EAR = 1200.0

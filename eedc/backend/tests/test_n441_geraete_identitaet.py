@@ -606,6 +606,13 @@ async def test_p18_der_hub_liest_die_gesamtwaerme_wie_der_layer(db):
     Layer nimmt „Gesamtwert vor Summanden" (D1), der Hub addierte
     ``heizenergie + warmwasser``. Folge: *Cockpit → Jahr* sperrte, der Hub
     zeigte 3,0.
+
+    ⭐ **Seit N-391 (14.09.2026) ist diese Zeile eine Anwender-Lage, keine
+    Bastelei mehr.** Bis dahin war ``waerme_kwh`` nur über einen JSON-Restore
+    erreichbar — die Probe hielt einen Zustand fest, den niemand herstellen
+    konnte. Mit dem Monatswert *Wärme gesamt* trägt ihn jeder, der EINEN
+    Wärmemengenzähler über Heizung und Warmwasser hat. Die **Summen**seite des
+    Hubs prüft `test_n391_gesamtwaerme.py`; hier bleibt die Perioden-Lage.
     """
     a = await _anlage(db, "N-441 Gesamtwaerme")
     wp = await _geraet(db, a, "WP", dict(_WP), {"waerme_kwh": 1800.0}, monat=3)

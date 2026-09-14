@@ -1152,6 +1152,58 @@ class MonatsdatenChecks:
                 investition_id=inv.id,
             ))
 
+        # N-391: **dieselbe Frage auf der Wärmeseite** — eine Aufteilung kann
+        # ihre Gesamtmenge nicht übersteigen. Sie steht bewusst hier, direkt
+        # neben ihrem Strom-Zwilling: gleiche Zeile, gleiche Kategorie, gleicher
+        # Weg, gleiche Monatsliste. Ein eigener Prüfer in
+        # `daten_checker/waermepumpe.py` wäre ein zweiter Turm — dort geht es um
+        # die **Kennzahl** (Arbeitszahl über 7), hier um einen **Widerspruch in
+        # den Mengen** derselben Monatszeile.
+        #
+        # ⚠ **Nur diese eine Richtung**: `waerme_kwh` KLEINER als die Summe der
+        # beiden Achsen. eedc rechnet nach D1 mit der Gesamtmenge — steht sie zu
+        # niedrig, verschwindet der Unterschied lautlos aus Wärme, Arbeitszahl,
+        # Ersparnis und CO₂. Der umgekehrte Fall (Gesamt größer als die Summe)
+        # ist **kein** Fehler: Er ist die normale Lage, wenn nur EINE Achse
+        # eigens gemessen wird und der Rest im Gesamtzähler steckt.
+        #
+        # ⚠ Toleranz 0,5 kWh wie beim Strom-Zwilling — Zählerstände runden.
+        waerme_widerspruch: list[str] = []
+        for (jahr, monat), daten in sorted(imd_map.items()):
+            _gesamt_waerme = daten.get("waerme_kwh")
+            if not _gesamt_waerme:
+                continue
+            _teile = (get_wp_heizenergie_kwh(daten)
+                      + get_wp_warmwasser_kwh(daten, param))
+            if _teile > float(_gesamt_waerme) + 0.5:
+                waerme_widerspruch.append(f"{monat:02d}/{jahr}")
+        if waerme_widerspruch:
+            _w_monate = ", ".join(waerme_widerspruch[:6])
+            if len(waerme_widerspruch) > 6:
+                _w_monate += f" … (+{len(waerme_widerspruch) - 6})"
+            ergebnisse.append(CheckErgebnis(
+                kategorie=kat, schwere=CheckSeverity.WARNING,
+                meldung=(
+                    f"{name}: Gesamtwärme kleiner als Heizwärme + "
+                    f"Warmwasser-Wärme ({_w_monate})"
+                ),
+                details=(
+                    "„Wärme gesamt“ ist die Wärme des ganzen Geräts — Heizung "
+                    "und Warmwasser zusammen. Steht dort weniger als in den "
+                    "beiden Einzelwerten, meint einer der Werte etwas anderes "
+                    "als gedacht: Häufig ist unter „Wärme gesamt“ die Heizwärme "
+                    "gelandet. eedc rechnet mit der Gesamtwärme — Wärmemenge, "
+                    "Arbeitszahl, Ersparnis und CO₂ dieser Monate fallen "
+                    "deshalb zu niedrig aus. Prüf bitte im Monatsabschluss, "
+                    "welcher Zähler welchen Wert liefert: Mit EINEM gemeinsamen "
+                    "Wärmemengenzähler gehört sein Wert unter „Wärme gesamt“ "
+                    "und die beiden Einzelfelder bleiben leer; mit getrennten "
+                    "Zählern ist es umgekehrt."
+                ),
+                link=link_monat_erfassen(waerme_widerspruch[0]),
+                investition_id=inv.id,
+            ))
+
         fehlend_strom: list[str] = []
         fehlend_strom_heizen: list[str] = []
         fehlend_strom_ww: list[str] = []
@@ -1207,7 +1259,15 @@ class MonatsdatenChecks:
                 if daten.get("stromverbrauch_kwh") is None:
                     fehlend_strom.append(label)
 
-            if heiz_erwartet and daten.get("heizenergie_kwh") is None:
+            # N-391: **die Gruppe zählt, nicht das eine Feld.** *Heizwärme* und
+            # *Wärme gesamt* sind Alternativen derselben Größe
+            # (`BEDARF_GRUPPEN_ALTERNATIV`, Gruppe `wp_waerme`) — wer seinen
+            # gemeinsamen Wärmemengenzähler pflegt, hat nichts nachzutragen.
+            # Ihn trotzdem anzumahnen wäre die N-86-Klasse: dieselbe Anlage,
+            # zwei Flächen, gegenteilige Aussage (die Zuordnungs-Fläche sagt für
+            # dieses Feld bereits „bereits zugeordnet").
+            if (heiz_erwartet and daten.get("heizenergie_kwh") is None
+                    and daten.get("waerme_kwh") is None):
                 fehlend_heiz.append(label)
 
         def _monate(labels: list[str]) -> str:

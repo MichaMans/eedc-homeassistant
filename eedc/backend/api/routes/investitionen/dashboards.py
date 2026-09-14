@@ -940,6 +940,9 @@ async def get_waermepumpe_dashboard(
 
         gesamt_heizung_getrennt = 0.0  # Heizung nur für Monate mit getrennter Strommessung
         gesamt_warmwasser_getrennt = 0.0  # Warmwasser nur für Monate mit getrennter Strommessung
+        # N-391: Trug einer dieser Monate einen gemeinsamen Wärmemengenzähler?
+        # Dann ist die Wärme dieser Summen nicht die je Funktion.
+        waerme_ist_gesamt_getrennt = False
         # #263 K-2 (Konzept §3.5): Wärme, die aus `Strom × JAZ` abgeleitet
         # wurde, darf in keine JAZ/COP eingehen — heraus käme exakt die
         # gepflegte JAZ. Dieser Endpoint liest die IMD-Zeilen direkt und wertet
@@ -1021,6 +1024,10 @@ async def get_waermepumpe_dashboard(
             # Strommessung sind das zwei verschiedene Mengen (#183), und der
             # Hub wies damit einen anderen Verbrauch aus als das Cockpit.
             gesamt_strom += get_wp_strom_kwh(d, wp.parameter)
+            # ⚠ **Der EINZELwert, nicht die Wärme des Geräts** (N-391): Er
+            # trägt die Kachel *Heizwärme* und den Zähler der Heiz-Arbeitszahl.
+            # Ein gemeinsamer Wärmemengenzähler gehört in keine der beiden —
+            # seine Menge erreicht `gesamt_waerme` unten über D1.
             gesamt_heizung += d.get('heizenergie_kwh', 0)
             # N-379: die eine Lesetuer statt des Rohzugriffs. An dietmars
             # Klimaanlage standen hier 889 kWh, die das Geraet nicht abgeben
@@ -1091,6 +1098,10 @@ async def get_waermepumpe_dashboard(
                 # kann mitten in der Historie eingeschaltet worden sein, und
                 # ohne sie gibt es die Heiz-Arbeitszahl für diesen Monat nicht.
                 hat_split='strom_heizen_kwh' in d,
+                # N-391, ebenfalls je Zeile: EIN gemeinsamer Wärmemengenzähler
+                # liefert keine Wärme je Funktion — die Zeile bekommt den Grund
+                # statt `Gesamtwärme ÷ Heizstrom`.
+                waerme_ist_gesamt=bool(d.get('waerme_kwh')),
                 waerme_abgeleitet_kwh=(
                     1.0 if heizwaerme_ist_abgeleitet(md.source_provenance) else 0.0
                 ),
@@ -1124,10 +1135,24 @@ async def get_waermepumpe_dashboard(
                 hat_getrennte_strom = True
                 gesamt_strom_heizen += d.get('strom_heizen_kwh', 0)
                 gesamt_strom_warmwasser += d.get('strom_warmwasser_kwh', 0)
+                # ⚠ Die EINZELwerte, nicht die Wärme des Monats (N-391): Sie
+                # sind Zähler und Nenner **einer Funktion**. Der gemeinsame
+                # Wärmemengenzähler gehört in keinen von beiden — er sperrt sie.
                 gesamt_heizung_getrennt += d.get('heizenergie_kwh', 0)
                 gesamt_warmwasser_getrennt += _ww
+                waerme_ist_gesamt_getrennt = (
+                    waerme_ist_gesamt_getrennt or bool(d.get('waerme_kwh'))
+                )
 
-        gesamt_waerme = gesamt_heizung + gesamt_warmwasser
+        # ⭐ **N-391/V-1: die SUMME liest jetzt wie die Zeile** (D1). Hier stand
+        # `gesamt_heizung + gesamt_warmwasser`, während die Zeile darüber seit
+        # N-441 `waerme_gesamt_kwh` ruft — ein Gerät, dessen Monate nur den
+        # gemeinsamen Wärmemengenzähler tragen, hatte für den Hub **keine
+        # Wärme**: `gesamt_waerme_kwh` 0,0, `durchschnitt_cop` None, Ersparnis
+        # None, während *Cockpit → Monat* 3.000 kWh und 3,0 zeigte. Dieselbe
+        # Anlage, zwei Auskünfte — die N-397-Klasse ein zweites Mal, nur eine
+        # Faltungsebene höher.
+        gesamt_waerme = sum(_w for _w, _ in _hub_zeilen)
         # ⛔ **W-15 (26.08.): Hier stand bis zum 26.08. eine eigene Division**
         # (`gesamt_waerme / gesamt_strom`). Damit fehlten dem Hub **alle**
         # R2-Sperren außer der abgeleiteten Wärme — kein Abzug des
@@ -1222,9 +1247,14 @@ async def get_waermepumpe_dashboard(
         bewertbar = False
         for md in monatsdaten:
             d = md.verbrauch_daten or {}
-            m_waerme = (d.get('heizenergie_kwh', 0) or 0) + get_wp_warmwasser_kwh(
-                d, wp.parameter
-            )  # N-379
+            # N-391: kanonisch wie die Zeile oben (D1) — ohne diesen Aufruf
+            # blieben Ersparnis, Alt-Kosten und CO₂ einer Wärmepumpe mit
+            # gemeinsamem Wärmemengenzähler leer, obwohl ihre Wärme gemessen ist.
+            m_waerme = waerme_gesamt_kwh(
+                d.get('waerme_kwh'),
+                d.get('heizenergie_kwh'),
+                get_wp_warmwasser_kwh(d, wp.parameter),  # N-379
+            )
             # B3/H-1 (05.09.2026): **dieselbe** Strom-Definition wie Nenner (W-15)
             # und Monats-Fakten. Hier stand die Rohspalte — bei getrennter
             # Strommessung ist sie leer (Registry: `!getrennte_strommessung`),
@@ -1551,6 +1581,7 @@ async def get_waermepumpe_dashboard(
                 warmwasser_kwh=gesamt_warmwasser_getrennt,
                 strom_warmwasser_kwh=gesamt_strom_warmwasser,
                 hat_split=True,
+                waerme_ist_gesamt=waerme_ist_gesamt_getrennt,
                 waerme_abgeleitet_kwh=1.0 if waerme_abgeleitet else 0.0,
                 abgrenzung_verletzt=_wp_abgrenzung,
             )

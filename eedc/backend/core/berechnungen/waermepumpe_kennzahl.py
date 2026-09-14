@@ -802,6 +802,24 @@ def arbeitszahl(
 #: die Zahl fehlt, sondern woran es liegt.
 GRUND_STROM_NICHT_JE_FUNKTION = "Strom nicht getrennt je Funktion gemessen"
 
+#: Das Gegenstück auf der **Wärme**seite (N-391, 14.09.2026) — derselbe Satzbau,
+#: weil es derselbe Sachverhalt in der anderen Größe ist: Der Quotient je
+#: Funktion braucht **beide** Seiten je Funktion.
+#:
+#: ⛔ **Warum er nötig wurde.** Wer Heizung und Warmwasser über EINEN
+#: Wärmemengenzähler misst, hat seine Zahl mangels Feld unter *Heizwärme*
+#: eingetragen; mit getrennter Strommessung rechnete eedc daraus
+#: `Gesamtwärme ÷ Heizstrom` — gemessen **5,0** statt 3,0, ohne Grund. Seit es
+#: das Feld *Wärme gesamt* gibt, sagt die Datenlage selbst, dass die Wärme nicht
+#: je Funktion vorliegt, und die Kennzahl bekommt diesen Grund statt einer Zahl.
+#:
+#: ⚠ **Er ersetzt genau dort den Default „kein Wärmemengenzähler zugeordnet",
+#: wo dieser falsch ist:** Der Zähler IST zugeordnet — er misst nur beide
+#: Funktionen. Dieselbe Klasse wie der am 26.08. geheilte Fall an
+#: {@link GRUND_KEIN_HEIZBETRIEB} („Der Melder hat nach einem Zuordnungsfehler
+#: gesucht, den es nicht gab"), nur in der Gegenrichtung.
+GRUND_WAERME_NICHT_JE_FUNKTION = "Wärme nicht je Funktion gemessen"
+
 
 @dataclass(frozen=True)
 class ArbeitszahlJeFunktion:
@@ -834,6 +852,7 @@ def arbeitszahl_je_funktion(
     warmwasser_kwh: Optional[float],
     strom_warmwasser_kwh: Optional[float],
     hat_split: bool,
+    waerme_ist_gesamt: bool = False,
     waerme_abgeleitet_kwh: float = 0.0,
     abgrenzung_verletzt: Optional[str] = None,
     waerme_fehlt_grund_heizen: Optional[str] = None,
@@ -882,6 +901,28 @@ def arbeitszahl_je_funktion(
             nicht: Q ohne E ist kein Quotient, und `strom_heizen_kwh` bedeutet
             **ohne** das Kennzeichen etwas anderes (K3) — dort ist es kein
             Summand einer zweiteiligen Achse.
+        waerme_ist_gesamt: Trägt die Zeile eine **gemessene Gesamtwärme**
+            (Feld ``waerme_kwh``, EIN gemeinsamer Wärmemengenzähler über
+            Heizung und Warmwasser)? Dann bekommt **jede Funktion ohne eigenen
+            Wärmewert** den Grund {@link GRUND_WAERME_NICHT_JE_FUNKTION} statt
+            des Defaults „kein Wärmemengenzähler zugeordnet" — der ist hier
+            falsch, der Zähler ist zugeordnet (N-391).
+
+            ⛔ **Er macht keine eigene Sperre auf, sondern setzt den
+            `waerme_fehlt_grund` der betroffenen Funktion.** Damit wirkt er
+            genau dort, wo ``arbeitszahl`` ohnehin sperrt (``q <= 0``) — und
+            **nur** dort. Wer neben dem Gesamtzähler auch die Aufteilung pflegt,
+            behält seine beiden Zahlen: sie sind gemessen, ihr Zähler und ihr
+            Nenner tragen dieselbe Funktion, R2 ist erfüllt. Eine Sperre „sobald
+            ein Gesamtwert dasteht" nähme ihm eine **richtige** Zahl — dieselbe
+            Klasse wie die verworfene Sperre „Warmwasser fehlt" (die hätte Lage D
+            getroffen: Wärmemengenzähler nur auf dem Heizkreis, Heiz-Arbeitszahl
+            richtig).
+
+            ⚠ **Er gewinnt gegen ``waerme_fehlt_grund_*``**, wo beide gesetzt
+            sind: Dass für diese Funktion kein Wert vorliegt, hat dann eine
+            **bekannte** Ursache — der gemeinsame Zähler —, und die ist die
+            genauere Auskunft als „kein Zähler zugeordnet" (S3).
         waerme_abgeleitet_kwh: sperrt **beide** Zahlen. Eine aus dem Strom
             gerechnete Wärme ergibt je Funktion genauso den Faktor zurück, mit
             dem sie gerechnet wurde, wie in der Summe (Konzept §3.5).
@@ -957,14 +998,20 @@ def arbeitszahl_je_funktion(
             return abgrenzung_verletzt
         return abgrenzung_je_funktion_grund.get(funktion)
 
+    # N-391: die Gesamtwärme erklärt, warum es für eine Funktion keinen eigenen
+    # Wert gibt. `arbeitszahl` wertet den Grund nur bei fehlendem Zähler aus —
+    # wer die Aufteilung daneben pflegt, behält seine Zahlen.
+    _gesamt_grund = GRUND_WAERME_NICHT_JE_FUNKTION if waerme_ist_gesamt else None
     return ArbeitszahlJeFunktion(
         heizen=_je(
-            heizung_kwh, strom_heizen_kwh, waerme_fehlt_grund_heizen,
+            heizung_kwh, strom_heizen_kwh,
+            _gesamt_grund or waerme_fehlt_grund_heizen,
             GRUND_KEIN_HEIZBETRIEB if null_ist_gemessen else None,
             _abgrenzung("heizen"),
         ),
         warmwasser=_je(
-            warmwasser_kwh, strom_warmwasser_kwh, waerme_fehlt_grund_warmwasser,
+            warmwasser_kwh, strom_warmwasser_kwh,
+            _gesamt_grund or waerme_fehlt_grund_warmwasser,
             GRUND_KEINE_WARMWASSERBEREITUNG if null_ist_gemessen else None,
             _abgrenzung("warmwasser"),
         ),

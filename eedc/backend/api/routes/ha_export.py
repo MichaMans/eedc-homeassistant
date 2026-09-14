@@ -45,6 +45,7 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     abgrenzungs_grund,
     arbeitszahl,
     ersparnis_vorbehalt,
+    waerme_gesamt_kwh,
 )
 from backend.services.wp_wirtschaftlichkeit import berechne_wp_ersparnis
 from backend.services.prognose_auswahl import lade_aktive_prognose
@@ -1612,8 +1613,14 @@ async def calculate_investition_sensors(
         # DI-4: WP-Strom mit dem WP-Spezialtarif bewerten (Fallback allgemein),
         # deckungsgleich mit aktueller_monat.py und der Anlage-Aggregation oben.
         gesamt_strom = 0.0
-        gesamt_heizung = 0.0
-        gesamt_warmwasser = 0.0
+        # N-391: die Wärme des Geräts nach der kanonischen Vorrangregel D1 —
+        # **je Zeile aufgelöst**, nicht am Ende aus zwei Summen gebildet.
+        # ⛔ Hier standen bis zum 14.09.2026 `gesamt_heizung` und
+        # `gesamt_warmwasser`, deren einziger Zweck ihre Summe am Ende war. Eine
+        # Zeile mit gemeinsamem Wärmemengenzähler trug zu beiden nichts bei —
+        # die Wärme-, Arbeitszahl- und Ersparnis-Sensoren dieser Wärmepumpe
+        # meldeten 0 bzw. nichts, während Hub und Cockpit die Zahl zeigten.
+        gesamt_waerme_kanonisch = 0.0
 
         # #263 K-2 (Konzept §3.5): abgeleitete Wärme trägt keine JAZ — sonst
         # exportierte eedc die gepflegte JAZ als gemessenen Sensorwert nach HA,
@@ -1687,10 +1694,13 @@ async def calculate_investition_sensors(
                     get_wp_strom_kwh(d, investition.parameter),
                 )
             }
-            gesamt_heizung += d.get("heizenergie_kwh", 0) or 0
-            # N-379: die eine Lesetuer — sonst traegt der HA-Sensor eine
-            # Waermemenge, die es am Geraet nicht gibt.
-            gesamt_warmwasser += get_wp_warmwasser_kwh(d, investition.parameter)
+            gesamt_waerme_kanonisch += waerme_gesamt_kwh(
+                d.get("waerme_kwh"),
+                d.get("heizenergie_kwh"),
+                # N-379: die eine Lesetuer — sonst traegt der HA-Sensor eine
+                # Waermemenge, die es am Geraet nicht gibt.
+                get_wp_warmwasser_kwh(d, investition.parameter),
+            )
             waerme_abgeleitet = waerme_abgeleitet or heizwaerme_ist_abgeleitet(
                 md.source_provenance
             )
@@ -1745,7 +1755,10 @@ async def calculate_investition_sensors(
                 )
                 gesamt_modus_abdeckung_h += _split.abdeckung_h
 
-        gesamt_waerme = gesamt_heizung + gesamt_warmwasser
+        # N-391: dieselbe Auflösung wie im Hub und in den Monats-Fakten. Ohne sie
+        # meldeten die Sensoren *Wärme erzeugt*, *Arbeitszahl* und *Ersparnis*
+        # einer Wärmepumpe mit gemeinsamem Wärmemengenzähler 0 bzw. nichts.
+        gesamt_waerme = gesamt_waerme_kanonisch
 
         # Issue #238: Counter-Summen (Starts/Betriebsstunden) dieser WP aus
         # TagesZusammenfassung.komponenten_starts über die Laufzeit. Nur gesetzt,
@@ -1853,9 +1866,11 @@ async def calculate_investition_sensors(
                 bewertbar = False
                 for md in monatsdaten:
                     d = md.verbrauch_daten or {}
-                    m_waerme = (d.get("heizenergie_kwh", 0) or 0) + (
-                        get_wp_warmwasser_kwh(d, investition.parameter)
-                    )  # N-379
+                    m_waerme = waerme_gesamt_kwh(   # N-391 (D1), N-379
+                        d.get("waerme_kwh"),
+                        d.get("heizenergie_kwh"),
+                        get_wp_warmwasser_kwh(d, investition.parameter),
+                    )
                     m_strom = get_wp_strom_kwh(d, investition.parameter)
                     if m_waerme <= 0 and m_strom <= 0:
                         continue

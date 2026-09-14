@@ -468,6 +468,11 @@ _GRUPPEN_TEXT = {
                  "getrennt) — hier ist nichts einzutragen.",
     "wp_strom": "Der WP-Stromverbrauch ist bereits zugeordnet — hier ist "
                 "nichts einzutragen.",
+    # N-391: *Heizwärme* und *Wärme gesamt* sind zwei Wege zu derselben Größe —
+    # ein gemeinsamer Wärmemengenzähler oder getrennte. Wer einen davon
+    # zugeordnet hat, braucht den anderen nicht.
+    "wp_waerme": "Die abgegebene Wärme ist bereits zugeordnet — hier ist "
+                 "nichts einzutragen.",
 }
 
 

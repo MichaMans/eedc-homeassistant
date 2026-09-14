@@ -99,6 +99,13 @@ const WAERMEPUMPE_FELDER: FeldDefinition[] = [
   // zeigt. Beide SoTs bleiben wortgleich.
   { feld: 'warmwasser_kwh',       label: 'Warmwasser-Wärme', einheit: 'kWh', bedingung: '!luft_luft',
     hint: 'Abgegebene Warmwasser-Wärme (thermisch)' },
+  // N-391 (14.09.2026) — der Ort für EINEN gemeinsamen Wärmemengenzähler.
+  // Spiegel von `field_definitions.py::waerme_kwh`; ohne diese Zeile gäbe es
+  // das Feld auf der Zuordnungs-Fläche, aber nicht im Monatsabschluss (die
+  // beiden Registries sind nur durch Kommentare verbunden).
+  // **Nach** den beiden Einzelwerten: der Regelfall bleibt die Aufteilung.
+  { feld: 'waerme_kwh',           label: 'Wärme gesamt',     einheit: 'kWh',
+    hint: 'Abgegebene Wärme gesamt (thermisch) — für EINEN Zähler über Heizung und Warmwasser. Mit getrennten Zählern leer lassen.' },
 ]
 
 const EAUTO_FELDER: FeldDefinition[] = [

@@ -371,7 +371,14 @@ def test_i5_brauchwasser_waermepumpe_traegt_nur_die_warmwasser_achse():
     p = {"wp_art": "brauchwasser", "getrennte_strommessung": True}
 
     # Der Monatsabschluss fragt nur nach dem, was das Gerät tut.
-    assert _pflegbar(p) == {"strom_warmwasser_kwh", "warmwasser_kwh"}
+    # ⚠ **`waerme_kwh` steht seit N-391 (14.09.2026) daneben** — die abgegebene
+    # Wärme GESAMT. Sie ist keine Heiz-Achse: An einer Brauchwasser-Wärmepumpe
+    # ist die Gesamtwärme die Warmwasser-Wärme, und wessen Zähler beides misst,
+    # bekommt sein Feld ohne Rücksicht auf die Bauart (R1, „keine Bedingung",
+    # Entscheid 14.09.). Die Aussage der Probe bleibt: **keine Heiz-Achse in
+    # der ersten Reihe.**
+    assert _pflegbar(p) == {"strom_warmwasser_kwh", "warmwasser_kwh",
+                            "waerme_kwh"}
 
     # Zuordenbar bleibt beides — die Heiz-Achse als erweiterte Größe.
     flaeche = _zuordenbar(p)

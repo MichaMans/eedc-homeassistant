@@ -12,7 +12,7 @@
 3. [Was eedc bewusst *nicht* sagt](#3-was-eedc-bewusst-nicht-sagt)
 4. [Wann eine Kennzahl verschwindet — und warum das richtig ist](#4-wann-eine-kennzahl-verschwindet--und-warum-das-richtig-ist)
 5. [Sensoren zuordnen, Schritt für Schritt](#5-sensoren-zuordnen-schritt-für-schritt)
-6. [Sechs Anlagen, sechs Ergebnisse](#6-sechs-anlagen-sechs-ergebnisse)
+6. [Sieben Anlagen, sieben Ergebnisse](#6-sieben-anlagen-sieben-ergebnisse)
 7. [Häufige Missverständnisse](#7-häufige-missverständnisse)
 
 ---
@@ -167,6 +167,7 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 | **zweiter Erzeuger am Wärmezähler** | Dieselbe Angabe, andere Richtung: Ein zweiter Erzeuger speist denselben Heizkreis — ein Gas- oder Ölkessel, oder ein **elektrischer Heizstab, dessen Strom getrennt gezählt wird**. Der Wärmewert ist zu groß. | dito Ersparnis und CO₂ bleiben stehen, tragen aber den Vorbehalt *„zweiter Erzeuger am Wärmezähler — Ersparnis und CO₂ enthalten dessen Wärme"*: eedc kennt den Anteil des zweiten Erzeugers nicht und rechnet ihn nicht heraus. |
 | **Zähler messen verschiedene Zeiträume** | Strom und Wärme stammen aus verschieden langen Messzeiträumen. | Lücken im Monatsabschluss schließen |
 | **Strom nicht getrennt je Funktion gemessen** | Betrifft nur die Arbeitszahlen *Heizen* und *Warmwasser*. Ein Betriebsmodus-Sensor ersetzt die getrennte Messung hier **nicht** — siehe den Kasten unter dieser Tabelle. | getrennte Strommessung einschalten und zuordnen |
+| **Wärme nicht je Funktion gemessen** | Das Gegenstück auf der Wärmeseite: Deine Wärme steht unter *Wärme gesamt*, kommt also aus **einem** Zähler über Heizung und Warmwasser. Die Menge stimmt, aber sie lässt sich nicht auf die beiden Funktionen aufteilen. | so lassen — oder einen zweiten Wärmemengenzähler setzen und dann *Heizwärme* und *Warmwasser-Wärme* getrennt pflegen |
 | **kein Kältemengenzähler zugeordnet** | Betrifft nur die Arbeitszahl *Kühlen*. | Kältemengenzähler zuordnen — oder es bleibt so |
 | **keine Kälte abgegeben in diesem Zeitraum** | Nur am **Tag**: Der Kältemengenzähler ist zugeordnet und meldet **null**, obwohl Kühlstrom geflossen ist — typisch, wenn das Gerät im Kühlmodus stand und pausierte (die Stunde zählt dann zum Kühlen, siehe *„Leerlauf behält deinen Modus"*). | nichts. **Nicht mit *kein Kältemengenzähler zugeordnet* verwechseln** — dort fehlt die Messung, hier ist sie da und sagt null |
 
@@ -241,9 +242,11 @@ Alles läuft über **Einstellungen → Datenquellen**. Dort steht je Gerät eine
 
 | Art | Felder oben | Nicht angeboten (aber erreichbar) |
 |-----|-------------|-----------------------------------|
-| **Luft-Wasser / Sole-Wasser / Grundwasser** | Stromverbrauch, Heizwärme, Warmwasser | Betriebsart-Zähler (Kühlen, Lüften, Entfeuchten) |
-| **Luft-Luft (Klimaanlage)** | Stromverbrauch, Betriebsart-Zähler | Warmwasser — den Kreis gibt es dort nicht |
-| **Brauchwasser (nur Warmwasser)** | Stromverbrauch, Warmwasser | Heizwärme, Strom Heizen |
+| **Luft-Wasser / Sole-Wasser / Grundwasser** | Stromverbrauch, Heizwärme, Warmwasser, Wärme gesamt | Betriebsart-Zähler (Kühlen, Lüften, Entfeuchten) |
+| **Luft-Luft (Klimaanlage)** | Stromverbrauch, Wärme gesamt, Betriebsart-Zähler | Warmwasser — den Kreis gibt es dort nicht |
+| **Brauchwasser (nur Warmwasser)** | Stromverbrauch, Warmwasser, Wärme gesamt | Heizwärme, Strom Heizen |
+
+> ⚑ ***Wärme gesamt* ist der Platz für EINEN gemeinsamen Wärmemengenzähler** und steht deshalb bei jeder Bauart — welche Zähler es gibt, sagt deine Anlage, nicht die Bauart. Mit **getrennten** Zählern lässt du das Feld leer und trägst *Heizwärme* und *Warmwasser-Wärme* ein; mit **einem** Zähler ist es umgekehrt.
 
 > **„Nicht angeboten" heißt nicht „gesperrt".** Alles Übrige liegt unter **„Weitere Größen erfassen"** und rückt nach oben, sobald du dort einen Sensor einträgst. Die einzige echte Ausnahme ist **Warmwasser an einer Luft-Luft-Klimaanlage**: Den Kreis gibt es dort nicht.
 >
@@ -251,7 +254,7 @@ Alles läuft über **Einstellungen → Datenquellen**. Dort steht je Gerät eine
 
 > ⚑ **Und was du gar nicht führst, verschwindet von selbst aus der Anzeige.** Hat eine Wärmepumpe **nie** einen Warmwasser-Wert getragen und ist auch kein Warmwasser-Zähler zugeordnet, zeigt der Block *Wärme nach Zweck* im Komponenten-Hub keine Warmwasser-Achse mehr — weder Balken noch Spalte noch Legendeneintrag. Das ist der Fall, wenn deine Heizungs-Wärmepumpe nur heizt und eine **eigene Brauchwasser-Wärmepumpe** daneben das Warmwasser macht. Du musst dafür nichts einstellen, und sobald du einen Zähler zuordnest oder einen Wert pflegst, ist die Achse wieder da. **Ein einziger gepflegter Monat genügt — auch mit dem Wert 0**: Dann ist die Null eine Messung und keine Leerstelle.
 >
-> ⚠ **Führst du Heizung und Warmwasser über *einen* Wärmemengenzähler**, trag die Summe unter *Heizwärme* ein. eedc kann die beiden dann nicht trennen — die Aufteilung *Wärme nach Zweck* zeigt in diesem Fall nur die Heizseite, und die getrennten Arbeitszahlen bleiben ohne Zahl.
+> ⭐ **Führst du Heizung und Warmwasser über *einen* Wärmemengenzähler**, trag seinen Wert unter ***Wärme gesamt*** ein — nicht unter *Heizwärme*. eedc rechnet dann mit der Gesamtwärme: Wärmemenge, Arbeitszahl, Ersparnis und CO₂ stimmen. **Getrennte Arbeitszahlen für Heizen und Warmwasser gibt es dabei nicht** — dafür bräuchtest du zwei Wärmemengenzähler —, und eedc sagt das mit dem Grund *„Wärme nicht je Funktion gemessen"*, statt eine Zahl zu zeigen. ⚑ **Hast du deine Summe bisher unter *Heizwärme* geführt, bleibt sie stehen, bis du sie umträgst** — eedc verschiebt nichts von allein. Bis September 2026 gab es das Feld *Wärme gesamt* nicht; wer getrennt gemessenen Strom hat, sah in dieser Lage eine **zu hohe Arbeitszahl Heizen** (die ganze Wärme geteilt durch den Heizstrom allein).
 
 > ⭐ **Mehrere Wärmepumpen an EINEM Zähler sind für eedc EIN Gerät.** Bei einer **Kaskade** oder zwei Geräten, die auf denselben Pufferspeicher arbeiten und über einen gemeinsamen Wärmemengen- und Stromzähler laufen, leg **eine** Investition an und ordne ihr beide Zähler zu. Trägst du sie einzeln ein, steht die gemessene Wärme beim einen Gerät und der gemessene Strom beim anderen — eedc kann nicht wissen, dass die beiden Zähler dieselbe Anlage meinen, und sperrt die Arbeitszahl mit *„Wärme und Strom stammen von verschiedenen Geräten"* ([§4](#4-wann-eine-kennzahl-verschwindet--und-warum-das-richtig-ist)). Physisch wäre Σ Wärme ÷ Σ Strom hier richtig; eedc darf es nur nicht raten. ⚠ Die **Anschaffungskosten** trägst du dann ebenfalls zusammen ein — die Wirtschaftlichkeit rechnet auf derselben Investition.
 
@@ -270,7 +273,18 @@ Am Gerät gibt es den Schalter **„Getrennte Strommessung"**.
 
 ### Schritt 3 — Die Wärme zuordnen (oder bewusst darauf verzichten)
 
-*Heizwärme* und *Warmwasser-Wärme* sind **thermische** Größen in kWh — die abgegebene Wärme, **nicht** der Strom. Das ist die häufigste Verwechslung überhaupt, und beide Felder tragen sie deshalb im Namen.
+*Heizwärme*, *Warmwasser-Wärme* und *Wärme gesamt* sind **thermische** Größen in kWh — die abgegebene Wärme, **nicht** der Strom. Das ist die häufigste Verwechslung überhaupt, und die Felder tragen sie deshalb im Namen.
+
+**Welches Feld deins ist, entscheidet dein Zähler:**
+
+| Deine Zähler | Was du einträgst | Was eedc daraus rechnet |
+| --- | --- | --- |
+| **Zwei** — einer für die Heizung, einer fürs Warmwasser | *Heizwärme* **und** *Warmwasser-Wärme* | alles, inklusive **Arbeitszahl Heizen und Warmwasser** getrennt (mit getrennter Strommessung) |
+| **Einer**, gemeinsam über Heizung und Warmwasser | ***Wärme gesamt*** | Wärmemenge, Arbeitszahl gesamt, Ersparnis, CO₂ — **keine** Zahl je Funktion |
+| **Einer**, nur auf dem Heizkreis | *Heizwärme* | dasselbe wie oben, plus **Arbeitszahl Heizen** |
+| **Keiner** | nichts — eedc leitet die Wärme aus *Strom × Arbeitszahl* ab und kennzeichnet sie | Mengen als Modellrechnung, **keine** Arbeitszahl (sie wäre zirkulär) |
+
+> ⚠ **Trag denselben Wert nicht zweimal ein.** Steht in *Wärme gesamt* ein Wert, ist **er** die Wärme des Geräts; *Heizwärme* und *Warmwasser-Wärme* stehen dann nur noch als Aufteilung daneben. Ist die Aufteilung zusammen **größer** als der Gesamtwert, sagt der Daten-Checker es dir — dann meint einer der beiden Werte etwas anderes als gedacht.
 
 > ⚠ **Besonders beim Import aus einer eigenen Datei.** Viele Hersteller-Exporte führen die abgegebene Wärme in **zwei** Spalten nebeneinander — einmal die vom Gerät erzeugte Wärme, einmal die aus der Umwelt entnommene *Umgebungswärme*. Für eedc zählt die **erzeugte** Wärme; wird die Umgebungswärme mit zugeordnet oder die bereits addierte Summe genommen, steht die Wärmemenge um ein Vielfaches zu hoch.
 >
@@ -491,9 +505,9 @@ Die Leistungsfelder erscheinen in *Cockpit → Live*: Unter dem Gerät steht *Le
 
 ---
 
-## 6. Sechs Anlagen, sechs Ergebnisse
+## 6. Sieben Anlagen, sieben Ergebnisse
 
-Diese sechs Bauformen sind **nicht erfunden** — fünf davon stammen aus Rückmeldungen von Testern, und alle sechs stehen als nachgestellte Anlagen im Prüflauf von eedc. Sie zeigen, was du bei welcher Ausstattung bekommst.
+Diese sieben Bauformen sind **nicht erfunden** — fünf davon stammen aus Rückmeldungen von Testern, und alle stehen als nachgestellte Anlagen im Prüflauf von eedc. Sie zeigen, was du bei welcher Ausstattung bekommst.
 
 ### A — Wärmepumpe **und** Klimaanlage, nur die Wärmepumpe meldet Wärme
 
@@ -581,6 +595,26 @@ Ein Gerät, das ausschließlich Warmwasser macht.
 Wähle die Wärmepumpenart **Brauchwasser**. eedc fragt dann nur noch nach *Stromverbrauch* und *Warmwasser* — die Heiz-Achse wird weder angeboten noch erwartet, und der Daten-Checker verlangt sie nicht.
 
 > **Hast du doch einen Heizzähler** (manche Geräte unterstützen einen kleinen Heizkreis): Trag ihn unter *„Weitere Größen erfassen"* ein. Die Bauart ist ein Vorschlag, kein Verbot.
+
+### G — Ein Wärmemengenzähler für Heizung und Warmwasser
+
+Der Regelfall bei einer Luft-Wasser-Wärmepumpe mit Umschaltventil: **ein** Vorlauf, **ein** Wärmemengenzähler, und er misst beides. Dazu getrennte Stromzähler für Heizen und Warmwasser.
+
+3000 kWh Wärme aus dem gemeinsamen Zähler · Strom Heizen 600 kWh · Strom Warmwasser 400 kWh.
+
+Trag die 3000 unter ***Wärme gesamt*** ein und lass *Heizwärme* und *Warmwasser-Wärme* leer.
+
+| Sicht | Ergebnis |
+|-------|----------|
+| **Wärme erzeugt** | **3000 kWh** — gemessen, in Cockpit, Komponenten-Hub, Tag und Jahr dieselbe Zahl |
+| **Arbeitszahl (gesamt)** | **3,0** (3000 ÷ 1000) |
+| **Arbeitszahl Heizen / Warmwasser** | **„—"**, Grund: *Wärme nicht je Funktion gemessen* |
+| **Ersparnis und CO₂** | vollständig — sie brauchen nur die Menge |
+| **Wärme nach Zweck** | kein Balken: Es gibt nichts aufzuteilen |
+
+⚠ **Trägst du die 3000 stattdessen unter *Heizwärme* ein** (so stand es bis September 2026 im Handbuch), rechnet eedc **3000 ÷ 600 = 5,0** als *Arbeitszahl Heizen* — eine plausibel aussehende Zahl, die zwei verschiedene Dinge ins Verhältnis setzt. Die Mengen, die Gesamt-Arbeitszahl, Ersparnis und CO₂ sind auch dann richtig; falsch ist nur die Zuordnung zur Funktion.
+
+⭐ **Und wenn dein einziger Zähler nur den Heizkreis misst** (Warmwasser läuft ungemessen mit oder über ein eigenes Gerät): Dann gehört sein Wert weiterhin unter *Heizwärme* — und die *Arbeitszahl Heizen* ist richtig. Genau deshalb entscheidet **dein Eintrag**, nicht eine Vermutung von eedc: In den Daten sehen die beiden Anlagen sonst gleich aus.
 
 ---
 
