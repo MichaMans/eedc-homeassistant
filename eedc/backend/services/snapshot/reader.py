@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional, Sequence
 
@@ -595,6 +596,141 @@ async def delta(
         )
         return None
     return round(wert, 3)
+
+
+# ── Der Rückfall auf den ersten Stand im Fenster (N-472) ─────────────────────
+
+
+@dataclass(frozen=True)
+class MengeSeit:
+    """Eine Menge **mit** dem Zeitpunkt, ab dem sie wirklich gemessen ist.
+
+    ``seit`` ist der linke Rand, der die Menge trägt — im Regelfall der
+    angefragte Fensteranfang, im Rückfall der **erste Stand im Fenster**.
+    ``ab_fenster_beginn`` unterscheidet die beiden Fälle, damit ein Aufrufer
+    die Einschränkung ausweisen kann, statt sie zu verschweigen (ADR-002/P4).
+    """
+
+    menge_kwh: float
+    seit: datetime
+    bis: datetime
+    ab_fenster_beginn: bool
+
+
+async def erster_stand_im_fenster(
+    db: AsyncSession,
+    anlage_id: int,
+    sensor_key: str,
+    von: datetime,
+    bis: datetime,
+) -> Optional[datetime]:
+    """Der Zeitpunkt des **frühesten** mitgeschriebenen Standes im Fenster.
+
+    Beide Ränder inklusive; ``None`` heißt „in diesem Fenster steht kein
+    Stand". Gesucht wird in derselben Reihenfolge, in der {@link get_snapshot}
+    liest: zuerst die lokale ``sensor_snapshots``-Reihe, dann — für die
+    MQTT-only-Aufstellung, in der es weder HA-Entity noch geheilten Snapshot
+    gibt — die 5-Minuten-Reihe ``mqtt_energy_snapshots``.
+
+    ⚠ **Es kommt der Zeitpunkt zurück, nicht der Wert.** Der Wert wird
+    anschließend über ``get_snapshot`` geholt, damit die Self-Healing-Kaskade
+    und der C2b-Read-Through (``quellen_energy``) auch für den Rückfall-Rand
+    gelten — ein hier gelesener Rohwert würde beide umgehen.
+    """
+    ts = (await db.execute(
+        select(func.min(SensorSnapshot.zeitpunkt)).where(
+            and_(
+                SensorSnapshot.anlage_id == anlage_id,
+                SensorSnapshot.sensor_key == sensor_key,
+                SensorSnapshot.zeitpunkt >= von,
+                SensorSnapshot.zeitpunkt <= bis,
+                SensorSnapshot.wert_kwh.isnot(None),
+            )
+        )
+    )).scalar_one_or_none()
+    if ts is not None:
+        return ts
+
+    mqtt_key = _sensor_key_to_mqtt_key(sensor_key)
+    if not mqtt_key:
+        return None
+    return (await db.execute(
+        select(func.min(MqttEnergySnapshot.timestamp)).where(
+            and_(
+                MqttEnergySnapshot.anlage_id == anlage_id,
+                MqttEnergySnapshot.energy_key == mqtt_key,
+                MqttEnergySnapshot.timestamp >= von,
+                MqttEnergySnapshot.timestamp <= bis,
+                MqttEnergySnapshot.value_kwh.isnot(None),
+            )
+        )
+    )).scalar_one_or_none()
+
+
+async def delta_mit_rand(
+    db: AsyncSession,
+    anlage_id: int,
+    sensor_key: str,
+    sensor_id: Optional[str],
+    von: datetime,
+    bis: datetime,
+    quellen_energy: Optional[dict] = None,
+    rueckfall_erster_stand: bool = False,
+) -> Optional[MengeSeit]:
+    """{@link delta} — und, auf Wunsch, der Rückfall auf den ersten Stand (N-472).
+
+    Ohne ``rueckfall_erster_stand`` ist das Ergebnis **bitgleich** zu ``delta``,
+    nur um ``seit``/``bis`` ergänzt. Mit dem Schalter gilt zusätzlich:
+
+    > Fehlt der Stand am Fensteranfang, ist der linke Rand der **erste Stand im
+    > Fenster**; die Menge gilt dann seit diesem Zeitpunkt und sagt das.
+
+    ⛔ **Der Rückfall greift ausschließlich beim fehlenden LINKEN Rand.** Die
+    beiden anderen ``None``-Ursachen behalten ihre Antwort:
+
+    * **fehlender rechter Rand** — dann gibt es keinen zweiten Punkt, zwischen
+      dem gemessen werden könnte; ein näherrückender linker Rand hilft nicht.
+    * **Zählerrücksprung im Fenster** (N-341) — das ``None`` ist dort eine
+      *Entscheidung über Datenqualität*, kein fehlender Punkt. Ein Rückfall
+      würde sie aushebeln und aus einer abgelehnten Zahl eine kleinere,
+      ebenso falsche machen. Deshalb wird der linke Rand ausdrücklich
+      **nachgefragt**, bevor der Rückfall greift: ist er da, war es der
+      Rücksprung oder der rechte Rand.
+
+    ⚠ **Der Schalter ist Absicht und steht nicht auf ``True``.** Der zweite
+    Leser der Monatsmengen ist der Monatsabschluss-Vorschlag — dort wäre eine
+    Menge „seit dem 14." ein Wert, der als **Monatsmenge** gespeichert würde,
+    und das ist genau der Datenverlust, gegen den F-66 gebaut ist. Nur die
+    Anzeige des laufenden Monats darf einen Teilzeitraum zeigen, weil sie ihn
+    beschriften kann.
+    """
+    wert = await delta(
+        db, anlage_id, sensor_key, sensor_id, von, bis,
+        quellen_energy=quellen_energy,
+    )
+    if wert is not None:
+        return MengeSeit(menge_kwh=wert, seit=von, bis=bis, ab_fenster_beginn=True)
+    if not rueckfall_erster_stand:
+        return None
+
+    linker_rand = await get_snapshot(
+        db, anlage_id, sensor_key, sensor_id, von, quellen_energy=quellen_energy
+    )
+    if linker_rand is not None:
+        # Der Rand steht — das `None` kam vom rechten Rand oder vom Rücksprung.
+        return None
+
+    seit = await erster_stand_im_fenster(db, anlage_id, sensor_key, von, bis)
+    if seit is None or seit >= bis:
+        return None
+
+    wert = await delta(
+        db, anlage_id, sensor_key, sensor_id, seit, bis,
+        quellen_energy=quellen_energy,
+    )
+    if wert is None:
+        return None
+    return MengeSeit(menge_kwh=wert, seit=seit, bis=bis, ab_fenster_beginn=False)
 
 
 async def get_counter_lifetime(

@@ -115,6 +115,56 @@ nur eben mit null. Dort steht jetzt *„kein Heizbetrieb in diesem Zeitraum"*.
 
 ---
 
+**Der laufende Monat bleibt nicht mehr leer — und sagt, wenn er doch nichts hat**
+
+**Betrifft dich das?** Ja, wenn du eedc **mitten im Monat** eingerichtet hast
+oder deine Werte weder aus der HA-Statistik noch aus einem Geräte-Connector
+kommen. Wer eine gepflegte oder gemessene Quelle hat, sieht exakt dieselben
+Zahlen wie bisher.
+
+**Was war:** *Cockpit → Monat* kannte vier Quellen — Monatsabschluss,
+HA-Statistik, Connector, MQTT-Zählerstände. Griff keine davon, waren die Kacheln
+leer, und daneben stand **kein Grund**. Zwei Fälle trafen das besonders oft:
+eine MQTT-Anlage ohne Zählerstand am Monatsersten (eedc bildet die Monatsmenge
+aus **zwei** Ständen — fehlt der erste, gibt es nichts, und zwar bis zum 1. des
+Folgemonats), und eine Anlage, deren Tageswerte eedc längst mitschreibt: Der
+**Verlauf** darunter zeichnete dreizehn Septembertage vollständig, die Kacheln
+darüber blieben leer.
+
+**Was jetzt — drei Dinge:**
+
+1. **MQTT misst ab dem ersten Stand, den es hat.** Statt gar nichts steht dort
+   die Menge seit diesem Zeitpunkt, und am Quellen-Etikett über den Kacheln
+   steht der Zeitraum: „MQTT (14.–30.09.)". ⛔ **Hochgerechnet wird nichts** —
+   die Zahl ist, was seit dann wirklich gelaufen ist, nicht was der Monat
+   vermutlich bringt.
+2. **Deine Tageswerte sind die fünfte Quelle.** Bleibt eine Kachel danach leer,
+   summiert eedc die Tage, die es ohnehin aufzeichnet. Sie **füllt nur, was
+   sonst fehlt** — ein gepflegter Monatsabschluss oder ein gemessener Wert wird
+   nie verdrängt —, und sie sagt, dass sie es war: am Etikett steht dann
+   „Tageswerte". ⭐ **Auch der Block *Wärme/Klima* gehört dazu:** Strom, Wärme,
+   Kälte, Arbeitszahlen und die Tabelle *Zahlen je Gerät* kommen aus demselben
+   Leser, aus dem der **Verlauf darunter** seine Tage zeichnet. Genau das war
+   der Auslöser — der Verlauf zeigte dreizehn Septembertage, die Kacheln
+   darüber standen leer.
+3. **Und wenn wirklich nichts da ist, steht das jetzt da.** Fahr über das „—":
+   Dort steht, ob für diesen Monat überhaupt noch nichts vorliegt oder ob nur
+   dieser einen Größe die Zuordnung fehlt — mit dem Weg dorthin.
+
+⚠ **Ohne zugeordneten Wärmemengenzähler bleibt die Wärme leer** — und damit die
+Arbeitszahl. Die Tageswerte können nur zeigen, was gemessen wurde; eine
+Arbeitszahl aus gemessenem Strom und **fehlender** Wärme wäre keine halbe
+Auskunft, sondern eine falsche. Was dann zu tun ist, steht im Kasten *„Was noch
+möglich wäre"* unter dem Block.
+
+⚠ **Nur im laufenden Monat.** In einem abgeschlossenen wäre eine Summe über
+einen Teil der Tage eine stille Untertreibung; dort ist der Monatsabschluss der
+richtige Weg, und der Daten-Checker zeigt ohnehin darauf.
+
+→ [Bedienung: Cockpit → Monat](HANDBUCH_BEDIENUNG.md#23-monat)
+
+---
+
 **Ein gemeinsamer Wärmemengenzähler hat jetzt sein eigenes Feld**
 
 **Betrifft dich das?** Nur, wenn deine Wärmepumpe Heizung und Warmwasser über

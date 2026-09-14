@@ -260,6 +260,29 @@ Sie beantworten die Frage „Warum ist der Tag leer, obwohl der Monat gefüllt i
 
 > ⛔ **Bis v4.0.28 stand an dieser Stelle unterschiedslos *„Sensor zuordnen"*** — auch bei jemandem, der zugeordnet hatte. Ein Tester hat daraufhin zu Recht gefragt, was die Anzeige ihm eigentlich sagen will. **Eine falsche Ursache ist schlimmer als keine:** Ohne Hinweis sucht man selbst, mit einem falschen sucht man an der falschen Stelle.
 
+### Und einer, den nur der **laufende Monat** kennt
+
+Seit v4.0.45 springt für den laufenden Monat eine fünfte Quelle ein, wenn Monatsabschluss,
+HA-Statistik, Connector und MQTT nichts hergeben: die **Tageswerte**, die eedc ohnehin
+mitschreibt (siehe [Bedienung → Cockpit → Monat](HANDBUCH_BEDIENUNG.md#23-monat)). Am
+Quellen-Etikett über den Kacheln steht dann „Tageswerte".
+
+⭐ **Das gilt auch für Wärme, Kälte und die Arbeitszahlen.** Sie kommen aus **demselben
+Leser, aus dem der Verlauf daneben seine Tage zeichnet** — Strom je Gerät, gemessene
+Wärme, Kältemenge und die Betriebsart-Aufteilung. Damit nennen Kachel, Tabelle *Zahlen je
+Gerät* und Verlauf dieselbe Zahl, statt dass die eine gefüllt ist und die andere leer.
+Auch die Tabelle *Zahlen je Gerät* steht jetzt im laufenden Monat, obwohl es dafür noch
+keinen Monatsabschluss gibt.
+
+> ⚠ **Was eine gepflegte Zahl war, bleibt eine gepflegte Zahl.** Hast du für diesen Monat
+> schon Werte eingetragen oder importiert, gelten sie — die Tageswerte füllen nur, was
+> sonst fehlt.
+>
+> ⚠ **Ohne zugeordneten Wärmemengenzähler bleibt die Wärme leer**, und damit auch die
+> Arbeitszahl. Die Tageswerte können nur zeigen, was gemessen wurde; eine Arbeitszahl aus
+> gemessenem Strom und **fehlender** Wärme wäre keine halbe Auskunft, sondern eine falsche.
+> Was dann zu tun ist, steht im Kasten *„Was noch möglich wäre"* unter dem Block.
+
 ### Der Fremdanteil — die einzige Angabe, die eedc nicht messen kann
 
 Zwei Lagen machen jede Arbeitszahl unbrauchbar, **ohne dass man es den Zahlen ansieht**:

@@ -10,8 +10,9 @@ Retention: 31 Tage.
 """
 
 import logging
+from dataclasses import replace
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,9 @@ from backend.core.database import get_session
 from backend.models.anlage import Anlage
 from backend.models.mqtt_energy_snapshot import MqttEnergySnapshot
 from backend.services.mqtt_inbound_service import get_mqtt_inbound_service
+
+if TYPE_CHECKING:  # pragma: no cover — nur für die Signatur, kein Laufzeit-Import
+    from backend.services.snapshot.reader import MengeSeit
 
 logger = logging.getLogger(__name__)
 
@@ -432,6 +436,11 @@ async def mqtt_monats_deltas(
 ) -> dict[str, float]:
     """Monatsmengen je MQTT-Energy-Key aus den mitgeschriebenen Ständen.
 
+    **Nur die Menge, ohne Rückfall** — die schmale Tür für jeden Leser, der
+    einen echten *Monatswert* braucht (Monatsabschluss-Vorschlag). Wer den
+    gemessenen Zeitraum mitbekommen und einen Teilmonat zeigen will, ruft
+    {@link mqtt_monats_mengen}.
+
     Args:
         db: Async-Session (der Aufrufer hält sie bereits).
         anlage_id: Anlage.
@@ -457,8 +466,47 @@ async def mqtt_monats_deltas(
         keine *hochgerechnete* Menge bekommt, ist ein eigener Entscheid über
         Datenqualität; er steht bei `reader.delta`.
     """
+    mengen = await mqtt_monats_mengen(
+        db, anlage_id, jahr, monat, energy_keys,
+        quellen_energy=quellen_energy, bis=bis,
+    )
+    return {k: v.menge_kwh for k, v in mengen.items()}
+
+
+async def mqtt_monats_mengen(
+    db,
+    anlage_id: int,
+    jahr: int,
+    monat: int,
+    energy_keys: list[str],
+    quellen_energy: Optional[dict] = None,
+    bis: Optional[datetime] = None,
+    rueckfall_erster_stand: bool = False,
+) -> dict[str, "MengeSeit"]:
+    """Dieselben Monatsmengen — **mit** dem Zeitraum, den sie wirklich messen.
+
+    ⭐ **Der Rückfall (N-472).** Mit ``rueckfall_erster_stand=True`` gilt: fehlt
+    der Stand am Monatsersten, ist der linke Rand der **erste Stand des
+    Monats**. Die Menge ist dann die seit *diesem* Zeitpunkt, und
+    ``MengeSeit.ab_fenster_beginn`` ist ``False`` — der Aufrufer **muss** das
+    ausweisen, sonst steht eine Teilmonatsmenge unbeschriftet da (P4).
+
+    Gemessener Anlass: Wer eedc am 14. einrichtet, hat am Monatsersten keinen
+    Stand. Bis dahin lieferte diese Tür für **jeden** seiner Zähler nichts, und
+    *Cockpit → Monat* blieb bis zum 1. des Folgemonats leer — ohne einen Grund
+    daneben (F-4 aus WK-15, Befund 1).
+
+    ⛔ **Ohne den Schalter ändert sich nichts.** Der Default ist ``False``, und
+    ``mqtt_monats_deltas`` ruft ohne ihn — der Monatsabschluss-Vorschlag darf
+    keinen Teilmonat als Monatsmenge anbieten (F-66).
+
+    Returns:
+        ``{energy_key: MengeSeit}``. Keys ohne Zählerreihe, ohne beidseitigen
+        Rand (auch nach dem Rückfall) oder mit Zählerrücksprung fehlen — wie
+        oben heißt Abwesenheit „keine Aussage", nicht „null".
+    """
     from backend.services.snapshot.keys import _mqtt_key_to_sensor_key
-    from backend.services.snapshot.reader import delta as snapshot_delta
+    from backend.services.snapshot.reader import delta_mit_rand
 
     von = datetime(jahr, monat, 1)
     if bis is None:
@@ -476,7 +524,7 @@ async def mqtt_monats_deltas(
         # messen, und eine Null wäre eine Aussage.
         return {}
 
-    ergebnis: dict[str, float] = {}
+    ergebnis: dict[str, "MengeSeit"] = {}
     for mqtt_key in energy_keys:
         sensor_key = _mqtt_key_to_sensor_key(mqtt_key)
         if not sensor_key:
@@ -484,12 +532,13 @@ async def mqtt_monats_deltas(
             # es nichts zu differenzieren und deshalb auch nichts zu behaupten.
             continue
         try:
-            menge = await snapshot_delta(
+            menge = await delta_mit_rand(
                 db, anlage_id, sensor_key,
                 # MQTT-only: es gibt keine HA-Entity, und `get_snapshot`
                 # verlangt das ausdrücklich nicht („None bei MQTT-only").
                 None, von, bis,
                 quellen_energy=quellen_energy,
+                rueckfall_erster_stand=rueckfall_erster_stand,
             )
         except Exception:  # pragma: no cover — ein Vorschlag kippt nie die Seite
             logger.exception(
@@ -497,6 +546,6 @@ async def mqtt_monats_deltas(
                 anlage_id, mqtt_key,
             )
             continue
-        if menge is not None and menge > 0:
-            ergebnis[mqtt_key] = round(menge, 1)
+        if menge is not None and menge.menge_kwh > 0:
+            ergebnis[mqtt_key] = replace(menge, menge_kwh=round(menge.menge_kwh, 1))
     return ergebnis

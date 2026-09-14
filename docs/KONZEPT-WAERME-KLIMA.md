@@ -699,6 +699,65 @@ Die **Menge** steht weiterhin in der Kachel, mit ihrer Herkunft daneben.
 > Periode ohne gemessenen Rest ist eine **Lücke** in der Linie, keine Null und keine Verbindung
 > darüber hinweg — die Lücke ist die Aussage.
 
+**S5 · Der laufende Monat hat FÜNF Quellen — und die leere Kachel nennt ihren Grund** (N-472,
+14.09.2026). Die Präzedenz ist *Monatsabschluss → HA-Statistik → Connector → MQTT → **lokale
+Tagesebene***; die fünfte füllt nur, was die vier davor nicht beantworten, und verdrängt nie.
+
+> **Warum sie überhaupt gebraucht wird.** Einen automatischen Monatsabschluss gibt es nicht — der
+> laufende Monat hat **nie** eine `Monatsdaten`-Zeile. Wer weder HA-Statistik noch Connector noch
+> eine MQTT-Zählerreihe hat, sah dort bis dahin **nichts**, während der Verlauf daneben dieselben
+> Tage vollständig zeichnete. Gemessen an der Prüfstand-Anlage der Demo-DB r28: dreizehn
+> aggregierte September-Tage, drei leere Kacheln darüber. **Das ist ein S3-Verstoß in Reinform** —
+> eine Sicht, die weniger zeigt als ihre Nachbarin, ohne zu sagen warum.
+
+1. **Jede Quelle nennt sich.** Die Tagesebene heißt *„Tageswerte"*, nicht *„gespeichert"*: Dahinter
+   steckt kein Monatsabschluss, und wer danach suchte, fände keine Zeile.
+2. **Wer nur einen Teil des Monats misst, sagt es** (P4). Das gilt für die Tagesebene, die erst
+   mitten im Monat beginnt, **und** für den MQTT-Rückfall: Fehlt der Stand am Monatsersten, misst
+   eedc ab dem **ersten Stand des Monats** und schreibt den Zeitraum ans Quellen-Etikett
+   (*„MQTT (14.–30.09.)"*). ⛔ **Hochgerechnet wird nichts** — der Träger ist derselbe
+   `abdeckung_von`/`abdeckung_bis`-Slot, den der Connector seit #361 benutzt, nicht ein zweiter.
+3. **Der Rückfall gilt nur für die Anzeige.** Der Monatsabschluss-**Vorschlag** bekommt ihn nicht:
+   Dort würde eine Menge „seit dem 14." als *Monatsmenge* gespeichert — genau der Datenverlust, den
+   F-66 abgestellt hat.
+4. **Bleibt eine Kachel leer, nennt sie ihren Grund** (W-18-Klasse, eine Zeitebene höher): *„für
+   diesen Monat liegen noch keine Werte vor"* gegen *„für diese Größe hat keine Quelle geliefert"*
+   — mit dem Handgriff daneben. Der Satz steht im Layer (`core/monatswert_grund.py`), nicht im
+   Client; er trägt ihn nur. Und er steht an den **Basis**-Größen, nicht an den daraus abgeleiteten
+   — sonst stünde derselbe Satz fünfmal, und das wäre die Strich-Flut, gegen die die **D-Sicht**
+   unten gebaut ist.
+
+5. **Die Wärme/Klima-Größen kommen aus demselben Leser wie der Verlauf daneben** —
+   `waerme_verlauf.lade_waerme_monatsmengen_je_geraet`, also dieselben vier Leser, aus denen
+   *Cockpit → Tag* seine Kacheln speist. ⛔ **Nicht aus einer zweiten Quelle**: Genau das
+   Nebeneinander (*„der Verlauf zeigt dieselben Tage, die Kacheln nicht"*) war der Anlass, und zwei
+   Quellen hätten daraus zwei Zahlen gemacht (**S1**). Geliefert werden **Rohfelder je Gerät** —
+   K3 und D1 fallen danach wie bei jeder anderen Nicht-DB-Quelle. Die Tabelle *Zahlen je Gerät*
+   fällt für den laufenden Monat auf `mengen_aus_tageswerten` zurück (dieselbe zweite Herkunft,
+   die der Tag benutzt); ersetzt wird **nur, was leer ist**.
+
+⭐ **Der Abgleich, den der Klassen-Docstring für jede neue Größe verlangt** — r28/Anlage 2, die
+beiden Monate mit **beiden** Quellen, Σ Tagesebene gegen die DB-Monatszeile:
+
+| Größe | Juli 2026 | August 2026 |
+| --- | --- | --- |
+| Strom (K3) | 215,40 / 215,40 — **+0,00 %** | 185,41 / 185,40 — **+0,01 %** |
+| **Wärme (D1)** | 351,80 / 351,80 — **+0,00 %** | 343,40 / 343,40 — **+0,00 %** |
+| Kälte | 360,00 / 360,00 — **+0,00 %** | 269,99 / 270,00 — **−0,00 %** |
+| Kühlstrom · Nenner-Abzug | 120,0 / 120,0 — **+0,00 %** | 90,0 / 90,0 — **+0,00 %** |
+| *Modus Warmwasser* | *28,30 / 26,30 — +7,59 %* | *28,30 / 26,30 — +7,61 %* |
+
+⚠ **Die letzte Zeile ist ein Datensatz-Artefakt, keine Modell-Abweichung** — und sie speist keine
+Kennzahl. Das Prüfstand-Gerät trägt in seiner IMD-Zeile **zwei** Zahlen für denselben Sachverhalt
+(`strom_warmwasser_kwh: 28,3` aus dem Funktions-Zähler, `modus_strom_warmwasser_kwh: 26,3` aus dem
+Betriebsart-Zähler); der Monatspfad liest den zweiten, die Tagesebene leitet aus den Snapshots ab,
+die der Seed nach dem ersten gefüllt hat. Die Differenz ist in beiden Monaten konstant **2,0 kWh**
+= genau 28,3 − 26,3.
+
+⚠ **Die ehrliche Grenze, die bleibt:** Die **E-Mob**-Mengen trägt die Tagesebene weiterhin nicht
+(`TagesMonatsSumme` führt dort nur die *Aufteilung* der Heimladung, nicht die Menge). Und eine
+Wärme-Kachel bleibt leer, wo gar kein Wärmemengenzähler zugeordnet ist — dann greift Punkt 4.
+
 **A3a · Eine Sicht zeigt EINE Periode.** Nutzlasten tragen ihren Zeitraum, und eine Sicht paart nur
 Antworten desselben Zeitraums. Zwei Abfragen mit denselben Abhängigkeiten, von denen eine ihren
 Vorwert behält und die andere nicht, mischen sonst zwei Tage in einem Bild — auch ohne Cache, schon
@@ -1238,6 +1297,7 @@ oder im Bericht, nicht hier.
 | **A3a — eine Sicht zeigt EINE Periode** | `CockpitTagV4.tsx`, `CockpitMonatV4.tsx`, `CockpitJahrV4.tsx`, `ZaehlerstaendeBlock.tsx` (Marke · Paarung · Beschriftung) | `CockpitTagEinTag.test.tsx`, `CockpitMonatEinePeriode.test.tsx`, `CockpitJahrEinePeriode.test.tsx` ⛔ **maschinelles Gegenstück bewusst keines** — so steht es im Style-Guide | Regression |
 | **D-Sicht — Kacheln nur mit Zahl, ein Kasten je Sicht** | Klasse an der Grund-Konstante (`GRUND_KLASSE`, `HANDGRIFF_JE_GRUND`), Zusammenstellung in `services/waerme_klima_block.py`, Anzeige `src/v4/waermeKlimaSicht.ts` + `KomponentenSektionen.tsx` | Backend `test_wk16_e1b_d_sicht.py` (jeder Grund trägt genau eine Klasse · **jeder Ausstattungs-Grund einen Handgriff** · **kein Zeitraum-Grund einen** · jeder Grund genau einmal im Kasten · Größen-Namen als Vertrag); Client `src/v4/waermeKlimaSicht.test.tsx` (12 Proben: „≥" nur bei Schranke **und Gegenprobe** · Kachel entfällt nur mit Kasten-Eintrag **und Gegenprobe** · Kasten mit Handgriff und Link · Tabelle je Gerät) | **Wächter** (über die Klassen-Tabelle) + Regression |
 | **Verteilung je Gerät und Funktion — eine Familie je Gerät, zwei Reste, Kosten am Monatstarif** | `core/berechnungen/waerme_verteilung.py::verteile_geraet_strom` (die Weiche) · `services/waerme_verteilung.py` (Eingänge, Preise, Wetter) · `services/energie_profil/waerme_verteilung_tag.py` (Stunden) · Client `src/v4/waermeVerteilung.ts` | Backend `test_wk16c_verteilung_verlauf.py` (24 Proben: Familien-Weiche · K4 neben den Achsen · **Doppelzählung mit Gegenprobe** · gemessene 0 ist kein Segment · beide Reste getrennt · Σ Geräte = Anlagenstapel · Zeitfilter · Kosten von Hand nachgerechnet · zwei Tarife, ein gewichteter Preis · häufigster Wettercode · kein Symbol ohne Code); Client `src/v4/waermeVerteilung.test.tsx` (13 Proben: Reihenfolge Funktion vor Gerät · `null` statt 0 · kein Stapel ohne Verlaufsmenge · drei Differenz-Sätze) | Regression |
+| **S5 — fünf Quellen im laufenden Monat, und die leere Kachel nennt ihren Grund** | Präzedenz in `core/berechnungen/datenquellen.py` (`merge_datenquellen(tagesebene=…)`, `mqtt_teilzeitraum_felder`), Rückfall in `services/snapshot/reader.py::delta_mit_rand` + `mqtt_energy_history_service.py::mqtt_monats_mengen`, fünfte Quelle in `aktueller_monat.py::_collect_tagesebene_data`, **Wärme/Klima je Gerät** in `services/energie_profil/waerme_verlauf.py::lade_waerme_monatsmengen_je_geraet` (derselbe Leser wie der Verlauf), Wortlaut in `core/monatswert_grund.py` | Backend `test_n472_laufender_monat_quellen.py` (25 Proben: Rückfall nennt seinen Zeitpunkt · **ohne Schalter bitgleich** (F-66) · Stand am Ersten bitgleich · **Rücksprung bekommt keinen Rückfall, auch mit Rand knapp vor dem Monat** · Tagesebene füllt nur Lücken · gespeicherte Zeile schlägt sie · Komponentenwert ersetzt sie (#361-Klasse) · abgeschlossener Monat bleibt aus · Abdeckung wird ausgewiesen · Grund nur an den Basis-Größen · **WP-Strom/Wärme/JAZ aus der Tagesebene** · **Tabelle je Gerät ohne Monatszeile** · **gepflegte Zeile schlägt sie auch bei der WP** · ohne Tagesspur bleibt es beim Grund); Client `src/v4/MonatBilanz.test.tsx` (Grund-Gruppe, 3 Proben) + `src/v4/ProvenanzQuellen.test.tsx` (MQTT-Teilzeitraum · „Tageswerte" schweigt ab dem Ersten) | Regression |
 | **A6 — eine Kennzahl zeigt ihre eingesetzten Werte** | Kacheln in Cockpit und Hub | `npm run check:formel-herleitung` (Wrapper `src/test/check-formel-herleitung.test.ts`) — TypeScript-AST über `src/**`, zwei Trägerformen (Objektliteral inkl. Shorthand, JSX-Attribut), drei Prüfungen, **abschmelzende** Allowlist mit Pflicht-Begründung; dazu `TKonto.a6-herleitung.test.tsx`, `KomponentenSektionen.jaz-herleitung.test.tsx`, `test_a6_arbeitszahl_je_funktion_herleitung.py` | **Wächter** + Regression |
 | **Keine Inline-Hex-Farben außerhalb des Farb-SoT** | `src/lib/colors.ts` | `npm run check:design` | **Wächter** |
 

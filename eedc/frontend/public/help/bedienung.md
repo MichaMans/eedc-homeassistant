@@ -261,6 +261,28 @@ Die **Monat**-Sicht ist das Referenz-Muster der Zeit-Achse: ein ausgewählter Mo
 > zusammen, dort gäbe es keinen einzelnen. Kann der Connector für den laufenden Monat
 > **gar keinen** Wert bilden, meldet das der [Daten-Checker](HANDBUCH_DATEN_CHECKER.md).
 
+> **Woher die Zahlen des laufenden Monats kommen — und was passiert, wenn noch nichts da ist.**
+> eedc fragt der Reihe nach: den **Monatsabschluss** (was du gepflegt hast, gilt), dann
+> **HA-Statistik**, **Geräte-Connector** und deine **MQTT-Zählerstände**. Bleibt danach
+> eine Kachel leer, tritt seit v4.0.45 eine fünfte Quelle an: die **Tageswerte**, die eedc
+> ohnehin jede Stunde mitschreibt. Sie füllt nur, was sonst fehlt — ein gepflegter oder
+> gemessener Monatswert wird nie verdrängt —, und sie sagt, dass sie es war: am
+> Quellen-Etikett steht dann „Tageswerte". Beginnt deine Tages-Aufzeichnung erst mitten im
+> Monat (frisch eingerichtetes Add-on), steht der Zeitraum daneben: „Tageswerte (05.–14.09.)".
+> **Das gilt auch für den Block *Wärme/Klima*** — Strom, Wärme, Kälte, Arbeitszahlen und die
+> Tabelle *Zahlen je Gerät* kommen dann aus demselben Leser, aus dem der Verlauf darunter
+> seine Tage zeichnet; Kachel und Verlauf nennen also dieselbe Zahl.
+>
+> Dasselbe gilt für die **MQTT-Zählerstände**: Wer eedc mitten im Monat einrichtet, hat für
+> den Monatsersten keinen Stand — bisher blieben die Kacheln dann bis zum 1. des Folgemonats
+> leer. Jetzt misst eedc **ab dem ersten Stand, den es hat**, und schreibt es dazu:
+> „MQTT (14.–30.09.)". **Hochgerechnet wird nichts** — die Zahl ist, was seit diesem
+> Zeitpunkt gelaufen ist, nicht was der Monat vermutlich bringen wird.
+>
+> Und wenn gar keine Quelle etwas liefert, sagt die leere Kachel jetzt warum: Fahr mit der
+> Maus über das „—", und dort steht, ob für diesen Monat noch überhaupt nichts vorliegt oder
+> ob nur dieser einen Größe die Zuordnung fehlt — samt dem Weg dorthin.
+
 Aus dem feingranularen Stunden-Bestand des Monats zeigt die Sicht zusätzlich:
 
 - **Performance Ratio (Ø Monat)** als Kennzahl
