@@ -120,6 +120,15 @@ dein Gesamtzähler weiter, in **jeder** Sicht. Auch der Stundenverlauf in
 Zahlen der Vergangenheit kommen **ohne Neuberechnung** zurück; du musst nichts
 anstoßen.
 
+⚠ **Das gilt auch für den laufenden Monat** — die Sicht, deren Werte noch aus
+Sensoren, MQTT oder Connector kommen, weil der Monat noch nicht abgeschlossen ist.
+Dort wurden Gesamtzähler und Aufteilung bis zuletzt **addiert**: Mit 1.000 kWh
+Gesamt, 600 Heizen und 400 Warmwasser standen den ganzen Monat lang **2.000 kWh**
+und eine Arbeitszahl von **1,5 statt 3,0** in *Cockpit → Monat*. Mit dem
+Monatsabschluss stimmte die Zahl von selbst wieder — der abgeschlossene Monat
+kannte die Kette schon. Auch hier fällt sie jetzt **je Gerät**: Zwei Wärmepumpen,
+die verschieden zählen, stören einander nicht.
+
 ⭐ **Bei einer Split-Klimaanlage** gibt es keinen Warmwasserkreis — ihre
 Aufteilung kann also nie vollständig sein, und ihr Gesamtzähler zählt jetzt immer.
 Ein früher einmal gepflegter Warmwasser-Wert an einem solchen Gerät entwertet ihn

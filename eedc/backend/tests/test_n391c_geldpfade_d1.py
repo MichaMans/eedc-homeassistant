@@ -118,12 +118,21 @@ async def _aussichten(db, daten: dict, name: str) -> float:
     return res.wp_alternativ_ersparnis_euro
 
 
-async def _nicht_db(db, monkeypatch, felder_je_geraet: list[dict], name: str):
+async def _nicht_db(
+    db, monkeypatch, felder_je_geraet: list[dict], name: str,
+    parameter_je_geraet: list[dict] | None = None,
+):
     """Cockpit → Monat mit Werten **nur aus HA-Statistik**, kein IMD-Satz.
 
     Genau die Lage eines Anwenders, der *Wärme gesamt* per Sensor/MQTT/Connector
     führt und für diesen Monat noch keine gespeicherte Zeile hat. Muster aus
     ``test_bkw_pv_achse_laufender_monat``.
+
+    ``parameter_je_geraet`` ist **additiv** (Vorgabe: ``_WP_GAS`` für jedes
+    Gerät, wie bisher) und wird von ``test_n451b_k3_laufender_monat`` gebraucht:
+    Die K3-Stufenregel hängt an ``getrennte_strommessung``, also muss dieselbe
+    Werte-Lage mit **verschiedenen** Parametern fahrbar sein. Ein zweiter
+    Nachbau dieser Bühne wäre die Drift-Klasse, gegen die dieses Paket baut.
 
     ⚠ **Bewusst ein FESTER Monat statt ``datetime.now()``**, anders als das
     Vorbild: Eine Probe, die die echte Uhr liest, wettet auf die Stunde ihres
@@ -151,7 +160,10 @@ async def _nicht_db(db, monkeypatch, felder_je_geraet: list[dict], name: str):
         inv = Investition(
             anlage_id=a.id, typ="waermepumpe", bezeichnung=f"WP{i + 1}",
             anschaffungsdatum=date(2024, 1, 1),
-            anschaffungskosten_gesamt=12000.0, parameter=dict(_WP_GAS),
+            anschaffungskosten_gesamt=12000.0,
+            parameter=dict(
+                parameter_je_geraet[i] if parameter_je_geraet else _WP_GAS
+            ),
         )
         db.add(inv)
         geraete.append(inv)

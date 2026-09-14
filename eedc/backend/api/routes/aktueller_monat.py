@@ -89,6 +89,7 @@ from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
 from backend.core.betriebsmodus import KUEHLEN as BM_KUEHLEN
 from backend.core.betriebsmodus import MODUS_STROM_FELD
 from backend.core.field_definitions import (
+    FEINE_STROM_FELDER,
     SONSTIGES_ABGABE_LABEL,
     get_eauto_ladung_kwh,
     get_emob_pv_netz_kwh,
@@ -97,6 +98,7 @@ from backend.core.field_definitions import (
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     ist_abgabe_kategorie,
+    wp_strom_stufe,
 )
 from backend.utils.sonstige_positionen import berechne_sonstige_summen
 from backend.core.investition_kennwerte import get_speicher_kapazitaet_kwh
@@ -156,6 +158,13 @@ MONAT_NAMEN = [
 #: MQTT-Feld dieses Namens gibt es nicht und darf es nicht geben, sonst
 #: ueberschriebe eine Quelle die aufgeloeste Zahl.
 _WP_WAERME_D1_SUFFIX: str = "_waerme_d1_kwh"
+
+#: Der Zwilling auf der **Strom**seite: der Schluessel, unter dem die
+#: K3-Vorausloesung je Geraet ihr Ergebnis ablegt (N-451b, 14.09.2026).
+#:
+#: ⚠ Dieselbe Warnung wie oben — **kein Registry-Feld**, kein Sensor- oder
+#: MQTT-Name; er lebt nur zwischen ``_wp_strom_k3`` und ``typ_aggregation``.
+_WP_STROM_K3_SUFFIX: str = "_strom_k3_kwh"
 
 
 # =============================================================================
@@ -1608,9 +1617,27 @@ async def get_aktueller_monat(
             "entladung_kwh": ("speicher_entladung_kwh",),
         },
         "waermepumpe": {
-            "stromverbrauch_kwh": ("wp_strom_kwh",),
-            "strom_heizen_kwh": ("wp_strom_kwh",),
-            "strom_warmwasser_kwh": ("wp_strom_kwh",),
+            # ⛔ **Der Strom steht hier NICHT als drei Summanden.**
+            # `stromverbrauch_kwh`, `strom_heizen_kwh` und
+            # `strom_warmwasser_kwh` standen bis 14.09.2026 alle drei an dieser
+            # Stelle und wurden **addiert** — der Gesamtzaehler UND die
+            # Aufteilung, die ihn ersetzt. Die Lesetuer `get_wp_strom_kwh`
+            # (K3, `wp_strom_stufe`) tut genau das nicht: ist die feine Achse
+            # vollstaendig, IST sie die Menge und der Gesamtzaehler wird
+            # verworfen, *„sonst zaehlte derselbe Strom zweimal"*.
+            # Gemessen ueber die echte Route (eine WP, HA-Statistik liefert
+            # 1000 + 600 + 400, `getrennte_strommessung=True`):
+            # `wp_strom_kwh` **2000 statt 1000**, `wp_jaz` **1,5 statt 3,0** —
+            # den ganzen laufenden Monat lang, und beim Monatsabschluss heilte
+            # es sich von selbst (der DB-Zweig geht durch dieselbe Lesetuer und
+            # nennt fuer dieselben Werte 1000/3,0). Die Anlage sah halb so gut
+            # aus, wie sie ist.
+            # ⚠ Das Kennzeichen half nicht: ohne `getrennte_strommessung` sind
+            # die feinen Felder gar keine Summanden — die Tabelle addierte sie
+            # trotzdem (gemessen: ebenfalls 2000).
+            # K3 faellt deshalb **je Geraet** in `_wp_strom_k3` unten; hier
+            # steht nur noch dessen Ergebnis, und diese Tabelle summiert es.
+            _WP_STROM_K3_SUFFIX: ("wp_strom_kwh",),
             # ⛔ **Die Waerme steht hier NICHT als zwei (oder drei) Summanden.**
             # `heizenergie_kwh` und `warmwasser_kwh` standen bis 14.09.2026 an
             # dieser Stelle, `waerme_kwh` fehlte ganz — wer seine Waerme ueber
@@ -1699,6 +1726,71 @@ async def get_aktueller_monat(
                 _quelle = _gesamt[1]
         resolved[f"inv_{inv_id}_{_WP_WAERME_D1_SUFFIX}"] = (_wert, _quelle)
 
+    def _wp_strom_k3(inv_id: int, parameter: Optional[dict]) -> None:
+        """K3 je Geraet — Gesamtzaehler und feine Aufteilung sind KEINE Summanden.
+
+        Der Zwilling zu {@link _wp_waerme_d1} auf der Stromseite, und aus
+        demselben Grund **je Geraet**: Die Stufenregel haengt an
+        ``Investition.parameter`` (``getrennte_strommessung``, Bauart) und an
+        der Frage, welche feinen Achsen *dieses* Geraet ueberhaupt hat. Auf der
+        Anlagensumme gestellt, waere sie fuer eine Waermepumpe neben einer
+        Split-Klimaanlage gar nicht beantwortbar.
+
+        ⛔ **Die Regel selbst bleibt die eine Stelle** (``get_wp_strom_kwh`` /
+        ``wp_strom_stufe``, K3/N-451). Hier wird sie nur **gerufen** — auch fuer
+        die Herkunfts-Marke, statt ihre Bedingung lokal nachzubauen: ein
+        Nachbau derselben Bedingung faellt erfahrungsgemaess anders aus als das
+        Original (die Lehre aus Sprengsatz S7 in N-391c).
+
+        ⚠ **Der Monat fragt „steht ein Wert?", nicht „ist ein Zaehler
+        zugeordnet?"** (Konzept Kap. 3). Fuer den laufenden Monat aus
+        Nicht-DB-Quellen gilt die **Monats**frage: Was keine Quelle geliefert
+        hat, steht nicht in ``resolved`` und ist damit unbelegt — genau die
+        Ebene, auf der ``get_wp_strom_kwh`` an einer IMD-Zeile entscheidet.
+
+        ⚠ **Bewusst nur die drei Achsen, die die Tabelle vorher trug.**
+        Betriebsart-Zaehler (Kuehlen · Lueften · Entfeuchten) hebt diese Route
+        nicht in eine Top-Level-Groesse; sie bleiben auch hier draussen, damit
+        dieser Bau **eine** Verhaltensaenderung traegt (Summe → K3) und keine
+        zweite. Die Folge ist gemessen und benannt, nicht gebaut: Im
+        abgeschlossenen Monat zaehlt der Kuehlstrom im WP-Strom mit und wird
+        aus dem Arbeitszahl-Nenner wieder abgezogen; der Abzug kommt hier
+        immer aus den Monats-Fakten und waere im Nicht-DB-Pfad 0.
+        """
+        _felder = ("stromverbrauch_kwh", *FEINE_STROM_FELDER)
+        _eintraege = {
+            f: resolved[f"inv_{inv_id}_{f}"]
+            for f in _felder
+            if f"inv_{inv_id}_{f}" in resolved
+        }
+        if not _eintraege:
+            return
+        _wert = get_wp_strom_kwh(
+            {f: e[0] for f, e in _eintraege.items()}, parameter,
+        )
+        # Die Marke ist die des Wertes, der K3 gewonnen hat — bei der feinen
+        # Aufteilung die der **letzten** vorhandenen Achse, wie es die frueheren
+        # drei `_aggregate`-Aufrufe hinterliessen (verhaltensgleich).
+        _traeger = (
+            ("stromverbrauch_kwh",)
+            if wp_strom_stufe(
+                parameter,
+                ist_belegt=lambda f: f in _eintraege,
+                hat_gesamtzaehler="stromverbrauch_kwh" in _eintraege,
+            ) == "gesamt"
+            else FEINE_STROM_FELDER
+        )
+        _quelle = next(
+            (_eintraege[f][1] for f in reversed(_traeger) if f in _eintraege),
+            None,
+        )
+        if _quelle is None:
+            # Stufe „gesamt" ohne Gesamtzaehler gibt es nicht, Stufe „fein"
+            # ohne eine einzige feine Achse auch nicht — bleibt der Fall, dass
+            # eine kuenftige Achse hinzukommt. Dann traegt die Marke, was da ist.
+            _quelle = next(iter(_eintraege.values()))[1]
+        resolved[f"inv_{inv_id}_{_WP_STROM_K3_SUFFIX}"] = (_wert, _quelle)
+
     def _aggregate(top_level_feld: str, inv_key: str) -> None:
         if inv_key not in resolved:
             return
@@ -1722,6 +1814,7 @@ async def get_aktueller_monat(
             continue
         if inv.typ == "waermepumpe":
             _wp_waerme_d1(inv.id)
+            _wp_strom_k3(inv.id, inv.parameter)
         agg_map = typ_aggregation.get(inv.typ, {})
         for inv_suffix, ziel_felder in agg_map.items():
             for top_level_feld in ziel_felder:
