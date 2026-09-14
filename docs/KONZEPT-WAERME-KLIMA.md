@@ -200,7 +200,11 @@ ist.
 ### Die fünf Kanon-Regeln
 
 **K1 · Die Gesamtmenge ist immer die Wahrheit.** Jede Aufteilung steht daneben, nie an ihrer
-Stelle. Bilanz, Autarkie, Kosten und CO₂ rechnen ausschließlich mit der Gesamtmenge.
+Stelle. Bilanz, Autarkie, Kosten und CO₂ rechnen ausschließlich mit der Gesamtmenge. ⭐ **Der Satz
+gilt ohne Vorbehalt, auch wenn die Aufteilung vollständig aussieht** (seit dem 14.09.2026 auch auf
+der Stromseite): Ein Gesamtzähler misst, was die Achsen nicht kennen — Standby, Steuerung,
+Umwälzpumpen. *Eine vollständige Aufteilung ist die Aufteilung von etwas, nicht der Beweis, dass
+es nichts weiter gibt.*
 
 **K2 · Gemessen schlägt abgeleitet — je Gerät, ganz oder gar nicht.** Liegt für ein Gerät eine
 gemessene Aufteilung vor, gilt für dieses Gerät nur noch Gemessenes; eine Betriebsart ohne Zähler
@@ -223,37 +227,85 @@ das ist der Normalfall einer kühlfähigen Luft-Wasser- oder Sole-Wasser-Anlage.
 *nicht aufgeteilt* und trägt seine Erklärung mit. Eine fehlende Größe wird nie zu 0 gerundet
 (ADR-002/**P4**).
 
-### K3 in einer Stelle: die dreistufige Vorrangkette
+### K3 in einer Stelle: die Vorrangkette
 
 Die Frage *„welche Menge ist der Stromverbrauch dieses Geräts?"* wird an **einer** Stelle
-beantwortet (`core/field_definitions.py::wp_strom_stufe`):
+beantwortet (`core/field_definitions.py::wp_strom_stufe`; die Auflösung samt Rest liefert
+`::wp_strom_aufteilung`):
 
-1. Die feine Aufteilung ist **vollständig** — jede Achse, die das Gerät laut Registry hat, ist
-   belegt ⇒ **fein**. Sie *ist* die Gesamtmenge; ein zusätzlicher Gesamtzähler wird verworfen,
-   sonst zählte derselbe Strom zweimal.
-2. Sonst gilt **K1** ⇒ **gesamt**, sobald ein Gesamtzähler da ist.
-3. Sonst trägt, was gemessen ist ⇒ **fein**: eine unvollständige Aufteilung ohne Gesamtzähler ist
-   die einzige Messung, die es gibt. Sie zu verwerfen hieße, den Block verschwinden zu lassen.
+1. **Ein Gesamtzähler ist die Menge** (K1). Die feinen Achsen (Heizen, Warmwasser) und die
+   Betriebsart-Zähler sind die **Aufteilung darunter**. Was er mehr misst als sie —
+   **Rest = Gesamt − Σ Achsen − Σ funktionsfremde Teilmengen ≥ 0** —, heißt *nicht aufgeteilt*
+   (K5) und wird als solcher geführt.
+2. **Es sei denn, er misst weniger als die Aufteilung**: liegt er mehr als die Toleranz darunter,
+   tragen die **Achsen**, und der Daten-Checker meldet den Widerspruch. Zwilling der
+   Wärme-Invariante im nächsten Abschnitt — nur *diese* Richtung ist ein Fehler.
+3. **Kein Gesamtzähler** ⇒ die Achsen tragen, vollständig oder nicht: sie sind die einzige
+   Messung, die es gibt. Sie zu verwerfen hieße, den Block verschwinden zu lassen.
+
+**Die Toleranz steht an einer Stelle** (`wp_strom_toleranz_kwh`) und gilt für die Rechnung **und**
+den Checker: 1 % der Summe, mindestens 0,5 kWh im Monat bzw. 0,05 kWh im Tag. Zwei Schwellen für
+dieselbe Frage wären die Drift-Klasse, an der F-56 entstanden ist.
+
+> ⛔ **Bis zum 14.09.2026 stand hier eine erste Stufe davor:** *„Die feine Aufteilung ist
+> vollständig ⇒ fein. Sie ist die Gesamtmenge; ein zusätzlicher Gesamtzähler wird verworfen, sonst
+> zählte derselbe Strom zweimal."* Der Satz stimmte für die **Doppelzählung** und war für die
+> **Menge** falsch. Misst der Gesamtzähler mehr als die beiden Achsen — Standby, Steuerung,
+> Umwälzpumpen; bei dietmar1968 **145 von 2193 kWh im Jahr**, 6,6 % —, verlor eedc diese
+> Kilowattstunden aus Strom, Kosten, CO₂ und dem Arbeitszahl-Nenner. Das verletzt **K1** und
+> **K5**. *Doppelzählung entsteht beim **Addieren** von Gesamt und Achsen, nicht beim
+> **Ersetzen*** — die alte Regel verhinderte das Falsche und verwarf dabei eine Messung.
+>
+> ⭐ **Der Arbeitszahl-Nenner zieht mit** (E7/Option A): Er ist *Menge − Kühlstrom*; der Rest
+> bleibt darin. Das ist die ehrliche Zahl — Standby gehört zur Wärmepumpe, und die Systemzahl, die
+> der Melder selbst führt, enthält ihn. **Funktions**-Arbeitszahlen bleiben unberührt: ihr Nenner
+> ist der gemessene Strom *dieser* Funktion.
+>
+> ⭐ **#183 bleibt ausgeschlossen, nur mit anderer Begründung.** Nicht die Wahl der **Menge**
+> trennt die drei Arbeitszahlen, sondern die Wahl des **Nenners** — und `arbeitszahl_je_funktion`
+> nimmt dafür ausschließlich den gemessenen Strom der jeweiligen Funktion. Der Gesamtzähler kann
+> deshalb neben zwei Funktionszahlen stehen, ohne dass eine dritte aus einer anderen Quelle
+> entsteht.
 
 ⚠ **Tag und Monat beantworten „belegt?" verschieden — und sie müssen das.** Der Tag fragt *„ist
 ein Zähler zugeordnet?"*, der Monat *„steht ein Wert in der Zeile?"* — eine Monatszeile darf ohne
 jeden Zähler von Hand gepflegt sein. Was beide teilen, ist die **Vorrangkette**; sie steht deshalb
-an einer Stelle und nicht zweimal.
+an einer Stelle und nicht zweimal. **Folge für Regel 2:** Auf der Zuordnungs-Ebene gibt es keine
+Werte, also auch keinen Widerspruch zu prüfen — er wird an der Monatszeile gemeldet, wo die Zahlen
+stehen.
 
-⛔ **Das Kennzeichen `getrennte_strommessung` gilt nur für Stufe 1.** Es entscheidet, ob die feinen
-Achsen als *Summanden* einer vollständigen Aufteilung gelten dürfen; es entscheidet **nicht**, ob
-ein feiner Zähler überhaupt zählt. Kennzeichen aus, kein Gesamtzähler, aber ein feiner Zähler
-zugeordnet ⇒ Stufe 3, er trägt.
+⛔ **Das Kennzeichen `getrennte_strommessung` entscheidet nur, ob die feinen Achsen *Summanden*
+sind** — nicht, ob ein Zähler zählt. Kennzeichen aus, kein Gesamtzähler, aber ein feiner Zähler
+zugeordnet ⇒ Regel 3, er trägt. K3 gilt weiter in beide Richtungen.
+
+⚠ **Zwei Reste, zwei Aufteilungen, und sie werden nie addiert.** Dieselbe Menge wird auf zwei
+Weisen aufgeteilt, und jede lässt ihren eigenen Rest übrig:
+
+| Aufteilung | Rest | Herkunft des Rests |
+| --- | --- | --- |
+| **Summanden** — Strom Heizen + Strom Warmwasser | `WpFakten.strom_nicht_aufgeteilt_kwh` | der Gesamtzähler misst mehr als die Achsen |
+| **Teilmengen** — Betriebsart bzw. Modus-Split | `WpFakten.modus_nicht_aufgeteilt_kwh` | Stunden ohne Modus-Signal, nicht gemessene Betriebsarten |
+
+Beide sind ≥ 0, beide sind K5, und beide dürfen nebeneinander stehen — sie zu summieren wäre
+Doppelzählung. ⚠ *„Nicht aufgeteilt" setzt eine Aufteilung voraus:* Wer nur einen Gesamtzähler
+pflegt, hat keinen Rest, sondern nur eine Menge; dass die Achsen fehlen, sagt der Daten-Checker.
 
 ### Die Wärmeseite: Gesamtwert vor Summanden — je Gerät
 
 Auf der Wärmeseite gibt es dieselben zwei Familien — *Wärme gesamt* (`waerme_kwh`, seit dem
-14.09.2026) als Bilanzgröße und *Heizwärme* + *Warmwasser-Wärme* als Summanden —, aber **keine
-drei Stufen**: Es gibt kein Kennzeichen, das die Summanden zur „vollständigen" Aufteilung erklärt.
-Die Frage *„welche Menge ist die Wärme dieses Geräts?"* wird deshalb mit **einer** Regel an
-**einer** Stelle beantwortet (`core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh`):
-**Steht ein Gesamtwert, gilt er; sonst die Summe dessen, was gemessen ist.** Das ist K1 auf der
-Wärmeseite — ein Gesamtzähler neben einer Aufteilung addiert nicht, er ersetzt.
+14.09.2026) als Bilanzgröße und *Heizwärme* + *Warmwasser-Wärme* als Summanden. Die Frage
+*„welche Menge ist die Wärme dieses Geräts?"* wird mit **einer** Regel an **einer** Stelle
+beantwortet (`core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh`): **Steht ein
+Gesamtwert, gilt er; sonst die Summe dessen, was gemessen ist.** Das ist K1 auf der Wärmeseite —
+ein Gesamtzähler neben einer Aufteilung addiert nicht, er ersetzt.
+
+⭐ **Beide Seiten sagen seit dem 14.09.2026 denselben Satz.** ⛔ Bis dahin stand hier der Zusatz
+*„aber keine drei Stufen: Es gibt kein Kennzeichen, das die Summanden zur ‚vollständigen'
+Aufteilung erklärt"* — die Wärmeseite war die Ausnahme, die Stromseite die Regel. Es war umgekehrt:
+Das Kennzeichen `getrennte_strommessung` erklärt die zwei Zähler zu **Summanden**, nicht dazu, dass
+sie **alles** messen. Der Unterschied, der bleibt, ist nur der **Rest**: Auf der Stromseite wird er
+geführt (*nicht aufgeteilt*, K5); auf der Wärmeseite gibt es ihn als eigene Größe nicht, weil die
+Wärme keine dritte Achse hat, auf die er fallen könnte.
 
 * **Je Gerät, dann summiert** ([Kapitel 7](#7-mehrere-geräte)). Zwei Geräte mit verschiedener
   Zählerlage — eines mit Gesamtzähler, eines mit Aufteilung — ergeben die **Summe ihrer je
@@ -877,8 +929,13 @@ Nutzenergie ist thermisch. Als eigener Beitrag stünde die Wärmepumpe in der Ta
   Fläche „alles zugeordnet", während der Abdeckungs-Check ein fehlendes Feld anmahnte — **zwei
   Flächen, gegenteilige Aussage** über dieselbe Anlage.
 * **Bei getrennter Strommessung bleiben beide Stromfelder Pflicht.** Sie sind **Summanden**, keine
-  Alternativen — das leere Feld darf nicht „inaktiv" heißen. Inaktiv wird stattdessen das
-  **Gesamt**stromfeld: *„Der WP-Stromverbrauch ist bereits zugeordnet."*
+  Alternativen — das leere Feld darf nicht „inaktiv" heißen. ⭐ **Und das Gesamtstromfeld daneben
+  auch nicht** (seit 14.09.2026): Es ist **optional** und sagt, was es bringt — *„misst dieser
+  Zähler mehr als Strom Heizen und Strom Warmwasser zusammen (Standby, Steuerung, Umwälzpumpen),
+  gilt sein Wert als Verbrauch des Geräts und die Differenz erscheint als ‚nicht aufgeteilt'."*
+  ⛔ Bis dahin stand dort *„Der WP-Stromverbrauch ist bereits zugeordnet — hier ist nichts
+  einzutragen."*; wer dem folgte, verlor genau diese Kilowattstunden. **Eine Summanden-Gruppe deckt
+  ihre Mitglieder nie ab** — das unterscheidet sie von einer Alternativ-Gruppe.
 * **Heizwärme und Wärme gesamt sind Alternativen** derselben Größe (Gruppe `wp_waerme`). Ist
   eines zugeordnet, sagt das andere *„Die abgegebene Wärme ist bereits zugeordnet — hier ist nichts
   einzutragen."* — das Gegenstück zu den Stromfeldern oben, die Summanden sind und beide Pflicht
@@ -900,7 +957,8 @@ verdrängt wird. **Zustandsabhängig neben dem Schalter ist der einzige Ort, der
 | --- | --- | --- |
 | **Arbeitszahl auffällig hoch** (> 7,0) | WARNING | Verdacht: der Wärmemengenzähler sitzt hinter einem zweiten Erzeuger. Rechnet mit **denselben Eingängen** wie die Anzeige — sonst sähe er getrennt messende Anlagen nie |
 | **Eine Stromseite fehlt bei getrennter Messung** | WARNING **je Seite** | Warmwasser-Wärme ohne Warmwasser-Strom (oder umgekehrt) ⇒ Nenner unvollständig, Arbeitszahl zu hoch. Handgriff: Monatsabschluss zuerst, Zuordnung zusätzlich |
-| **Gesamt-Sensor bei vollständiger feiner Achse obsolet** | INFO | die feine Summe *ist* die Gesamtmenge (K3, Stufe 1) |
+| **Gesamtzähler kleiner als die Summe der Achsen** | WARNING | Regel 2 des Kanons: Strom Heizen und Strom Warmwasser sind Teile des Gesamtverbrauchs und können zusammen nicht mehr sein. Meist misst der Gesamtzähler nur einen Teil des Geräts. eedc rechnet in diesen Monaten mit der Summe der Achsen, damit nichts verloren geht |
+| **Der Gesamtzähler misst deutlich mehr als die Achsen** (Rest > 25 % der Menge) | INFO | **eine Frage, kein Fehler:** Standby, Steuerung und Umwälzpumpen laufen auf keiner der beiden Achsen — es kann aber auch heißen, dass am Zähler noch etwas anderes hängt. Handgriff: Datenquellen prüfen |
 | **Heiz- + Kühlstrom > Gesamtverbrauch** | WARNING | die Teilmengen-Invariante ist verletzt |
 | **Gesamtwärme kleiner als Heizwärme + Warmwasser-Wärme** | WARNING | einer der Werte meint etwas anderes als gedacht — meist ist unter „Wärme gesamt" die Heizwärme gelandet; eedc rechnet mit der Gesamtwärme, die Monate fallen zu niedrig aus. Handgriff: im Monatsabschluss prüfen, welcher Zähler welchen Wert liefert. Die Gegenrichtung (Gesamt größer) ist kein Fehler |
 | **Heizend-kühlendes Gerät ohne Modus-Quelle** | INFO | Heiz- und Kühlstrom bleiben zusammen; der OK-Titel unterscheidet „gemessen" von „abgeleitet" |
@@ -1002,7 +1060,8 @@ oder im Bericht, nicht hier.
 
 | Regel | Wo sie gebaut ist | gesichert durch | Art |
 | --- | --- | --- | --- |
-| **K1 · K3** — dreistufige Vorrangkette | `core/field_definitions.py::wp_strom_stufe` | `test_soll_waerme_klima_achse1_erfassung.py::test_i1…test_i3b` (sechs Lagen: Kennzeichen an/aus × Zählerbestand); `test_n451_monatspfad_k3.py` (16 Proben, Tag **und** Monat **und** Stundenpfad); `test_n451b_k3_laufender_monat.py` (8 Proben: der **laufende Monat aus Nicht-DB-Quellen** — `aktueller_monat.py::_wp_strom_k3`, je Gerät; bis zum 14.09.2026 addierte dieser Pfad Gesamtzähler und Aufteilung: 2000 statt 1000, Arbeitszahl 1,5 statt 3,0) | Regression |
+| **K1 · K3** — die Vorrangkette | `core/field_definitions.py::wp_strom_stufe` · `::wp_strom_aufteilung` | `test_soll_waerme_klima_achse1_erfassung.py::test_i1…test_i3c` (sieben Lagen: Kennzeichen an/aus × Zählerbestand); `test_n451_monatspfad_k3.py` (Tag **und** Monat **und** Stundenpfad, Lagen i–ix); `test_n451b_k3_laufender_monat.py` (8 Proben: der **laufende Monat aus Nicht-DB-Quellen** — `aktueller_monat.py::_wp_strom_k3`, je Gerät; bis zum 14.09.2026 addierte dieser Pfad Gesamtzähler und Aufteilung: 2000 statt 1000, Arbeitszahl 1,5 statt 3,0) | Regression |
+| **K1 · K5** — der Gesamtzähler ist die Menge, der Rest heißt *nicht aufgeteilt* | `field_definitions.py::wp_strom_aufteilung` (Menge · Rest · Toleranz an **einer** Stelle), `daten_checker/monatsdaten.py` (Widerspruch + Plausibilitätsfrage), `datenquellen_validierung.py::stufe_bedarf_ein` (eine Summanden-Gruppe deckt nichts ab) | `test_k3_gesamtzaehler_ist_die_menge.py` (17 Proben: Gesamt > Σ · Gleichstand · Toleranzkante · Widerspruch · Rest > 25 % · die zwei Ebenen · Handbuch B/B2 · Mischfall · Nicht-getrennt-Zweig) | Regression |
 | **K2** — gemessen schlägt abgeleitet, je Gerät ganz oder gar nicht | `core/berechnungen/betriebsart_gemessen.py`, `core/berechnungen/tages_stapel.py` | `test_tages_stapel_gemessen_verdraengt_abgeleitet.py`; `test_263_innengeraete_varianten.py` (acht benannte Datenlagen V1–V8 über sechs Flächen, dazu die Mischanlage aus zwei Geräten) | Regression |
 | **K4** — Summanden und Teilmengen nebeneinander | Registry + `funktionsfremd_abzug_kwh` | `test_n445_kuehlstrom_im_f5_heizstrom.py` (14 Proben, F5 mit und ohne Kühlzähler) | Regression |
 | **K5** — der Rest heißt *nicht aufgeteilt* | `core/betriebsmodus.py`, Modus-Split | `test_263_k2_modus_split.py`; `test_soll_waerme_klima_e4_lueften_entfeuchten.py::test_e4_restmenge_zieht_die_neuen_segmente_ab` | Regression |

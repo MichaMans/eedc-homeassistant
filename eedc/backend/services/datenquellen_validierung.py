@@ -23,7 +23,11 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Optional
 
-from backend.core.field_definitions import einheit_klasse, verdraengender_typ
+from backend.core.field_definitions import (
+    BEDARF_GRUPPEN_ALTERNATIV,
+    einheit_klasse,
+    verdraengender_typ,
+)
 
 # ─── Aggregat ⊥ Komponenten (Engine-Vorrang, C) ─────────────────────────────
 # Aggregat-Sensor wird bei vorhandenen Komponenten still ignoriert — ABER die
@@ -466,13 +470,32 @@ _GRUPPEN_TEXT = {
                "hier ist nichts einzutragen.",
     "netz_live": "Netz-Leistung ist bereits zugeordnet (kombiniert oder "
                  "getrennt) — hier ist nichts einzutragen.",
-    "wp_strom": "Der WP-Stromverbrauch ist bereits zugeordnet — hier ist "
-                "nichts einzutragen.",
     # N-391: *Heizwärme* und *Wärme gesamt* sind zwei Wege zu derselben Größe —
     # ein gemeinsamer Wärmemengenzähler oder getrennte. Wer einen davon
     # zugeordnet hat, braucht den anderen nicht.
     "wp_waerme": "Die abgegebene Wärme ist bereits zugeordnet — hier ist "
                  "nichts einzutragen.",
+}
+
+# ⛔ **`wp_strom` stand bis zum 14.09.2026 in der Tabelle darüber**, mit dem
+# Satz *„Der WP-Stromverbrauch ist bereits zugeordnet — hier ist nichts
+# einzutragen."* Er ist mit WK-16d falsch geworden: Seit ein Gesamtzähler die
+# Menge ist (K1), trägt er **mehr** als die beiden Achsen — Standby, Steuerung,
+# Umwälzpumpen —, und wer ihn wegen dieses Satzes nicht zuordnet, verliert
+# genau diese Kilowattstunden. Der Ersatz sagt, was er **bringt**, statt was
+# angeblich nichts zu tun ist (dieselbe Lehre wie bei rapahl, PN 91806).
+#
+# ⚠ **Und die Einstufung ändert sich mit**: „inaktiv" heißt auf dieser Fläche
+# *hier gehört nichts hin*; das Feld ist aber **optional nützlich**. Beides
+# folgt jetzt aus einer Eigenschaft der Gruppe statt aus einem Sonderfall —
+# s. {@link stufe_bedarf_ein}, Schritt 2.
+_SUMMANDEN_ZUSATZ_TEXT: dict[tuple[str, str], str] = {
+    ("waermepumpe", "stromverbrauch_kwh"): (
+        "Optional — misst dieser Zähler mehr als Strom Heizen und Strom "
+        "Warmwasser zusammen (Standby, Steuerung, Umwälzpumpen), gilt sein "
+        "Wert als Verbrauch des Geräts und die Differenz erscheint als "
+        "„nicht aufgeteilt“."
+    ),
 }
 
 
@@ -567,6 +590,31 @@ def stufe_bedarf_ein(
         deckende = [b for b in belegt_je_gruppe.get(gruppe or "", ())
                     if _deckt_ab(b, f)]
         if gruppe and deckende and not f.get("pflicht_am_geraet"):
+            # ⛔ **(c) seit WK-16d: nur eine ALTERNATIV-Gruppe deckt ab.**
+            # `BEDARF_GRUPPEN_ALTERNATIV` trägt die Unterscheidung bereits
+            # (N-391) — Alternativen sind Wege zu EINER Größe, Summanden sind
+            # Teile einer Größe. Ein Summand kann seine Geschwister deshalb
+            # niemals decken, auch dann nicht, wenn er an diesem Gerät keine
+            # Pflicht ist: `stromverbrauch_kwh` ist bei getrennter Messung
+            # „erweitert" (weiche Bedingung) und fiel damit bis dahin in diesen
+            # Zweig — mit dem Satz „ist bereits zugeordnet, hier ist nichts
+            # einzutragen". Seit ein Gesamtzähler die Menge ist (K1), ist dieser
+            # Satz ein Rat, der Kilowattstunden kostet.
+            #
+            # ⚠ **`pflicht_am_geraet` bleibt daneben stehen und bleibt nötig:**
+            # Es beantwortet die Frage für die Felder, die an DIESEM Gerät
+            # Pflicht sind (N-456, zwei Wärmepumpen, F5-Achsen). Die neue
+            # Klausel beantwortet sie für die Gruppe als Ganzes. Zwei Fragen,
+            # zwei Bedingungen.
+            if gruppe not in BEDARF_GRUPPEN_ALTERNATIV:
+                out[fid] = {
+                    "bedarf": f.get("bedarf") or "optional",
+                    "grund": None,
+                    "text": _SUMMANDEN_ZUSATZ_TEXT.get(
+                        (f.get("typ") or "", f.get("feld") or "")
+                    ),
+                }
+                continue
             text = _GRUPPEN_TEXT.get(gruppe)
             # Trägt NUR das Anlagen-Aggregat die Gruppe, ist die Komponenten-
             # Zeile für den Monat abgedeckt und für Tag/Stunde eben nicht.

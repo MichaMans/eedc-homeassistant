@@ -946,10 +946,12 @@ async def get_wp_strom_stufe_je_investition(
 ) -> dict[str, str]:
     """Welche **K3-Stufe** trägt der Tagesbezug je Wärmepumpe? (N-462)
 
-    ``{inv_id_str: "fein" | "gesamt"}`` — dieselbe Frage und **dieselben
-    Eingänge**, mit denen ``investition_beitraege`` den Tageswert in
-    ``TagesZusammenfassung.komponenten_kwh`` gelegt hat: die Registry-Achsen des
-    Geräts und ``feld_hat_zaehler`` über HA-Mapping **und** MQTT-Keys.
+    ``{inv_id_str: "fein" | "gesamt"}`` — dieselbe Frage und **derselbe
+    Eingang**, mit dem ``investition_beitraege`` den Tageswert in
+    ``TagesZusammenfassung.komponenten_kwh`` gelegt hat: ``feld_hat_zaehler``
+    über HA-Mapping **und** MQTT-Keys. ⭐ Seit WK-16d ist das genau **ein**
+    Feld — ``stromverbrauch_kwh`` —, weil ein zugeordneter Gesamtzähler die
+    Menge ist (K1) und die Registry-Achsen an der Stufe nichts mehr entscheiden.
 
     ⛔ **Warum das eine eigene Funktion ist und keine Ableitung aus dem
     Kennzeichen.** ``funktionsfremd_abzug_kwh`` fragt *„steht der funktionsfremde
@@ -986,12 +988,7 @@ async def get_wp_strom_stufe_je_investition(
                 _f.get(feld), _p + feld, quellen_energy, mqtt_keys,
             )
 
-        params = getattr(inv, "parameter", None) or {}
-        if not isinstance(params, dict):
-            params = {}
         ergebnis[str(inv_id_str)] = wp_strom_stufe(
-            params,
-            ist_belegt=_belegt,
             hat_gesamtzaehler=_belegt("stromverbrauch_kwh"),
         )
     return ergebnis

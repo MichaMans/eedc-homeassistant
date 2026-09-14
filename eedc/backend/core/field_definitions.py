@@ -63,7 +63,8 @@ Feld-Attribute:
                   ([[feedback_reparatur_statt_loesch_features]]).
 """
 
-from typing import Callable, Final, Literal, Optional
+from dataclasses import dataclass
+from typing import Final, Literal, Optional
 
 from backend.core.investition_parameter import (
     ist_brauchwasser_waermepumpe,
@@ -412,7 +413,12 @@ INVESTITION_FELDER: dict = {
             "bedingung": "!getrennte_strommessung",
             "weich": ("getrennte_strommessung",),
             "csv_suffix": "Strom_kWh",
-            "hinweis": "Gesamter elektrischer Energieverbrauch der WP (kWh, kumulativ oder Tagessensor). Bei getrennter Messung: Summe aus Heizen + Warmwasser.",
+            # ⛔ Der Hinweis endete bis zum 14.09.2026 mit „Bei getrennter
+            # Messung: Summe aus Heizen + Warmwasser." Das war die Zusage, die
+            # WK-16d aufgehoben hat: Der Zähler misst, was er misst — und wenn
+            # das mehr ist als die beiden Achsen, gilt seither er und die
+            # Differenz heißt „nicht aufgeteilt" (K1/K5).
+            "hinweis": "Gesamter elektrischer Energieverbrauch der WP (kWh, kumulativ oder Tagessensor). Auch bei getrennter Messung sinnvoll: misst er mehr als Heizen + Warmwasser zusammen (Standby, Steuerung, Umwälzpumpen), gilt sein Wert als Verbrauch des Geräts und die Differenz erscheint als „nicht aufgeteilt“.",
         },
         # Getrennte-Strommessung-Modus (getrennte_strommessung=true):
         {
@@ -525,12 +531,15 @@ INVESTITION_FELDER: dict = {
             # eine Bauart zu binden wäre die Bauform, die R1 abgelöst hat — was
             # ein Gerät liefern kann, sagt der zugeordnete Zähler.
             #
-            # ⚠ **Und die Vorrangregel ist bewusst die Gegenrichtung zur
-            # Stromseite:** Dort (`wp_strom_stufe`, K3) gewinnt die vollständige
-            # feine Aufteilung, weil `getrennte_strommessung` erklärt, dass die
-            # zwei Zähler zusammen das Ganze sind. Auf der Wärmeseite gibt es
-            # keine solche Erklärung ⇒ K1 greift ungebremst: die Gesamtmenge ist
-            # die Wahrheit, die Aufteilung steht daneben.
+            # ⭐ **Und die Vorrangregel ist seit WK-16d dieselbe wie auf der
+            # Stromseite:** Gesamtwert ⇒ Menge, Aufteilung ⇒ daneben, Rest ⇒
+            # *nicht aufgeteilt* (K1/K5). ⛔ Bis zum 14.09.2026 stand hier das
+            # Gegenteil — *„auf der Stromseite gewinnt die vollständige feine
+            # Aufteilung, weil `getrennte_strommessung` erklärt, dass die zwei
+            # Zähler zusammen das Ganze sind"*. Das Kennzeichen erklärt, dass die
+            # zwei Zähler **Summanden** sind; dass sie zusammen **alles** messen,
+            # erklärt es nicht (Standby, Steuerung, Umwälzpumpen). Die beiden
+            # Seiten sagen jetzt denselben Satz.
             "feld": "waerme_kwh", "label": "Wärme gesamt", "einheit": "kWh",
             "csv_suffix": "Waerme_Gesamt_kWh",
             "hinweis": "Abgegebene Wärme GESAMT (thermisch, NICHT Strom!) in kWh, kumulativ oder Tagessensor — für EINEN Wärmemengenzähler, der Heizung und Warmwasser zusammen misst. Wer getrennte Zähler hat, lässt das Feld leer. Trägt hier ein Wert, gilt er als die Wärme des Geräts; Heizwärme und Warmwasser-Wärme stehen dann nur noch als Aufteilung daneben.",
@@ -2935,8 +2944,15 @@ def feine_strom_achsen(parameter: dict) -> list[str]:
     ⛔ **Hier stand sie bis zum 13.09.2026 nicht, sondern in**
     ``services/snapshot/komponenten_beitraege.py`` — mit einem *lokalen* Import
     auf dieses Modul, weil ein Modul-Import zirkulär gewesen wäre. Sie ist
-    hierher gezogen, weil {@link wp_strom_stufe} dieselbe Frage stellt: Die
-    K3-Stufenregel steht seither an **einer** Stelle statt an zweien (F-56).
+    hierher gezogen worden, als {@link wp_strom_stufe} dieselbe Frage stellte:
+    Die K3-Stufenregel steht seither an **einer** Stelle statt an zweien (F-56).
+
+    ⚠ **Seit WK-16d (14.09.2026) fragt die Stufenregel sie nicht mehr** — ein
+    Gesamtzähler ist die Menge, ob die Aufteilung vollständig ist oder nicht.
+    Geblieben ist ihr **zweiter** Leser, und der ist der ältere: die
+    Beitragsschicht des Tages braucht die Namen der Achsen, die sie emittiert,
+    wenn kein Gesamtzähler zugeordnet ist. Sie bleibt hier, damit *„welche
+    Achsen hat dieses Gerät?"* weiterhin an **einer** Stelle beantwortet wird.
     """
     angeboten = {
         f["feld"] for f in get_felder_fuer_investition(
@@ -2946,65 +2962,215 @@ def feine_strom_achsen(parameter: dict) -> list[str]:
     return [f for f in FEINE_STROM_FELDER if f in angeboten]
 
 
-def wp_strom_stufe(
-    parameter: dict | None,
+#: Wie weit darf der Gesamtzähler **unter** der Summe der Achsen liegen, bevor
+#: eedc ihn für widersprüchlich hält? — **eine** Stelle für beide Ebenen
+#: (WK-16d/K1). Anteilig, weil ein Zählerstand mit der Menge rundet; mit einem
+#: Mindestwert, weil 1 % einer kleinen Menge unter jeder Rundung liegt.
+WP_STROM_TOLERANZ_ANTEIL: Final[float] = 0.01
+#: Mindest-Toleranz einer **Monats**zeile (kWh) — wie beim Wärme-Zwilling in
+#: ``daten_checker/monatsdaten.py`` (N-391).
+WP_STROM_TOLERANZ_MIN_MONAT_KWH: Final[float] = 0.5
+#: Mindest-Toleranz eines **Tages** (kWh). Ein Zehntel der Monatsschwelle:
+#: dieselbe Rundung, ein Dreißigstel der Menge.
+WP_STROM_TOLERANZ_MIN_TAG_KWH: Final[float] = 0.05
+
+
+def wp_strom_toleranz_kwh(
+    feine_summe_kwh: float,
     *,
-    ist_belegt: Callable[[str], bool],
+    mindest_kwh: float = WP_STROM_TOLERANZ_MIN_MONAT_KWH,
+) -> float:
+    """Die Toleranz für *„Gesamtzähler kleiner als die Summe der Achsen?"*.
+
+    ⛔ **Sie steht hier und nicht bei den zwei Fragern** ({@link
+    wp_strom_stufe} und der Daten-Checker, der dieselbe Lage meldet): Zwei
+    Schwellen für dieselbe Frage wären die F-56-Klasse — die Fläche würde eine
+    Lage bemängeln, die die Rechnung daneben durchgehen lässt, oder umgekehrt.
+    """
+    return max(abs(feine_summe_kwh) * WP_STROM_TOLERANZ_ANTEIL, mindest_kwh)
+
+
+def wp_strom_stufe(
+    *,
     hat_gesamtzaehler: bool,
+    gesamt_kwh: float | None = None,
+    feine_summe_kwh: float | None = None,
+    toleranz_mindest_kwh: float = WP_STROM_TOLERANZ_MIN_MONAT_KWH,
 ) -> Literal["fein", "gesamt"]:
-    """K3 in EINER Stelle — die Regel, nicht ihre Eingänge (SOLL §3.2, W-1/W-1b).
+    """K3 in EINER Stelle — die Regel, nicht ihre Eingänge (Konzept Kap. 3).
 
-    Die dreistufige Vorrangkette für *„welche Menge ist der Stromverbrauch
-    dieses Geräts?"*:
+    Die Vorrangkette für *„welche Menge ist der Stromverbrauch dieses
+    Geräts?"*:
 
-    1. Die feine Aufteilung ist **vollständig** (jede Achse, die das Gerät laut
-       Registry überhaupt hat, ist belegt) ⇒ ``"fein"``. Sie IST die Gesamtmenge;
-       ein zusätzlicher Gesamtzähler wird verworfen, sonst zählte derselbe Strom
-       zweimal.
-    2. Sonst gilt **K1** — *„die Gesamtmenge ist immer die Wahrheit"* ⇒
-       ``"gesamt"``, sobald ein Gesamtzähler da ist.
-    3. Sonst trägt, was gemessen ist ⇒ ``"fein"``: eine unvollständige
-       Aufteilung ohne Gesamtzähler ist die einzige Messung, die es gibt. Sie zu
-       verwerfen hieße den Block verschwinden zu lassen — genau der Befund, den
-       Etappe 3 am 26.08.2026 im Tagespfad repariert hat (#263, OB73-gif).
+    1. **Ein Gesamtzähler ist die Menge** (K1 — *„die Gesamtmenge ist immer die
+       Wahrheit"*) ⇒ ``"gesamt"``. Die feinen Achsen (Heizen/Warmwasser) und die
+       Betriebsart-Zähler sind die **Aufteilung darunter**; was er mehr misst
+       als sie, heißt *nicht aufgeteilt* (K5, {@link wp_strom_aufteilung}).
+    2. **Es sei denn, er misst weniger als die Aufteilung** — mehr als die
+       Toleranz ({@link wp_strom_toleranz_kwh}) darunter ⇒ ``"fein"``, und der
+       Daten-Checker nennt den Widerspruch. Zwilling der Wärme-Invariante aus
+       N-391: nur **diese** Richtung ist ein Fehler.
+    3. **Kein Gesamtzähler** ⇒ ``"fein"``: die Aufteilung ist dann die einzige
+       Messung, die es gibt, ob sie vollständig ist oder nicht. Sie zu verwerfen
+       hieße den Block verschwinden zu lassen (#263, OB73-gif).
+
+    ⛔ **Hier stand bis zum 14.09.2026 eine erste Stufe: „Die feine Aufteilung
+    ist vollständig ⇒ fein; ein zusätzlicher Gesamtzähler wird verworfen, sonst
+    zählte derselbe Strom zweimal."** Der Satz stimmte für die *Doppelzählung*
+    und war für die *Menge* falsch. Misst der Gesamtzähler **mehr** als die
+    beiden Achsen — Standby, Steuerung, Umwälzpumpen; bei dietmar1968 145 von
+    2193 kWh im Jahr, 6,6 % —, verlor eedc diese Kilowattstunden aus Strom,
+    Kosten, CO₂ und Arbeitszahl-Nenner. Das verletzt **K1** und **K5**.
+    *Doppelzählung entsteht beim **Addieren** von Gesamt und Achsen, nicht beim
+    **Ersetzen*** — die alte Regel verhinderte das Falsche und verwarf dabei
+    eine Messung.
 
     ⚠ **Tag und Monat beantworten „belegt?" verschieden — und sie MÜSSEN das.**
     Der Tag fragt *„ist ein Zähler zugeordnet?"* (``ist_verfuegbar``), der Monat
     *„steht ein Wert in der Zeile?"* (``data.get(feld) is not None``); eine
     Monatszeile darf ohne jeden Zähler von Hand gepflegt sein. Was beide teilen,
     ist die **Vorrangkette** — sie steht deshalb hier und nicht zweimal (F-56).
+    Auf der Zuordnungs-Ebene gibt es keine Werte; dort bleiben ``gesamt_kwh``
+    und ``feine_summe_kwh`` leer und Regel 2 greift nicht.
 
-    ⛔ **Das Kennzeichen gilt nur für Stufe 1 — K3 gilt in BEIDE Richtungen.**
-    ``getrennte_strommessung`` entscheidet, ob die feinen Achsen als *Summanden*
-    einer vollständigen Aufteilung gelten dürfen; es entscheidet **nicht**, ob
-    ein feiner Zähler überhaupt zählt. Kennzeichen **aus**, kein Gesamtzähler,
-    aber ein feiner Zähler zugeordnet ⇒ Stufe 3, er trägt. *„Wer feine Zähler
-    hat, bekommt die feine Aufteilung; wer sie nicht hat, behält die grobe
-    Wahrheit"* — der Satz hat keine Richtung.
+    ⛔ **Das Kennzeichen ``getrennte_strommessung`` steht nicht mehr hier.** Es
+    beantwortet die andere Frage — *„sind die feinen Achsen **Summanden**?"* —
+    und die stellt {@link get_wp_strom_kwh} vor dem Aufruf. K3 gilt weiter in
+    beide Richtungen: Kennzeichen **aus**, kein Gesamtzähler, aber ein feiner
+    Zähler zugeordnet ⇒ Regel 3, er trägt.
 
     Args:
-        parameter: die ``Investition.parameter`` dieses Geräts.
-        ist_belegt: Prädikat ``feldname -> bool``. Der Aufrufer sagt, was
-            „belegt" in seiner Ebene heißt.
-        hat_gesamtzaehler: trägt dieses Gerät ``stromverbrauch_kwh`` — in
-            derselben Ebene wie ``ist_belegt``.
+        hat_gesamtzaehler: trägt dieses Gerät ``stromverbrauch_kwh`` — in der
+            Ebene des Aufrufers (Zuordnung bzw. Zeilenwert).
+        gesamt_kwh: sein Wert, wo es einen gibt (Monatszeile). ``None`` auf der
+            Zuordnungs-Ebene.
+        feine_summe_kwh: die Menge, die die Aufteilung sonst trüge — also genau
+            das, was der feine Zweig von {@link get_wp_strom_kwh} rechnet.
+        toleranz_mindest_kwh: ``WP_STROM_TOLERANZ_MIN_MONAT_KWH`` oder
+            ``…_TAG_KWH``, je nach Ebene des Aufrufers.
 
     Returns:
-        ``"fein"`` (die feinen Achsen tragen den Wert) oder ``"gesamt"``
-        (``stromverbrauch_kwh`` trägt ihn).
+        ``"fein"`` (die feinen Achsen tragen die Menge) oder ``"gesamt"``
+        (``stromverbrauch_kwh`` trägt sie).
     """
-    params = parameter or {}
-    moeglich = feine_strom_achsen(params)
-    belegt = [f for f in moeglich if ist_belegt(f)]
-    if (
-        params.get("getrennte_strommessung")
-        and len(moeglich) >= 2
-        and len(belegt) == len(moeglich)
-    ):
+    if not hat_gesamtzaehler:
         return "fein"
-    if hat_gesamtzaehler:
-        return "gesamt"
-    return "fein"
+    if gesamt_kwh is not None and feine_summe_kwh is not None:
+        if gesamt_kwh < feine_summe_kwh - wp_strom_toleranz_kwh(
+            feine_summe_kwh, mindest_kwh=toleranz_mindest_kwh,
+        ):
+            return "fein"
+    return "gesamt"
+
+
+@dataclass(frozen=True)
+class WpStromAufteilung:
+    """Menge **und** Rest einer Monatszeile — K1 und K5 in einer Antwort.
+
+    ⭐ **Warum der Rest hier entsteht und nicht beim Leser.** Er ist die
+    Differenz zweier Größen, die nur diese Funktion beide kennt: der gewählten
+    Menge und der Summe, die die Aufteilung trägt. Ein Leser, der ihn selbst
+    bildete, müsste die Stufenregel nachbauen — die F-56-Klasse.
+    """
+
+    #: Die Menge dieses Geräts (K1) — was jede Bilanz, jede Kosten- und jede
+    #: CO₂-Rechnung liest.
+    menge_kwh: float
+    #: Was die feine Aufteilung trägt: ``strom_heizen_kwh + strom_warmwasser_kwh``
+    #: und — bei **gemessener** Betriebsart — die funktionsfremden Teilmengen
+    #: (W-16). 0.0 im Nicht-getrennt-Zweig: dort gibt es keine Summanden.
+    feine_summe_kwh: float
+    #: ``Menge − Aufteilung ≥ 0``, der **Zähler**-Rest (K5): Standby, Steuerung,
+    #: Umwälzpumpen — dietmar1968s „Systemverbrauch".
+    #:
+    #: ⛔ **Nicht zu verwechseln mit** ``WpFakten.modus_nicht_aufgeteilt_kwh``.
+    #: Das sind **zwei** Reste zweier **verschiedener** Aufteilungen derselben
+    #: Menge, und beide sind richtig: hier der Rest der **Summanden**-Achsen
+    #: (Heizen/Warmwasser), dort der Rest der **Betriebsart**-Teilmengen
+    #: (Stunden ohne Modus-Signal). Sie zu addieren wäre Doppelzählung.
+    #:
+    #: ⚠ **0.0, solange es gar keine Aufteilung gibt** — *„nicht aufgeteilt"*
+    #: setzt eine Aufteilung voraus. Wer nur einen Gesamtzähler pflegt, hat
+    #: keinen Rest, sondern nur eine Menge; dass die Achsen fehlen, sagt der
+    #: Daten-Checker, nicht diese Zahl.
+    nicht_aufgeteilt_kwh: float
+    #: Welche Regel gewonnen hat — s. {@link wp_strom_stufe}.
+    stufe: Literal["fein", "gesamt"]
+    #: Regel 2: der Gesamtzähler steht **unter** der Aufteilung (jenseits der
+    #: Toleranz). Die Achsen tragen, und der Daten-Checker meldet es.
+    gesamtzaehler_zu_klein: bool
+
+
+def wp_strom_aufteilung(
+    data: dict | None, params: dict | None = None,
+) -> WpStromAufteilung:
+    """Menge, Aufteilung und Rest einer Monatszeile (K1 · K3 · K5).
+
+    Die **eine** Auflösung hinter {@link get_wp_strom_kwh}; dessen Rückgabe ist
+    ``menge_kwh``. Wer zusätzlich den Rest oder den Widerspruch braucht — die
+    Monats-Fakten und der Daten-Checker —, ruft diese Tür.
+    """
+    d = data or {}
+    if not d:
+        return WpStromAufteilung(0.0, 0.0, 0.0, "fein", False)
+
+    if not (params or {}).get("getrennte_strommessung"):
+        # ⚠ **Im Nicht-getrennt-Zweig wird NICHTS addiert und nichts
+        # aufgeteilt:** ``stromverbrauch_kwh`` ist der Zählerstand des ganzen
+        # Geräts und enthält den Kühlbetrieb bereits. Die feinen Felder sind
+        # hier keine Summanden (das sagt gerade das fehlende Kennzeichen), es
+        # gibt also auch keinen Rest einer Summanden-Aufteilung.
+        return WpStromAufteilung(
+            menge_kwh=float(
+                d.get("stromverbrauch_kwh")
+                or d.get("strom_kwh")
+                or d.get("verbrauch_kwh")
+                or 0
+            ),
+            feine_summe_kwh=0.0,
+            nicht_aufgeteilt_kwh=0.0,
+            stufe="gesamt" if d.get("stromverbrauch_kwh") is not None else "fein",
+            gesamtzaehler_zu_klein=False,
+        )
+
+    # Lokaler Import: `betriebsart_gemessen` liest `basis_feld_key` aus diesem
+    # Modul — ein Import auf Modulebene wäre zirkulär.
+    from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+
+    zeile = modus_strom_zeile(d)
+    feine_summe = float(
+        (d.get("strom_heizen_kwh") or 0) + (d.get("strom_warmwasser_kwh") or 0)
+    )
+    if zeile.gemessen:
+        # W-16: ein **gemessener** Betriebsart-Zähler steht neben den beiden
+        # Achsen, nicht darin. Ein **abgeleiteter** Split verteilt dagegen die
+        # vorhandene Menge — ihn zu addieren wäre die Doppelzählung, gegen die
+        # W-16b gebaut wurde.
+        feine_summe += zeile.funktionsfremd_kwh
+
+    gesamt = d.get("stromverbrauch_kwh")
+    stufe = wp_strom_stufe(
+        hat_gesamtzaehler=gesamt is not None,
+        gesamt_kwh=float(gesamt) if gesamt is not None else None,
+        feine_summe_kwh=feine_summe,
+    )
+    zu_klein = gesamt is not None and stufe == "fein"
+    menge = float(gesamt) if stufe == "gesamt" else feine_summe
+    # K5 setzt eine Aufteilung voraus — s. Feld-Docstring. `is not None`, nicht
+    # truthy: ein Warmwasser-Strom von 0,0 im Sommer ist eine Messung.
+    hat_aufteilung = (
+        any(d.get(f) is not None for f in FEINE_STROM_FELDER)
+        or (zeile.gemessen and zeile.funktionsfremd_kwh > 0)
+    )
+    return WpStromAufteilung(
+        menge_kwh=menge,
+        feine_summe_kwh=feine_summe,
+        nicht_aufgeteilt_kwh=(
+            max(0.0, menge - feine_summe) if hat_aufteilung else 0.0
+        ),
+        stufe=stufe,
+        gesamtzaehler_zu_klein=zu_klein,
+    )
 
 
 def nenner_ist_feine_summe(data: dict | None, params: dict | None) -> bool:
@@ -3024,34 +3190,40 @@ def nenner_ist_feine_summe(data: dict | None, params: dict | None) -> bool:
     ist die S1-Verletzung, gegen die E7 gebaut wurde, mit umgekehrtem Vorzeichen
     (Klasse N-450: *„denselben Layer zu rufen genügt nicht, es müssen dieselben
     EINGÄNGE sein"*).
+
+    ⭐ **Seit WK-16d (14.09.2026) heißt „fein" seltener und genauer.** Ein
+    zugeordneter Gesamtzähler ist jetzt die Menge (K1), auch neben einer
+    vollständigen Aufteilung — der Nenner ist dann **nicht** mehr die feine
+    Summe, und der funktionsfremde Anteil steckt in ihm und muss abgezogen
+    werden. Die Antwort folgt weiterhin der Stufe und nur der Stufe; dass sie
+    sich mit der Stufe mitverändert, ist genau der Punkt von N-450.
     """
     d = data or {}
     if not (params or {}).get("getrennte_strommessung"):
-        # ⚠ **Der Monat hat für Geräte ohne Kennzeichen keine Stufe 3.**
+        # ⚠ **Der Monat hat für Geräte ohne Kennzeichen keine „fein"-Lage.**
         # {@link get_wp_strom_kwh} liest dort ausschließlich
         # ``stromverbrauch_kwh``/``strom_kwh``/``verbrauch_kwh`` — die feinen
         # Felder einer Monatszeile sind ohne Kennzeichen keine Summanden. Der
-        # Nenner ist also nie die feine Summe. (Der **Tag** kennt Stufe 3 auch
-        # ohne Kennzeichen, weil dort ein *zugeordneter* feiner Zähler die
-        # einzige Messung sein kann — die zwei Ebenen sind hier verschieden,
-        # und jede Antwort ist für ihre Ebene exakt.)
+        # Nenner ist also nie die feine Summe. (Der **Tag** kennt den Rückfall
+        # auf einen feinen Zähler auch ohne Kennzeichen, weil dort ein
+        # *zugeordneter* feiner Zähler die einzige Messung sein kann — die zwei
+        # Ebenen sind hier verschieden, und jede Antwort ist für ihre Ebene
+        # exakt.)
         return False
-    return wp_strom_stufe(
-        params,
-        ist_belegt=lambda f: d.get(f) is not None,
-        hat_gesamtzaehler=d.get("stromverbrauch_kwh") is not None,
-    ) == "fein"
+    return wp_strom_aufteilung(d, params).stufe == "fein"
 
 
 def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
     """Wärmepumpen-Stromverbrauch in kWh — single source of truth.
 
-    Bei `getrennte_strommessung=True` entscheidet die dreistufige Vorrangkette
-    aus {@link wp_strom_stufe}: sind **alle** feinen Achsen dieses Geräts belegt,
-    ist ihre Summe die Menge und ein Gesamtzähler wird verworfen (sonst zählte
-    derselbe Strom zweimal); sonst zählt der Gesamtzähler; sonst, was gemessen
-    ist. Ohne das Kennzeichen wird der Gesamt-Sensor genutzt
+    Bei `getrennte_strommessung=True` entscheidet die Vorrangkette aus
+    {@link wp_strom_stufe}: ein belegter **Gesamtzähler ist die Menge** (K1),
+    die feinen Achsen sind die Aufteilung darunter; misst er weniger als sie,
+    tragen sie; ohne ihn tragen sie ohnehin. Ohne das Kennzeichen wird der
+    Gesamt-Sensor genutzt
     (`stromverbrauch_kwh`/`strom_kwh`/`verbrauch_kwh`-Legacy-Fallbacks).
+    Wer neben der Menge den **Rest** braucht, ruft
+    {@link wp_strom_aufteilung} — diese Funktion ist deren ``menge_kwh``.
 
     ⛔ **Hier stand bis zum 13.09.2026: „das alte `stromverbrauch_kwh`-Feld wird
     ignoriert, auch wenn ein parallel laufender Sensor noch hineinschreibt."**
@@ -3063,10 +3235,19 @@ def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
     (`komponenten_beitraege`), der Monatspfad erst jetzt; dazwischen lagen
     18 Tage, in denen Tag und Monat für dasselbe Gerät verschiedene Zahlen
     nannten (gemessen: Arbeitszahl 5,0 statt 3,0).
-    **#183 bleibt ausgeschlossen:** Der Gesamtzähler zählt ausschließlich,
-    solange die feine Achse unvollständig ist — dann gibt es höchstens **eine**
-    Funktions-Arbeitszahl, und die Drift dreier JAZ, gegen die #183 gebaut
-    wurde, kann nicht entstehen.
+
+    ⛔ **Und bis zum 14.09.2026 stand daneben: „solange die feine Achse
+    unvollständig ist."** Dieser Halbsatz war der Rest derselben Klasse. Bei
+    *vollständiger* Achse wurde der Gesamtzähler verworfen — und mit ihm alles,
+    was er **mehr** misst als die zwei Summanden (Standby, Steuerung,
+    Umwälzpumpen: dietmar1968s „Systemverbrauch", 145 von 2193 kWh). Seit WK-16d
+    gilt K1 ohne diesen Vorbehalt; der Rest heißt *nicht aufgeteilt*.
+    **#183 bleibt ausgeschlossen, nur mit anderer Begründung:** Nicht die Wahl
+    der Menge trennt die drei JAZ, sondern die Wahl des **Nenners** — und
+    ``arbeitszahl_je_funktion`` nimmt für eine Funktions-Arbeitszahl
+    ausschließlich den gemessenen Strom **dieser** Funktion (E7), nie diese
+    Menge. Der Gesamtzähler kann deshalb neben zwei Funktionszahlen stehen,
+    ohne dass eine dritte aus einer anderen Quelle entsteht.
     **`is not None`, nicht truthy:** ein Warmwasser-Strom von 0,0 im Sommer ist
     eine Messung, keine Leerstelle.
     ⚠ **Die Grenze:** Der Monat entscheidet an der **Zeile**, der Tag an der
@@ -3107,13 +3288,17 @@ def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
     ⛔ **Hier stand bis zum 12.09.2026 „Teil von ``strom_heizen_kwh``", und die
     Begründung war eine Aussage über die Physik.** Beides war zu eng bzw.
     falsch begründet. Der tragende Grund ist **arithmetisch**: Der abgeleitete
-    Split wird tagesweise auf ``TagesZusammenfassung.komponenten_kwh
-    [waermepumpe_<id>]`` normiert (``modus_split.py``), und dieser Topf ist bei
-    belegter feiner Achse **genau** ``strom_heizen_kwh + strom_warmwasser_kwh``
-    — die Beitragsschicht legt für eine Wärmepumpe **einen** Ziel-Key an und
-    addiert beide Felder hinein (``snapshot/komponenten_beitraege.py``). Sein
-    Kühlanteil ist damit per Konstruktion ein **Ausschnitt aus dieser Summe**,
-    unabhängig davon, was der Zähler physisch misst.
+    Split wird auf **die Menge dieses Geräts** normiert — tagesweise auf
+    ``TagesZusammenfassung.komponenten_kwh[waermepumpe_<id>]``
+    (``modus_split.py``), monatsweise auf genau diese Funktion
+    (``energie_profil/modus_split_schreiben.py``). Sein Kühlanteil ist damit per
+    Konstruktion ein **Ausschnitt aus der Menge**, unabhängig davon, was der
+    Zähler physisch misst. *(Bis zum 14.09.2026 stand hier statt „die Menge"
+    der engere Satz „genau ``strom_heizen_kwh + strom_warmwasser_kwh``, weil die
+    Beitragsschicht beide Felder in EINEN Ziel-Key addiert". Seit WK-16d trägt
+    derselbe Ziel-Key den Gesamtzähler, sobald einer zugeordnet ist — die
+    Begründung gilt unverändert, nur ist sie jetzt an der Menge festgemacht
+    statt an einer ihrer möglichen Herkünfte.)*
 
     ⛔ **In welchem der zwei Felder er sitzt, ist nicht gespeichert.** Der Monat
     hält nur ``modus_strom_<modus>_kwh`` je Betriebsart, ohne Zuordnung zu einer
@@ -3126,31 +3311,4 @@ def get_wp_strom_kwh(data: dict, params: dict | None = None) -> float:
     ⚠ **Im Nicht-getrennt-Zweig wird NICHTS addiert:** ``stromverbrauch_kwh``
     ist der Zählerstand des ganzen Geräts und enthält den Kühlbetrieb bereits.
     """
-    if not data:
-        return 0.0
-    if params and params.get("getrennte_strommessung"):
-        if wp_strom_stufe(
-            params,
-            ist_belegt=lambda f: data.get(f) is not None,
-            hat_gesamtzaehler=data.get("stromverbrauch_kwh") is not None,
-        ) == "gesamt":
-            # K1 — der Gesamtzähler, und **nichts** addiert: er ist der
-            # Zählerstand des ganzen Geräts, wie im Nicht-getrennt-Zweig unten.
-            return float(data["stromverbrauch_kwh"])
-        basis = float(
-            (data.get("strom_heizen_kwh") or 0) +
-            (data.get("strom_warmwasser_kwh") or 0)
-        )
-        # Lokaler Import: `betriebsart_gemessen` liest `basis_feld_key` aus
-        # diesem Modul — ein Import auf Modulebene wäre zirkulär.
-        from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
-
-        zeile = modus_strom_zeile(data)
-        if zeile.gemessen:
-            basis += zeile.funktionsfremd_kwh
-        return basis
-    return float(
-        data.get("stromverbrauch_kwh") or
-        data.get("strom_kwh") or
-        data.get("verbrauch_kwh") or 0
-    )
+    return wp_strom_aufteilung(data, params).menge_kwh

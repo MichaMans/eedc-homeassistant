@@ -1060,6 +1060,36 @@ Anwenders.
 **Funktion:** `berechne_waermepumpe_einsparung()` in `core/calculations.py`
 **Verwendet in:** ROI-Dashboard (`investitionen.py`)
 
+> #### Die Strommenge eines Geräts — **der Gesamtzähler ist die Menge** (K1/K3)
+>
+> **SoT:** `core/field_definitions.py::wp_strom_aufteilung`; die Lesetür für die reine Menge heißt
+> weiterhin `get_wp_strom_kwh`. Jede Sicht, die einen WP-Stromverbrauch auswertet, bekommt ihn von
+> dort — Monats-Fakten, Komponenten-Hub, Cockpit, HA-Export, Community-Payload, Alternativkosten,
+> Daten-Checker und der laufende Monat aus Nicht-DB-Quellen.
+>
+> ```
+> Menge_kWh = stromverbrauch_kwh                          , wenn gepflegt          (K1)
+>           = Strom Heizen + Strom Warmwasser
+>             + gemessene Betriebsart-Teilmengen          , sonst — oder wenn der
+>                                                           Gesamtzähler darunter liegt
+> Rest_kWh  = Menge − (Strom Heizen + Strom Warmwasser + gemessene Teilmengen) ≥ 0
+> ```
+>
+> Der **Rest** heißt *nicht aufgeteilt* (K5) und steht als `WpFakten.strom_nicht_aufgeteilt_kwh`
+> neben der Menge: Standby, Steuerung, Umwälzpumpen. ⚠ **Nicht zu verwechseln mit**
+> `modus_nicht_aufgeteilt_kwh` — das ist der Rest der **Betriebsart**-Aufteilung (Stunden ohne
+> Modus-Signal). Zwei Aufteilungen derselben Menge, zwei Reste, nie addiert.
+>
+> **Die Toleranz steht an einer Stelle** (`wp_strom_toleranz_kwh`): 1 % der Summe, mindestens
+> 0,5 kWh im Monat bzw. 0,05 kWh im Tag. Liegt der Gesamtzähler weiter darunter, tragen die Achsen
+> und der Daten-Checker meldet den Widerspruch.
+>
+> ⛔ **Bis zum 14.09.2026 galt eine erste Stufe davor:** War die feine Aufteilung vollständig,
+> wurde der Gesamtzähler verworfen — *„sonst zählte derselbe Strom zweimal"*. Der Satz stimmte für
+> die Doppelzählung und war für die Menge falsch; was der Gesamtzähler **mehr** misst, fiel aus
+> Strom, Kosten, CO₂ und Arbeitszahl-Nenner heraus (gemessen an einer realen Anlage: 145 von
+> 2193 kWh im Jahr). *Doppelzählung entsteht beim **Addieren**, nicht beim **Ersetzen**.*
+
 > #### Die gemessene Wärme eines Geräts — **Gesamtwert vor Summanden** (Regel D1)
 >
 > **SoT:** `core/berechnungen/waermepumpe_kennzahl.py::waerme_gesamt_kwh`. Jede Sicht, die eine
@@ -1326,9 +1356,14 @@ sieben Formeln).
 > | Zweig | im Nenner enthalten? | Abzug |
 > | --- | --- | --- |
 > | **ohne** getrennte Strommessung | ja — `stromverbrauch_kwh` ist der Zählerstand des ganzen Geräts | ganz (**W-14**) |
-> | F5 **mit gemessenem** Betriebsart-Zähler | ja — `get_wp_strom_kwh` addiert ihn (**W-16**) | ganz (**W-16b**) |
-> | F5 mit **abgeleitetem** Modus-Split **und vollständiger feiner Achse** | **nein** — der Split *verteilt* `strom_heizen_kwh + strom_warmwasser_kwh` | **0** |
-> | F5 mit **abgeleitetem** Modus-Split, feine Achse **unvollständig** | ja — der Nenner ist dann der **Gesamtzähler** (K3), und der trägt den Kühlstrom wie in Zeile 1 | **ganz** |
+> | F5, ein **Gesamtzähler** ist zugeordnet bzw. gepflegt | ja — der Nenner **ist** der Gesamtzähler (K1), und der trägt den Kühlstrom wie in Zeile 1 | **ganz** |
+> | F5 ohne Gesamtzähler, **mit gemessenem** Betriebsart-Zähler | ja — die Menge addiert ihn zu den Achsen (**W-16**) | ganz (**W-16b**) |
+> | F5 ohne Gesamtzähler, **abgeleiteter** Modus-Split | **nein** — der Split *verteilt* `strom_heizen_kwh + strom_warmwasser_kwh` | **0** |
+>
+> ⭐ **Die zweite und die vierte Zeile hießen bis zum 14.09.2026 „feine Achse unvollständig" bzw.
+> „und vollständiger feiner Achse".** Seit WK-16d entscheidet nicht mehr die Vollständigkeit der
+> Achse, sondern ob es einen Gesamtzähler gibt — er ist dann die Menge (K1), auch neben zwei
+> gepflegten Achsen. Die Regel selbst ist unverändert: *abgezogen wird, was im Nenner steht.*
 >
 > **Warum das keine Ausnahme, sondern derselbe Grundsatz ist:** SOLL-§9-**E7** begründet an der
 > Kategorie, dass eine *Verteilung* kein Nenner sein darf — *„eine Verteilung erbt jede Unschärfe

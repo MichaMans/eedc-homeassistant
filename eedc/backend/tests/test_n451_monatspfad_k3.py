@@ -25,6 +25,24 @@ ignoriert wird."*
 | **vi** | Luft-Wasser, F5 **aus** | Gesamt 1000 | 1000 | 1000 | 1000 |
 | **vii** | Luft-Luft F5 | Gesamt 500 + Heizen 300 + **WW 120** | 500 | **420** | **500** |
 
+## Was WK-16d am 14.09.2026 daran geändert hat
+
+Die Spalte *„Monat nachher"* stimmt weiter, **jede Zahl bleibt**. Geändert hat
+sich, **welcher Zähler** sie in Lage **iv** trägt: dort standen Gesamtzähler und
+Achsen auf derselben Summe (1000 = 600 + 400), und bis dahin gewann die
+Aufteilung. Seither gewinnt der Gesamtzähler (**K1**) — sichtbar wird das erst,
+wenn er **mehr** misst als die Achsen:
+
+| Lage | Gerät | Zeile | Menge **vorher** | Menge **nachher** | Rest *nicht aufgeteilt* |
+| --- | --- | --- | --- | --- | --- |
+| **ix** | Luft-Wasser F5 | Gesamt **1145** + Heizen 600 + WW 400 | **1000** | **1145** | **145** |
+
+145 kWh Standby, Steuerung und Umwälzpumpen — dietmar1968s „Systemverbrauch",
+6,6 % seines WP-Stroms im Jahr. Sie fehlten in Strom, Kosten, CO₂ und
+Arbeitszahl-Nenner. Die Gegenrichtung (Gesamt **kleiner** als die Summe) ist
+seither ein gemeldeter Widerspruch, kein stiller Wechsel:
+`test_k3_gesamtzaehler_ist_die_menge.py` führt beide.
+
 **Lage vii ist die schärfste** und der Grund, warum „vollständig" an der
 **Registry** hängt und nicht an zwei Feldnamen: Eine Split-Klimaanlage hat
 keinen Warmwasserkreis (``strom_warmwasser_kwh`` trägt ``!luft_luft``,
@@ -62,7 +80,7 @@ from backend.core.berechnungen.modus_split import ModusSplit, teilmengen_passen
 from backend.core.berechnungen.tages_stapel import falte_tages_stapel
 from backend.core.berechnungen.waermepumpe_kennzahl import arbeitszahl
 from backend.core.betriebsmodus import HEIZEN, KUEHLEN
-from backend.core.field_definitions import get_wp_strom_kwh
+from backend.core.field_definitions import get_wp_strom_kwh, wp_strom_aufteilung
 from backend.models import (  # noqa: F401
     Anlage, Investition, InvestitionMonatsdaten, Monatsdaten,
 )
@@ -118,32 +136,71 @@ def _tages_felder(params: dict, zeile: dict) -> list[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# K1 · Stufe 1 bleibt, wie sie war — **beide Seiten**
+# K1 · Der Gesamtzähler ist die Menge — **beide Seiten**
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 def test_k1_vollstaendige_feine_achse_verdraengt_den_gesamtzaehler():
-    """**Lage iv + v: nichts ändert sich, und zwar auf beiden Seiten.**
+    """**Lage iv + v: die Zahl bleibt 1000 — der Träger wechselt (WK-16d).**
 
     ⚠ Die Beitragsfelder gehören zwingend dazu. Der Monatswert allein bliebe
-    auch dann 1000, wenn Stufe 1 ersatzlos gestrichen wäre — der Gesamtzähler
+    auch dann 1000, wenn die Regel ersatzlos gestrichen wäre — der Gesamtzähler
     trägt in Lage iv zufällig dieselbe Summe. Erst die **Feldmenge** des
     Tagespfads unterscheidet „die feine Achse trägt" von „der Gesamtzähler
     trägt", und nur so kann der Sprengsatz rot melden.
+
+    ⛔ **Bis zum 14.09.2026 lautete die Erwartung hier: Lage iv trägt
+    ``strom_heizen_kwh`` + ``strom_warmwasser_kwh``, „Stufe 1 verdrängt den
+    Gesamtzähler".** Die Substanz — **es darf immer nur EINE Seite tragen, sonst
+    zählt derselbe Strom zweimal** — ist unverändert und steht unten als
+    Gegenprobe. Gewechselt ist der Sieger: K1 sagt, die Gesamtmenge ist die
+    Wahrheit; die Aufteilung steht daneben. In Lage **v** (kein Gesamtzähler)
+    tragen die Achsen weiter, das ist unberührt.
+
+    ⛔ **#183 bleibt ausgeschlossen, mit anderer Begründung.** Bis dahin stand
+    hier: „Wo beide Funktions-Arbeitszahlen entstehen können, zählt der
+    Gesamtzähler NICHT mit." Das war nie der tragende Grund — die drei JAZ
+    driften auseinander, wenn der **Nenner** aus verschiedenen Quellen kommt,
+    und ``arbeitszahl_je_funktion`` nimmt dafür ausschließlich den gemessenen
+    Strom der jeweiligen Funktion (E7), nie diese Menge.
     """
     assert get_wp_strom_kwh(ZEILE_IV, LW_F5) == pytest.approx(1000.0)
-    assert set(_tages_felder(LW_F5, ZEILE_IV)) == {
-        "strom_heizen_kwh", "strom_warmwasser_kwh",
-    }, "Stufe 1 verdrängt den Gesamtzähler — sonst zählte derselbe Strom zweimal"
+    assert _tages_felder(LW_F5, ZEILE_IV) == ["stromverbrauch_kwh"], (
+        "K1 — der Gesamtzähler ist die Menge; die Achsen tragen nicht zusätzlich"
+    )
 
     assert get_wp_strom_kwh(ZEILE_V, LW_F5) == pytest.approx(1000.0)
     assert set(_tages_felder(LW_F5, ZEILE_V)) == {
         "strom_heizen_kwh", "strom_warmwasser_kwh",
     }
 
-    # #183 bleibt ausgeschlossen: Wo beide Funktions-Arbeitszahlen entstehen
-    # können, zählt der Gesamtzähler NICHT mit.
-    assert "stromverbrauch_kwh" not in _tages_felder(LW_F5, ZEILE_IV)
+
+def test_k1b_der_gesamtzaehler_traegt_auch_was_die_achsen_nicht_kennen():
+    """**Lage ix: 1145 statt 1000 — und 145 heißen „nicht aufgeteilt" (K5).**
+
+    ⭐ **Die Lage, die den Wechsel überhaupt sichtbar macht.** In Lage iv stehen
+    Gesamtzähler und Achsen auf derselben Summe; dort sagt jede der beiden
+    Regeln 1000. Erst wenn der Gesamtzähler **mehr** misst — Standby, Steuerung,
+    Umwälzpumpen —, trennt sich die alte von der neuen Antwort, und genau diese
+    Kilowattstunden fehlten bis zum 14.09.2026 in Strom, Kosten, CO₂ und
+    Arbeitszahl-Nenner (dietmar1968: 145 von 2193 kWh im Jahr).
+
+    ⚠ **1745 wäre die Doppelzählung** (1145 + 600), gegen die die alte Regel
+    einmal gebaut wurde. Sie entsteht beim Addieren, nicht beim Ersetzen.
+    """
+    zeile_ix = {**ZEILE_IV, "stromverbrauch_kwh": 1145.0}
+
+    auf = wp_strom_aufteilung(zeile_ix, LW_F5)
+    assert auf.menge_kwh == pytest.approx(1145.0)
+    assert auf.menge_kwh != pytest.approx(1000.0)
+    assert auf.menge_kwh != pytest.approx(1745.0)
+    assert auf.feine_summe_kwh == pytest.approx(1000.0)
+    assert auf.nicht_aufgeteilt_kwh == pytest.approx(145.0)
+    assert auf.stufe == "gesamt"
+    assert auf.gesamtzaehler_zu_klein is False
+
+    assert get_wp_strom_kwh(zeile_ix, LW_F5) == pytest.approx(1145.0)
+    assert _tages_felder(LW_F5, zeile_ix) == ["stromverbrauch_kwh"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -227,18 +284,47 @@ async def test_k3_eine_feine_seite_genuegt_nicht_und_die_arbeitszahl_faellt_auf_
 
 
 async def test_k3_die_gemessene_null_bleibt_eine_messung(db):
-    """**Lage viii: `is not None`, nicht truthy.**
+    """**Lage viii: `is not None`, nicht truthy — jetzt an der Aufteilung.**
 
-    Ein Warmwasser-Strom von 0,0 im Sommer ist eine Messung. Mit einer
-    truthy-Prüfung fiele diese Zeile auf den Gesamtzähler — 1000 statt 600 —,
-    und die Anlage bekäme einen Verbrauch, den sie nicht hatte.
+    Ein Warmwasser-Strom von 0,0 im Sommer ist eine **Messung**: Die Anlage hat
+    in diesem Monat kein Warmwasser bereitet. Die Aussage ist „0 kWh gingen auf
+    diese Achse", nicht „über diese Achse ist nichts bekannt".
+
+    ⛔ **Bis zum 14.09.2026 maß diese Probe die Aussage an der MENGE** — die
+    Zeile durfte nicht auf den Gesamtzähler fallen, also 600 statt 1000. Seit
+    WK-16d trägt der Gesamtzähler jede F5-Zeile, an der einer steht (K1): 1000
+    ist die Menge, und die 400 kWh Differenz sind keine erfundene Zahl, sondern
+    Standby und Steuerung, die auf **keiner** der beiden Achsen laufen.
+    **Die Substanz liegt seither eine Ebene tiefer und wird hier gemessen:** an
+    ``nicht_aufgeteilt_kwh``. Eine truthy-Prüfung würde die gemessene 0 für
+    „keine Aufteilung vorhanden" halten und den Rest auf 0 setzen — dann
+    verschwände die Aussage „diese 400 kWh liegen auf keiner Achse" wieder.
     """
-    assert get_wp_strom_kwh(ZEILE_VIII, LW_F5) == pytest.approx(600.0)
+    assert get_wp_strom_kwh(ZEILE_VIII, LW_F5) == pytest.approx(1000.0)
+
+    auf = wp_strom_aufteilung(ZEILE_VIII, LW_F5)
+    assert auf.feine_summe_kwh == pytest.approx(600.0)
+    assert auf.nicht_aufgeteilt_kwh == pytest.approx(400.0)
+
+    # Die reine Null-Achse: **nur** `strom_warmwasser_kwh: 0.0` neben dem
+    # Gesamtzähler. Truthy gelesen gäbe es hier gar keine Aufteilung und damit
+    # keinen Rest; `is not None` sagt: eine Achse ist gemessen (mit 0), der
+    # ganze Verbrauch liegt auf keiner von beiden.
+    nur_null = {"stromverbrauch_kwh": 1000.0, "strom_warmwasser_kwh": 0.0}
+    assert wp_strom_aufteilung(nur_null, LW_F5).nicht_aufgeteilt_kwh == (
+        pytest.approx(1000.0)
+    )
+    assert wp_strom_aufteilung(
+        {"stromverbrauch_kwh": 1000.0}, LW_F5,
+    ).nicht_aufgeteilt_kwh == pytest.approx(0.0), (
+        "ohne jede Achse gibt es keinen REST, sondern nur eine Menge (K5)"
+    )
 
     anlage = await _anlage_mit_wp(db, parameter=LW_F5,
                                   zeile={**ZEILE_VIII, **WAERME})
     wp = await _wp_fakt(db, anlage.id)
-    assert wp.strom_kwh == pytest.approx(600.0)
+    assert wp.strom_kwh == pytest.approx(1000.0)
+    assert wp.strom_nicht_aufgeteilt_kwh == pytest.approx(400.0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -393,9 +479,18 @@ async def test_k8_bei_vollstaendiger_feiner_achse_kuerzt_er_weiterhin_nicht(db):
     Ist der Nenner die feine Summe, verteilt der abgeleitete Split sie nur — er
     stellt nichts daneben. Der Abzug bleibt 0, die Arbeitszahl 3,0. Genau der
     Fall, für den E7/Option A am 12.09.2026 gebaut wurde.
+
+    ⛔ **Die Lage dafür ist seit WK-16d Lage v, nicht Lage iv.** Bis zum
+    14.09.2026 stand hier ``ZEILE_IV`` — Gesamtzähler **und** beide Achsen. Dort
+    ist der Nenner jetzt der Gesamtzähler (K1), also greift die **andere** Zeile
+    der Tabelle in ``funktionsfremd_abzug_kwh`` und der Abzug ist richtigerweise
+    200 (das prüft K8 darüber). Die Aussage dieser Probe hängt nicht am
+    Gesamtzähler, sondern daran, dass der Nenner eine **feine Summe** ist —
+    und die gibt es unverändert, sobald kein Gesamtzähler danebensteht.
+    Zahlen und Ergebnis sind unverändert: 1000 kWh Nenner, Arbeitszahl 3,0.
     """
     wp_d, az_d = await _az_mit_abzug(
-        db, parameter=LW_F5, zeile={**ZEILE_IV, **MODUS_ABGELEITET, **WAERME_A3},
+        db, parameter=LW_F5, zeile={**ZEILE_V, **MODUS_ABGELEITET, **WAERME_A3},
         name="N-462-D",
     )
     assert wp_d.strom_kwh == pytest.approx(1000.0)
@@ -457,9 +552,14 @@ async def test_k9_die_stufe_kommt_aus_derselben_zuordnung_wie_der_tageswert(db):
     ``aggregator.get_wp_strom_stufe_je_investition``.
 
     Sie stellt dieselbe Frage mit denselben Eingängen wie
-    ``investition_beitraege``: Registry-Achsen des Geräts, Zähler über
-    HA-Mapping **oder** MQTT. Ohne sie müsste die Faltung raten — und riete das
-    Kennzeichen.
+    ``investition_beitraege``: Zähler über HA-Mapping **oder** MQTT. Ohne sie
+    müsste die Faltung raten — und riete das Kennzeichen.
+
+    ⛔ **Die letzte Zeile hieß bis zum 14.09.2026 „fein"**: Waren alle drei
+    Felder zugeordnet, gewann die Aufteilung. Seit WK-16d gewinnt der
+    Gesamtzähler (K1) — und die Antwort hier muss mitziehen, sonst zöge der
+    Tagesstapel den Kühlstrom nicht ab, obwohl er im Bezug steckt (genau die
+    N-450-Klasse, gegen die diese Funktion gebaut wurde).
     """
     from backend.services.snapshot.aggregator import (
         get_wp_strom_stufe_je_investition,
@@ -483,12 +583,15 @@ async def test_k9_die_stufe_kommt_aus_derselben_zuordnung_wie_der_tageswert(db):
 
     assert await _stufe({"stromverbrauch_kwh"}) == "gesamt"
     assert await _stufe({"strom_heizen_kwh"}) == "fein", (
-        "Stufe 3 — ohne Gesamtzähler trägt, was gemessen ist"
+        "ohne Gesamtzähler trägt, was gemessen ist"
     )
+    assert await _stufe({
+        "strom_heizen_kwh", "strom_warmwasser_kwh",
+    }) == "fein", "auch die vollständige Achse ohne Gesamtzähler"
     assert await _stufe({"stromverbrauch_kwh", "strom_heizen_kwh"}) == "gesamt"
     assert await _stufe({
         "stromverbrauch_kwh", "strom_heizen_kwh", "strom_warmwasser_kwh",
-    }) == "fein"
+    }) == "gesamt", "K1 — der Gesamtzähler auch neben der vollständigen Achse"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -542,25 +645,35 @@ async def test_k10_der_checker_mahnt_die_fehlende_seite_unveraendert_an(
     ("ii — eine feine Seite", LW_F5,
      {"stromverbrauch_kwh", "strom_heizen_kwh"}, False),
     ("iv — beide feinen Seiten", LW_F5,
-     {"stromverbrauch_kwh", "strom_heizen_kwh", "strom_warmwasser_kwh"}, True),
+     {"stromverbrauch_kwh", "strom_heizen_kwh", "strom_warmwasser_kwh"}, False),
     ("Klimaanlage — eine Achse, mehr geht nicht", LL_F5,
      {"stromverbrauch_kwh", "strom_heizen_kwh"}, False),
 ])
 def test_k10_der_checker_nennt_den_gesamtzaehler_nicht_mehr_obsolet(
     lage, params, zugeordnet, erwartet_info,
 ):
-    """**Ein Rat, der die Zahl gelöscht hätte** — die INFO folgt jetzt der Stufe.
+    """**Ein Rat, der die Zahl gelöscht hätte** — in KEINER Lage mehr (WK-16d).
 
-    Die Meldung *„Alter Gesamt-Stromverbrauch-Sensor … obsolet"* sagt dem
-    Anwender wörtlich, der Sensor werde ignoriert und beim nächsten Speichern
-    des Mappings automatisch entfernt. **Gemessen** (13.09.2026): Sie feuerte an
-    allen drei F5-Lagen — also auch dort, wo genau dieser Sensor seit N-451 der
-    einzige Träger des Stromverbrauchs ist. Wer ihr gefolgt wäre, hätte jede
-    Monats-Sicht wieder auf 0 gesetzt.
+    Die Meldung *„Alter Gesamt-Stromverbrauch-Sensor … obsolet"* sagte dem
+    Anwender wörtlich, der Sensor werde ignoriert. **Gemessen** (13.09.2026):
+    Sie feuerte an allen drei F5-Lagen — also auch dort, wo genau dieser Sensor
+    seit N-451 der einzige Träger des Stromverbrauchs ist. Wer ihr gefolgt wäre,
+    hätte jede Monats-Sicht wieder auf 0 gesetzt.
 
-    ⚠ An einer **Split-Klimaanlage** feuert sie nie mehr: Sie hat nur eine feine
-    Achse (N-304/B5), ihre Aufteilung kann nie vollständig sein — der
-    Gesamtzähler ist dort immer die Wahrheit.
+    ⛔ **Bis zum 14.09.2026 durfte sie in Lage iv weiter feuern** (letzte
+    Spalte ``True``) — dort galt der Gesamtzähler tatsächlich als entbehrlich.
+    Mit WK-16d ist sie **ersatzlos entfallen**, weil der Zustand, den sie
+    meldete, nicht mehr eintritt: Ein zugeordneter Gesamtzähler ist die Menge
+    (K1) und die Quelle des „nicht aufgeteilt"-Rests. Wer ihn auf diesen Rat hin
+    entfernte, verlöre Standby, Steuerung und Umwälzpumpen aus der Bilanz.
+    *Dieselbe Bauform wie die F-7-Stufe-1-Warnung, die mit #406 entfiel: eine
+    Meldung ohne Defekt ist eine Falschmeldung.*
+
+    ⚠ **Die Probe bleibt, obwohl sie nur noch Abwesenheit misst** — sie ist der
+    Wächter dagegen, dass die Meldung in irgendeiner Lage zurückkehrt. Ihre
+    Gegenprobe ist der Widerspruchs-Prüfer in
+    ``test_k3_gesamtzaehler_ist_die_menge.py``: Der Checker schweigt hier nicht
+    etwa, weil er über diese Zeilen gar nichts mehr sagt.
     """
     class _Anlage:
         sensor_mapping = {"investitionen": {"7": {"felder": {
@@ -623,14 +736,38 @@ def test_k11_der_stundenverlauf_ist_nicht_mehr_leer(lage, params, zeile):
 def test_k11_die_feinen_zaehler_bleiben_die_stundenquelle_wenn_sie_tragen():
     """**Die Gegenprobe: kein zweiter Weg zu derselben Menge.**
 
-    Bei vollständiger feiner Achse liefert die Beitragsschicht die beiden
-    Summanden — und nur die. Lieferte ``_categorize_counter`` den Gesamtzähler
-    zusätzlich, stünde dieselbe Kilowattstunde zweimal in der Stunde.
+    Wo die feinen Achsen die Menge tragen, liefert die Beitragsschicht die
+    beiden Summanden — und nur die. Lieferte ``_categorize_counter`` den
+    Gesamtzähler zusätzlich, stünde dieselbe Kilowattstunde zweimal in der
+    Stunde.
+
+    ⛔ **Die Lage dafür ist seit WK-16d Lage v, nicht Lage iv.** Bis zum
+    14.09.2026 stand hier ``ZEILE_IV`` — Gesamtzähler **und** beide Achsen; dort
+    trägt jetzt der Gesamtzähler (K1), und die Stundenquelle zieht mit (das
+    prüft K11 darüber, Lage iii). Die Aussage bleibt dieselbe: **zwei Wege zu
+    derselben Menge gibt es nie.**
     """
     eintraege = investition_hourly_eintraege(
-        _Inv(LW_F5), {}, ist_verfuegbar=lambda f: f in ZEILE_IV,
+        _Inv(LW_F5), {}, ist_verfuegbar=lambda f: f in ZEILE_V,
     )
     assert {e.feld for e in eintraege} == {
         "strom_heizen_kwh", "strom_warmwasser_kwh",
     }
     assert all(e.kategorie == "verbrauch_wp" for e in eintraege)
+
+
+def test_k11b_der_stundenverlauf_folgt_dem_gesamtzaehler_neben_beiden_achsen():
+    """**Lage iv im Stundenpfad: der Gesamtzähler, und nur er.**
+
+    ⭐ **Neu mit WK-16d**, und sie ist die Hälfte, die K11 nicht abdeckt: Dort
+    stehen nur Lagen, in denen es gar keine vollständige Achse gibt. Zöge der
+    Stundenpfad hier weiter die Achsen, während Tagessumme und Monat den
+    Gesamtzähler nennen, stünden für denselben Tag wieder zwei Zahlen auf einer
+    Seite — genau der Befund N-461 vom 13.09.2026, nur mit vertauschten Rollen.
+    """
+    eintraege = investition_hourly_eintraege(
+        _Inv(LW_F5), {}, ist_verfuegbar=lambda f: f in ZEILE_IV,
+    )
+    assert [(e.feld, e.kategorie) for e in eintraege] == [
+        ("stromverbrauch_kwh", "verbrauch_wp"),
+    ]

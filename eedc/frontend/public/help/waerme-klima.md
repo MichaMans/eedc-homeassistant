@@ -263,9 +263,13 @@ Alles läuft über **Einstellungen → Datenquellen**. Dort steht je Gerät eine
 Am Gerät gibt es den Schalter **„Getrennte Strommessung"**.
 
 - **Aus** (Standard): Du ordnest **einen** Zähler zu — *Stromverbrauch*.
-- **Ein**: Du ordnest **zwei** zu — *Strom Heizen* und *Strom Warmwasser*. Der Gesamtverbrauch ist dann die Summe; ein zusätzlicher Gesamtzähler wird nicht mehr erwartet.
+- **Ein**: Du ordnest **zwei** zu — *Strom Heizen* und *Strom Warmwasser*. Ein Gesamtzähler ist daneben **nicht nötig, aber willkommen**: Hast du einen, gilt sein Wert als Verbrauch des Geräts, und die beiden Achsen sind die Aufteilung darunter.
 
-> ⭐ **Der Schalter sagt, WIE gezählt wird — nicht, OB gezählt wird.** Steht er auf *ein* und du hast **beide** getrennten Zähler zugeordnet, ist ihre Summe der Stromverbrauch des Geräts; ein zusätzlicher Gesamtzähler wird dann bewusst nicht mitgerechnet, sonst zählte dieselbe Kilowattstunde zweimal. **Hast du erst einen der beiden — oder noch keinen —, zählt weiter dein Gesamtzähler.** Ein vorhandener Zähler wird nie ignoriert, nur weil ein Schalter etwas anderes ankündigt. ⛔ **Bis September 2026 war das anders**, und ein Tester ist daran hängen geblieben: Er hatte einen Gesamtzähler und den Schalter eingeschaltet, woraufhin der Block *Wärme/Klima* in der Tagesansicht verschwand — Ausschalten hat es damals gelöst. **Dieser Handgriff ist nicht mehr nötig**, und wer den Schalter früher umgelegt hat, bekommt seine Zahlen der Vergangenheit damit zurück.
+> ⭐ **Der Schalter sagt, WIE gezählt wird — nicht, OB gezählt wird.** Ein vorhandener Zähler wird nie ignoriert, nur weil ein Schalter etwas anderes ankündigt. ⛔ **Bis September 2026 war das anders**, und ein Tester ist daran hängen geblieben: Er hatte einen Gesamtzähler und den Schalter eingeschaltet, woraufhin der Block *Wärme/Klima* in der Tagesansicht verschwand — Ausschalten hat es damals gelöst. **Dieser Handgriff ist nicht mehr nötig**, und wer den Schalter früher umgelegt hat, bekommt seine Zahlen der Vergangenheit damit zurück.
+>
+> ⭐ **Und seit September 2026 zählt der Gesamtzähler auch neben zwei vollständigen Achsen.** Eine Wärmepumpe verbraucht Strom, der auf keiner der beiden Achsen liegt: **Standby, Steuerung, Umwälzpumpen.** Bei einem Tester waren das 145 von 2193 kWh im Jahr — knapp 7 %. Hast du einen Gesamtzähler, ist **er** die Menge, mit der eedc rechnet; die Differenz zu *Strom Heizen + Strom Warmwasser* erscheint in der Aufteilung als **„nicht aufgeteilt"**. ⛔ Bis dahin wurde der Gesamtzähler in dieser Lage verworfen — *„sonst zählte dieselbe Kilowattstunde zweimal"* —, und diese Kilowattstunden fehlten in Verbrauch, Kosten, CO₂ und im Nenner der Arbeitszahl. **Doppelt gezählt wird trotzdem nichts**: eedc *ersetzt* die Summe durch den Gesamtwert, es addiert sie nicht. Deine **Arbeitszahl gesamt** fällt damit etwas niedriger aus als vorher — und ist dafür ehrlich.
+>
+> ⚠ **Nur eine Richtung ist ein Fehler.** Steht dein Gesamtzähler **unter** der Summe der beiden Achsen, sagt der Daten-Checker es dir: Dann misst er meist nur einen Teil des Geräts (nur das Außengerät, nur einen Stromkreis). eedc rechnet in solchen Monaten mit der Summe der Achsen, damit nichts verloren geht. Umgekehrt — Gesamtzähler höher — ist die normale Lage und kein Fehler; erst wenn mehr als ein Viertel des Verbrauchs auf keiner Achse liegt, **fragt** eedc einmal nach, ob der Zähler wirklich nur die Wärmepumpe misst.
 >
 > ⚠ **Die getrennten Arbeitszahlen brauchen die getrennten Zähler trotzdem.** Ohne *Strom Heizen* gibt es keine *Arbeitszahl Heizen*, ohne *Strom Warmwasser* keine *Arbeitszahl Warmwasser* — der Gesamtzähler kann nicht sagen, welcher Teil wohin ging. Der Bilanzwert stimmt also auch mit nur einem Zähler; **getrennt** wird erst, was getrennt gemessen ist.
 >
@@ -537,6 +541,8 @@ Heizen 3000 kWh Wärme auf 750 kWh Strom · Warmwasser 600 auf 200 · Kühlen 10
 
 ⭐ **Der Kühlstrom steht in keinem der Nenner.** Er gehört zu einer Nutzenergie, die hier nicht gemessen wird. Stünde er drin, sähe die Anlage im Sommer aus wie eine schlechte Heizung.
 
+> ⚑ **Und wenn du zusätzlich einen Gesamtzähler hast?** Dann gilt **er** als Verbrauch des Geräts. Steht er auf 1050 kWh — also genau auf der Summe der drei —, ändert sich nichts: 3,79 bleibt 3,79. Steht er höher, ist die Differenz dein **Systemverbrauch** (Standby, Steuerung, Umwälzpumpen): Sie erscheint in der Aufteilung als *„nicht aufgeteilt"*, zählt in Verbrauch, Kosten und CO₂ mit und steht im Nenner der Arbeitszahl gesamt. Bei 1145 kWh wären das 95 kWh und **3,44** statt 3,79. Die beiden Zahlen je Funktion bleiben unverändert — ihr Nenner ist der jeweils eigene Zähler.
+
 ### B2 — Getrennte Zähler für Heizung und Warmwasser, Betriebsmodus-Sensor, **kein** Kühlzähler
 
 Dieselbe Anlage wie B, nur ohne den dritten Zähler: Heizen 3000 kWh Wärme auf 750 kWh Strom · Warmwasser 600 auf 200. Gesamtstrom **950 kWh** — mehr misst diese Anlage nicht. Dazu ein Betriebsmodus-Sensor, aus dem eedc stündlich mitschreibt, was das Gerät gerade tat.
@@ -550,7 +556,7 @@ Dieselbe Anlage wie B, nur ohne den dritten Zähler: Heizen 3000 kWh Wärme auf 
 
 **Was eedc hier rechnet:** Es verteilt die **vorhandenen** 950 kWh nach dem Betriebsmodus. Die 100 kWh „Kühlen" sind kein vierter Zähler, sondern ein Ausschnitt aus den beiden vorhandenen.
 
-**Was eedc dafür voraussetzt:** dass diese beiden Zähler den Kühlbetrieb **nicht** getrennt führen — sie sind alles, was das Gerät an Strommessung hat.
+**Was eedc dafür voraussetzt:** dass diese beiden Zähler den Kühlbetrieb **nicht** getrennt führen — sie sind alles, was das Gerät an Strommessung hat. ⚑ **Und genau deshalb steht in dieser Lage kein Gesamtzähler daneben.** Hättest du einen, wäre **er** die Menge (s. [Schritt 2](#schritt-2--entscheiden-ein-zähler-oder-getrennte)), der Kühlanteil steckte darin und würde vom Nenner abgezogen — du wärst rechnerisch in Fall B, ohne den dritten Zähler zu haben.
 
 ⭐ **Deshalb kürzt der Kühlanteil hier keinen Nenner.** In Fall B ist er ein eigener Zähler *neben* den anderen beiden, dort wird er abgezogen. Hier ist er eine **Verteilung** derselben 950 kWh — ihn abzuziehen hieße, um eine Menge zu kürzen, die nie hinzukam. Beide Anlagen zeigen deshalb dieselbe Zahl **3,79**, obwohl die eine einen Zähler mehr hat.
 
@@ -649,6 +655,12 @@ Richtig — und seit v4.0.29 steht darunter, warum: **„Aufgeteilte Menge: 30 v
 
 **„‚Nicht aufgeteilt' ist fast alles — die Aufteilung ist kaputt."**
 Meistens nicht. *Nicht aufgeteilt* ist Standby, alles, was weder Heizen noch Kühlen war, **und die Zeit, in der eedc keinen Modus mitlesen konnte**. Bei einem Gerät, das überwiegend aus war, ist ein hoher Anteil die Wahrheit. Die Zeile *Modus erfasst* sagt dir, wie lange mitgelesen wurde.
+
+**„Ich sehe ‚nicht aufgeteilt' an zwei Stellen mit verschiedenen Zahlen."**
+Das ist kein Widerspruch — deine Kilowattstunden werden auf **zwei** Weisen aufgeteilt, und jede lässt ihren eigenen Rest übrig. Die eine Aufteilung ist **nach Funktion**: *Strom Heizen* und *Strom Warmwasser*; ihr Rest ist das, was dein Gesamtzähler mehr misst als die beiden zusammen — Standby, Steuerung, Umwälzpumpen. Die andere ist **nach Betriebsart**: Heizen, Kühlen, Lüften, Entfeuchten; ihr Rest sind die Stunden, in denen eedc keinen Modus mitlesen konnte. **Beide sind richtig, und sie werden nie addiert.** Hast du nur eine der beiden Aufteilungen, siehst du auch nur einen Rest.
+
+**„Meine Arbeitszahl ist mit dem Update kleiner geworden, obwohl ich nichts geändert habe."**
+Wenn du **getrennte Zähler und zusätzlich einen Gesamtzähler** führst: Ja, und das war eine Korrektur. Bis September 2026 hat eedc den Gesamtzähler in dieser Lage weggeworfen und mit *Strom Heizen + Strom Warmwasser* gerechnet. Alles, was dein Gerät darüber hinaus zieht — Standby, Steuerung, Umwälzpumpen —, fehlte damit im Verbrauch, in den Kosten, in der CO₂-Bilanz und im Nenner der Arbeitszahl. Jetzt zählt der Gesamtzähler, die Differenz steht als *„nicht aufgeteilt"* daneben, und die Arbeitszahl gesamt fällt entsprechend niedriger aus. **Deine Zahlen je Funktion ändern sich nicht** — die rechnen weiter mit dem jeweils eigenen Zähler. ⚑ Steht dein Gesamtzähler genau auf der Summe der beiden Achsen, ändert sich gar nichts.
 
 **„Meine Arbeitszahl ist plötzlich niedriger geworden."**
 Wenn du getrennte Zähler samt Kühlmessung führst: Ja, und das war eine Korrektur. Bis v4.0.28 fehlte der Kühlstrom im Verbrauch der Wärmepumpe und wurde zugleich ein zweites Mal aus dem Nenner gezogen — die Arbeitszahl fiel rund 12 % zu gut aus. Der Verbrauch steigt jetzt um den Kühlanteil, die Zahl sinkt auf ihren richtigen Wert.

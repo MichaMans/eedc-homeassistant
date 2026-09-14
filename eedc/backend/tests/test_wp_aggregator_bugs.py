@@ -128,8 +128,8 @@ def _stundenfelder(parameter, zugeordnet: set[str]) -> set[str]:
 
 
 def test_kategorisierung_wp_getrennt_strommessung():
-    """Bei getrennte_strommessung zählen die feinen Zähler — **und** der
-    Gesamtzähler, wenn die feinen unvollständig sind (N-461, 13.09.2026).
+    """Bei getrennte_strommessung zählen die feinen Zähler — **oder** der
+    Gesamtzähler, sobald einer zugeordnet ist (N-461, 13.09.2026; WK-16d).
 
     ⛔ **Hier stand bis dahin `_categorize_counter(…, p_split) is None` für
     `stromverbrauch_kwh`**, und die Substanz *„bei Split zählen die feinen"*
@@ -144,11 +144,19 @@ def test_kategorisierung_wp_getrennt_strommessung():
     """
     p_split = {"wp_art": "luft_wasser", "getrennte_strommessung": True}
 
-    # Beide feinen Zähler zugeordnet ⇒ sie sind die Wahrheit, der Gesamtzähler
-    # wird verworfen (sonst Doppelzählung — die alte Aussage, unverändert).
+    # Nur die feinen Zähler ⇒ sie sind die einzige Messung und tragen beide.
+    assert _stundenfelder(p_split, {
+        "strom_heizen_kwh", "strom_warmwasser_kwh",
+    }) == {"strom_heizen_kwh", "strom_warmwasser_kwh"}
+
+    # ⛔ **Hier stand bis zum 14.09.2026 derselbe Fall MIT `stromverbrauch_kwh`
+    # und der Erwartung, die beiden feinen Zähler trügen ihn.** Die Substanz —
+    # **eine** Seite trägt, nie beide, sonst steht dieselbe Kilowattstunde
+    # zweimal in der Stunde — ist unverändert; seit WK-16d gewinnt der
+    # Gesamtzähler (K1). Er zählt jetzt in JEDER dieser drei Lagen.
     assert _stundenfelder(p_split, {
         "strom_heizen_kwh", "strom_warmwasser_kwh", "stromverbrauch_kwh",
-    }) == {"strom_heizen_kwh", "strom_warmwasser_kwh"}
+    }) == {"stromverbrauch_kwh"}
 
     # Feine Achse unvollständig ⇒ der Gesamtzähler trägt (K3) — und der
     # Stundenverlauf zeigt dieselbe Menge wie die Tagessumme.

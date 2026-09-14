@@ -296,16 +296,23 @@ def funktionsfremd_abzug_kwh(zeile: ModusStromZeile, *, hat_split: bool) -> floa
     und die Betriebsart-Balken lesen weiterhin die Definition und dürfen sich
     nicht mitverändern (K1: die Mengen bleiben unberührt).
 
-    **Die drei Lagen, an der Additionsseite abgelesen** (`get_wp_strom_kwh`,
+    **Die vier Lagen, an der Additionsseite abgelesen** (`wp_strom_aufteilung`,
     `field_definitions.py` — sie trifft dieselbe Unterscheidung bereits, und
     Option A stellt nur die Symmetrie her, die dort schon steht):
 
     | Zweig | im Nenner enthalten? | Abzug |
     | --- | --- | --- |
     | **ohne** getrennte Strommessung | ja — ``stromverbrauch_kwh`` ist der Zählerstand des ganzen Geräts | ganz (**W-14**) |
-    | F5 **mit gemessenem** Betriebsart-Zähler | ja — ``get_wp_strom_kwh`` addiert ihn (**W-16**) | ganz (**W-16b**) |
-    | F5 mit **abgeleitetem** Split **und vollständiger feiner Achse** | **nein** — der Split *verteilt* ``strom_heizen_kwh + strom_warmwasser_kwh``, er stellt nichts daneben | **0** |
-    | F5 mit **abgeleitetem** Split, feine Achse **unvollständig** | ja — der Nenner ist dann der **Gesamtzähler** (K3), und der trägt den Kühlstrom wie in Zeile 1 | **ganz** |
+    | F5, Stufe **„gesamt"** (ein Gesamtzähler ist zugeordnet bzw. gepflegt) | ja — der Nenner **ist** der Gesamtzähler (K1), und der trägt den Kühlstrom wie in Zeile 1 | **ganz** |
+    | F5, Stufe **„fein"**, **mit gemessenem** Betriebsart-Zähler | ja — die Menge addiert ihn zu den Achsen (**W-16**) | ganz (**W-16b**) |
+    | F5, Stufe **„fein"**, **abgeleiteter** Split | **nein** — der Split *verteilt* ``strom_heizen_kwh + strom_warmwasser_kwh``, er stellt nichts daneben | **0** |
+
+    ⭐ **Die zweite Zeile hieß bis zum 14.09.2026 „feine Achse unvollständig"**
+    und die vierte „**und vollständiger** feiner Achse". Seit WK-16d entscheidet
+    nicht mehr die Vollständigkeit der Achse, sondern ob ein Gesamtzähler da
+    ist — er ist dann die Menge (K1), auch neben zwei gepflegten Achsen. Die
+    Regel hier ist unverändert: *abgezogen wird, was im Nenner steht*; nur die
+    Lage, in der das zutrifft, ist häufiger geworden.
 
     ⭐ **Warum der dritte Fall keine Ausnahme, sondern derselbe Grundsatz ist**
     (SOLL §4.1, *„Ergänzung zu E7"*, Entscheid Gernot 12.09.2026 — Option A):
@@ -350,9 +357,10 @@ def funktionsfremd_abzug_kwh(zeile: ModusStromZeile, *, hat_split: bool) -> floa
         zeile: die aufgelöste Betriebsart-Zeile dieses Geräts.
         hat_split: **ist der Nenner dieser Zeile die feine Summe?** Also die
             Stufe, die {@link
-            backend.core.field_definitions.get_wp_strom_kwh} gewählt hat —
+            backend.core.field_definitions.wp_strom_aufteilung} gewählt hat —
             nicht das Kennzeichen. Die Aufrufer holen sie aus
-            ``field_definitions.nenner_ist_feine_summe`` (Monatszeile) bzw. aus
+            ``field_definitions.nenner_ist_feine_summe`` bzw. direkt aus
+            ``wp_strom_aufteilung(...).stufe`` (Monatszeile) und aus
             ``aggregator.get_wp_strom_stufe_je_investition`` (Tag).
             ⛔ **Je Gerät, nie anlagenweit** — eine Anlage darf ein F5-Gerät
             neben einem nicht-F5-Gerät haben, und die Regel entscheidet für

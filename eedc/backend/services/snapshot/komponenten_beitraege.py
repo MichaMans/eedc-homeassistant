@@ -344,25 +344,22 @@ def investition_beitraege(
         #
         # **Die Regel entscheidet jetzt am Zähler, nicht am Kennzeichen:**
         #
-        #   1. Die feine Aufteilung ist **vollständig** (jede Achse, die das
-        #      Gerät überhaupt hat, ist belegt) ⇒ sie IST die Gesamtmenge, der
-        #      Gesamtzähler wird verworfen. Sonst zählte derselbe Strom
-        #      doppelt — alle Beiträge laufen auf EINEN Ziel-Key.
-        #   2. Sonst gilt K1: *„Die Gesamtmenge ist immer die Wahrheit."*
-        #   3. Sonst trägt, was gemessen ist — eine unvollständige Aufteilung
-        #      ohne Gesamtzähler ist die einzige Messung, die es gibt.
-        #      Sie zu verwerfen hieße den Block verschwinden zu lassen, und
-        #      das ist genau der Befund, der hier repariert wird.
+        #   1. Ein zugeordneter **Gesamtzähler ist die Menge** (K1: *„Die
+        #      Gesamtmenge ist immer die Wahrheit."*). Die feinen Achsen sind
+        #      die Aufteilung darunter und laufen deshalb NICHT zusätzlich in
+        #      denselben Ziel-Key — das wäre die Doppelzählung.
+        #   2. Sonst trägt, was gemessen ist — eine (auch unvollständige)
+        #      Aufteilung ohne Gesamtzähler ist die einzige Messung, die es
+        #      gibt. Sie zu verwerfen hieße den Block verschwinden zu lassen,
+        #      und das ist genau der Befund, der hier repariert wurde.
         #
-        # ⚠ **Warum die Achsen aus der Registry kommen und nicht aus der
-        # Bauart:** Eine Split-Klimaanlage hat keinen Warmwasserkreis
-        # (`strom_warmwasser_kwh` trägt `!luft_luft`, N-304/B5). Ihre feine
-        # Aufteilung kann deshalb **nie** vollständig sein — sie fällt auf
-        # Stufe 2, und das ist richtig: `strom_heizen_kwh` ist dort kein
-        # Summand einer zweiteiligen Achse, sondern ein Ausschnitt neben
-        # Kühlen, Lüften und Standby. Die Frage *„welche Achsen hat dieses
-        # Gerät?"* wird an genau einer Stelle beantwortet (R1) — hier sie ein
-        # zweites Mal zu beantworten wäre die F-56-Klasse.
+        # ⛔ **Hier stand bis zum 14.09.2026 eine erste Stufe davor: „Die feine
+        # Aufteilung ist vollständig ⇒ sie IST die Gesamtmenge, der
+        # Gesamtzähler wird verworfen."** Sie ist mit WK-16d entfallen, weil sie
+        # eine Messung verwarf: Was der Gesamtzähler **mehr** misst als die
+        # beiden Achsen (Standby, Steuerung, Umwälzpumpen), fiel damit aus Tag,
+        # Monat, Kosten und CO₂ heraus. Doppelzählung entsteht beim **Addieren**,
+        # nicht beim **Ersetzen** — und ersetzt wird hier, genau wie vorher.
         #
         # ⚠ **Die Aufteilung geht nicht verloren, sie steht nur woanders:**
         # `aggregator.get_tagesdetail_kwh` trägt `strom_heizen_kwh`/
@@ -374,13 +371,16 @@ def investition_beitraege(
         # nebeneinander wären die F-56-Klasse. Was hier bleibt, sind die
         # **Eingänge** dieser Ebene — der Tag fragt „ist ein Zähler zugeordnet?",
         # der Monat „steht ein Wert in der Zeile?".
+        #
+        # ⚠ **Deshalb bleiben `gesamt_kwh`/`feine_summe_kwh` hier leer.** Auf
+        # der Zuordnungs-Ebene gibt es keine Werte, also auch keinen
+        # Widerspruch „Gesamtzähler kleiner als die Summe" zu prüfen — den
+        # meldet der Daten-Checker an der Monatszeile, wo die Zahlen stehen.
         params = getattr(inv, "parameter", None) or {}
         if not isinstance(params, dict):
             params = {}
         fein_belegt = [f for f in feine_strom_achsen(params) if ist_verfuegbar(f)]
         if wp_strom_stufe(
-            params,
-            ist_belegt=ist_verfuegbar,
             hat_gesamtzaehler=ist_verfuegbar("stromverbrauch_kwh"),
         ) == "gesamt":
             _add("stromverbrauch_kwh")
