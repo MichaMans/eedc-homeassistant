@@ -538,9 +538,17 @@ def test_eine_zelle_mit_zahl_bringt_nichts_in_den_kasten():
 
 
 def test_die_anlagenweiten_zeilen_stehen_vor_den_geraete_zeilen():
-    """Die Reihenfolge ist die des Blocks: erst die Anlage, dann die Geräte."""
+    """Die Reihenfolge ist die des Blocks: erst die Anlage, dann die Geräte.
+
+    ⚠ **Die beiden Zeilen erklären seit WK-16j verschiedene Größen**, und das
+    ist kein Kosmetik-Eingriff an der Probe: **R-5** lässt je Größe genau eine
+    Auskunft stehen, und das ist die mit dem Gerätenamen. Die alte Fassung
+    fragte beide Zeilen für *dieselbe* Größe ab — sie war damit nur so lange
+    wahr, wie der Kasten die Auskunft doppelt führte. **Die Substanz der Probe
+    ist die Reihenfolge**, und die misst sie unverändert.
+    """
     zeilen = was_noch_moeglich(
-        [("Arbeitszahl", GRUND_STROM_NICHT_JE_FUNKTION)],
+        [("Arbeitszahl Kühlen", GRUND_STROM_NICHT_JE_FUNKTION)],
         [_zeile(name="Bosch", achsen=[HEIZEN],
                 jaz=None, jaz_grund=GRUND_KEINE_WAERMEMESSUNG)],
     )

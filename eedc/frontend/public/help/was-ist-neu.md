@@ -1339,6 +1339,36 @@ für sich zeigt. Die Zahlen je Gerät bleiben davon unberührt.
 **Was du tun musst:** nichts. Werte, die du selbst gepflegt oder importiert
 hast, gewinnen unverändert.
 
+### Cockpit → Tag prüft jetzt dasselbe wie Cockpit → Monat
+
+**Betrifft dich das?** Ja, wenn du **mehrere** Wärmepumpen oder eine
+Brauchwasser-Wärmepumpe hast und *Cockpit → Tag* aufmachst.
+
+**Was war:** Im Tag standen *Arbeitszahl Heizen* und *Arbeitszahl Warmwasser*
+auch dort, wo Wärme und Strom einer Funktion von **verschiedenen** Geräten
+stammen — die Zahl bedeutet dann nichts. *Cockpit → Monat* sagte für dieselbe
+Anlage längst, warum es sie nicht gibt; der Tag holte diese Prüfung aus der
+gespeicherten Monatszeile, und die gibt es im laufenden Monat nicht.
+
+**Was jetzt:** Der Tag prüft an seinen **eigenen** Gerätewerten — dieselbe
+Rechnung wie der Monat, eine Zeitebene tiefer. Wo es sich deckt, steht die Zahl;
+wo nicht, der Grund samt Weg in den Komponenten-Hub.
+
+⭐ **Eine Brauchwasser-Wärmepumpe blockiert dabei nichts mehr.** Sie hat nur eine
+Funktion — ihr **ganzer** Strom ist Warmwasser-Strom, auch ohne getrennte
+Zähler. eedc rechnet ihn jetzt auch anlagenweit als solchen: Eine Anlage aus
+Wärmepumpe und Brauchwasser-WP bekommt ihre *Arbeitszahl Warmwasser* aus Wärme
+**und** Strom beider Geräte. ⚠ Für eine Klimaanlage gilt das nicht — sie kühlt
+auch, ihr Strom gehört nicht ganz zum Heizen.
+
+⭐ **Und im Kasten *Was noch möglich wäre* steht je Größe genau eine Auskunft** —
+die mit dem Gerätenamen. Vorher standen dort zwei Zeilen für dieselbe Größe, und
+die allgemeinere empfahl etwas an einem Gerät, an dem es nichts zu tun gibt.
+
+**Was du tun musst:** nichts. ⚠ Im Tag kann jetzt ein Grund stehen, wo vorher
+eine Zahl stand — sie war nicht belastbar, und es ist derselbe Grund, den
+derselbe Monat nach seinem Abschluss nennt.
+
 ### Der erste Tag und der heutige zeigen jetzt Zahlen
 
 **Betrifft dich das?** Ja, wenn du *Cockpit → Tag* am Tag der Zuordnung oder für

@@ -579,6 +579,12 @@ einem Tag allein die Klimaanlage Strom bei, gibt es anlagenweit keine Warmwasser
 auch keine Kasten-Zeile *„Getrennte Strommessung einschalten und beide Zähler zuordnen"*, die an
 diesem Gerät ins Leere führte (gemessen Demo-Anlage r28, 15.06.2026).
 
+⭐ **Und die Regel gilt anlagenweit auch für die MENGEN** (15.09.2026, N-506): Ein Gerät mit genau
+einer Achse steht mit `waerme_kwh` und `strom_kwh` auf **beiden** Seiten dieser Achse
+(`waerme_klima_block.py::funktions_eingaenge_der_anlage`). Ohne das trüge die Brauchwasser-WP ihre
+Wärme in den Zähler und ihren Strom in keinen Nenner — die Zahl je Gerät (3,31) und die Auskunft
+darüber widersprächen einander. Bedingung und Grenzen: [§7](#7-mehrere-geräte).
+
 ### 5.2 Woher der Nenner kommen darf
 
 > **SOLL-§9-E7 (Entscheid Gernot, 12.09.2026):** Der Nenner einer Funktions-Arbeitszahl ist der
@@ -877,6 +883,26 @@ Gerät — und der Grund daneben war falsch.
    Stromverbrauch erfasst"*. ⛔ Ist **gar kein** Stromzähler zugeordnet, bleibt der alte Satz samt
    Handgriff: der W-18-Wortlaut spräche dort von einem *Wärme*mengenzähler.
 
+7. **Die Deckung je Funktion prüft der Tag an seinen EIGENEN Geräte-Kennzahlen** (15.09.2026,
+   N-506) — derselbe Aufruf wie der Monat (`waerme_klima_block.funktions_eingaenge_der_anlage`,
+   [S5 Punkt 6](#61-die-regeln-für-alle-sichten)), nicht die Monats-Näherung. ⛔ **Der Grund ist
+   gemessen:** Die Näherung ist im **laufenden** Monat leer — es gibt dort keine `Monatsdaten`-Zeile
+   —, und damit fiel jede R2-Sperre aus. An der nachgestellten Prüfstand-Anlage (r28,
+   `tag-detail?datum=2026-09-10`) standen *Arbeitszahl Heizen* **3,346** und *Warmwasser* **4,211**
+   ohne jeden Grund, während *Cockpit → Monat* derselben Anlage mit dem zutreffenden Satz sperrte
+   und derselbe Monat sie nach seinem Abschluss ebenfalls sperrt (Juli, August 2026). **Eine
+   Deckungs-Aussage kommt aus denselben Mengen, die die Zahl bildet** — sonst bewacht sie eine
+   andere Rechnung, als sie sieht. Deshalb stehen die Geräte-Kennzahlen des Tages im Code **vor**
+   der Deckung, und deshalb kommt auch der **Nenner** der Funktions-Arbeitszahl aus derselben
+   Faltung (sie kennt die Ein-Achsen-Regel, [5.1a](#51a--die-achsen-des-geräts-entscheiden-welche-funktions-zahl-es-gibt-e1--r1-15092026),
+   die Tages-Summe nicht).
+   ⚠ **Die Kühl-Deckung bleibt, wie sie ist** — sie zählt seit Bauschnitt 6 am Tag selbst und
+   beidseitig; die Faltung beantwortet *kuehlen* ausdrücklich nicht.
+   ⚠ **Der Zähler bleibt die Tagessumme**, und das ist keine Inkonsequenz, sondern Deckung: Die
+   Faltung sieht nur die Geräte mit **Strom**-Beitrag des Tages, die Tagessumme jedes Gerät mit
+   Wärme (r27/Demo, 05.12.2025: 29,9 kWh Heizwärme ohne einen einzigen Stromstand). Eine Kachel darf
+   nicht schrumpfen, weil ein Nachbargerät seinen Zähler hat.
+
 ⚠ **Die ehrliche Grenze, die bleibt:** Kachel *„Strom verbraucht"* (Σ der Stundenspalte) und
 Arbeitszahl-Nenner (Randdifferenz) messen weiterhin zwei um eine Stunde versetzte Fenster
 ([6.3](#63-die-fenster--warum-tag-und-monat-um-eine-stunde-auseinanderliegen)). An einem vollen Tag
@@ -1092,6 +1118,58 @@ deren Zähler und Nenner nicht dasselbe Gerät meinen. **Den Grund nennt die Vor
 gemessen"*, anlagenweit der genauere Satz *„Nutzenergie und Strom dieser Funktion stammen von
 verschiedenen Geräten"* (gemessen 14.09.2026 an der nachgestellten Prüfstand-Anlage). Monat und
 Tag entscheiden das gleich (ODER über die Geräte).
+
+> ### ⭐ **Die Ein-Achsen-Regel gilt anlagenweit gleich — auch für die MENGEN** (15.09.2026, N-506)
+>
+> **Ein Gerät mit genau einer Wärme-Achse steht mit `waerme_kwh` und `strom_kwh` auf beiden Seiten
+> dieser Achse** — Nutzenergie *und* Strom. Das ist [5.1a](#51a--die-achsen-des-geräts-entscheiden-welche-funktions-zahl-es-gibt-e1--r1-15092026)
+> eine Ebene höher: Was je Gerät die Funktions-Arbeitszahl trägt, muss anlagenweit auch die Mengen
+> tragen, aus denen sie entsteht.
+>
+> ⛔ **Sonst widerspricht der Block sich selbst.** Gemessen an der Prüfstand-Anlage (r28, September
+> 2026): Die Brauchwasser-WP steuerte ihre 60,8 kWh Warmwasser-**Wärme** bei, ihre 18,4 kWh Strom
+> **nicht** — er steht unter `stromverbrauch_kwh`, nicht unter `strom_warmwasser_kwh`. Die Deckung
+> Warmwasser fiel damit auch an einer Anlage, an der es nichts zu beanstanden gibt, und im Kasten
+> stand ein Handgriff (*„Getrennte Strommessung am zweiten Gerät einschalten"*) für ein Gerät
+> **ohne zweite Funktion** — während die Tabelle darunter für dasselbe Gerät **3,31** zeigte.
+>
+> ⚠ **Sie ersetzt einen Grund, nie eine Zahl** (wie je Gerät): Wo die feinen Zähler **beide**
+> Seiten hergeben, bleiben sie stehen — sie sind eine Messung *dieser* Funktion, der Gesamtzähler
+> wäre der gröbere Nenner (K1).
+>
+> ⛔ **Und sie greift nicht, wo funktionsfremder Strom gemessen ist.** Der tragende Satz lautet
+> *„sein ganzer Strom **ist** der Strom dieser Achse"* — er gilt einem Gerät ohne zweite
+> **Funktion**, nicht jedem mit einer Wärme-**Achse**. Eine Split-Klimaanlage hat nach der Registry
+> nur *Heizen* (kein Warmwasserkreis, N-304), **kühlt** aber; ihren Junistrom als *Strom Heizen*
+> auszuweisen wäre eine Falschaussage über eine Menge (gemessen r28/Demo, 15.06.2026: **2,15 kWh**).
+> ⚠ Gefragt wird die **Messung** (`modus_strom_kuehlen_kwh`, `funktionsfremd_abzug_kwh`), nicht die
+> Bauart (ADR-002/**P13**). Ohne Betriebsart-Zähler weiß eedc von einem Kühlbetrieb nichts — dort
+> greift die Regel wie bei einem Ein-Funktions-Gerät; dieselbe Annahme trifft die Kennzahl je Gerät.
+
+> ### ⭐ **Der Kasten führt je Größe genau eine Auskunft — die mit der Adresse** (15.09.2026)
+>
+> **Steht für eine Größe eine Geräte-Zeile im Kasten, entfällt dort die generische.** Sie sagt
+> dasselbe ohne Adresse, und ihr Handgriff kann sogar in die Irre führen. Gemessen (r28/Prüfstand,
+> September 2026, *Cockpit → Monat*) standen **zwei** Zeilen für **dieselben** zwei Größen:
+>
+> * *„Arbeitszahl Heizen · Arbeitszahl Warmwasser — Nutzenergie und Strom dieser Funktion stammen
+>   von verschiedenen Geräten → Getrennte Strommessung am zweiten Gerät einschalten …"*
+> * *„Arbeitszahl Heizen · Arbeitszahl Warmwasser — Vaillant aroTHERM plus: Wärme nicht je Funktion
+>   gemessen → Einen zweiten Wärmemengenzähler setzen …"*
+>
+> Die erste zeigte auf die Brauchwasser-WP, die keine zweite Funktion hat; die zweite nennt das
+> Gerät, an dem es wirklich etwas zu tun gibt. **Ein Handgriff darf nie auf ein Gerät zeigen, das
+> die Achse nicht hat.**
+>
+> ⛔ **Die Gegenrichtung bleibt unverändert:** Trägt die Geräte-Zeile **denselben** Grund,
+> verschwindet *sie* (Dedup seit WK-16h) — der Gerätename brächte dann keine neue Auskunft. Die
+> Regel greift also genau dort, wo die beiden Sätze **verschieden** sind.
+>
+> ⚠ **Die Größe bleibt im Kasten**, nur in der anderen Zeile: Der Client fragt über den
+> Größen-**Namen** (`imKasten`), nie über den Text — es kommt keine Kachel zurück (**D-Sicht 1**).
+> ⚠ Ein **Zeitraum**-Grund am Gerät verdrängt nichts: Er steht als „—" an der Kachel und nie im
+> Kasten, erklärt dort also auch nichts (gemessen r28/Demo, Juni 2026 — ohne diese Unterscheidung
+> fiel die richtige Zeile *„Arbeitszahl Kühlen — kein Kältemengenzähler zugeordnet"* weg).
 
 **E1 (Entscheid Gernot, 26.08.2026): Geräte verschiedener Bauart werden nicht zu einer Kennzahl
 zusammengefasst.** Eine Luft-Wasser-Wärmepumpe und eine Split-Klimaanlage haben verschiedene
@@ -1506,6 +1584,8 @@ oder im Bericht, nicht hier.
 | **S6 — der Tag sagt, was er abdeckt, und liest wie der Monat** (R-4 · R-5) | Rückfall in `services/snapshot/aggregator.py::_tagesdetail_boundary_diff_mit_grund` (`rueckfall_tagesrand`, **Schalter**) + `reader.py::letzter_stand_im_fenster`; die n-gegen-1-Präzedenz je Gerät in `core/berechnungen/wp_tages_praezedenz.py::loese_wp_tagesstrom_auf`; Wortlaut der Marke in `core/tageswert_grund.py::tages_abdeckung_hinweis`; der Strom-Grund in `waermepumpe_kennzahl.py::systemarbeitszahl(strom_fehlt_grund=…)`; Anzeige `KomponentenSektionen.tsx` (Untertitel an der Basis-Größe) | Backend `test_wk16g_tag_liest_wie_der_monat.py::TestR4Tagesrand` (8 Proben: erster Tag · laufender Tag · **kein Stand ⇒ Grund bleibt** · voller Tag bitgleich · Rücksprung · **der Rand knapp vor dem Tag**, die geschärfte Fassung nach Sprengsatz S9 · ein Stand ist kein Fenster · die Betriebsart-Zähler im selben Fenster) · `::TestR4StummerGesamtzaehler` (3: stumm ⇒ Achsen tragen · sprechend ⇒ K1 · **Tageszeile schlägt Tagesrand**) · `::TestR5EinBildschirm` (2 mit Gegenprobe); Client `KomponentenSektionen.wk16g-abdeckung.test.tsx` (4: Satz da · genau einmal · Gegenprobe · **die Naht** `baueTagAlsMonat`) | Regression |
 | **S5 — fünf Quellen im laufenden Monat, und die leere Kachel nennt ihren Grund** | Präzedenz in `core/berechnungen/datenquellen.py` (`merge_datenquellen(tagesebene=…)`, `mqtt_teilzeitraum_felder`), Rückfall in `services/snapshot/reader.py::delta_mit_rand` + `mqtt_energy_history_service.py::mqtt_monats_mengen`, fünfte Quelle in `aktueller_monat.py::_collect_tagesebene_data`, **Wärme/Klima je Gerät** in `services/energie_profil/waerme_verlauf.py::lade_waerme_monatsmengen_je_geraet` (derselbe Leser wie der Verlauf), Wortlaut in `core/monatswert_grund.py` | Backend `test_n472_laufender_monat_quellen.py` (25 Proben: Rückfall nennt seinen Zeitpunkt · **ohne Schalter bitgleich** (F-66) · Stand am Ersten bitgleich · **Rücksprung bekommt keinen Rückfall, auch mit Rand knapp vor dem Monat** · Tagesebene füllt nur Lücken · gespeicherte Zeile schlägt sie · Komponentenwert ersetzt sie (#361-Klasse) · abgeschlossener Monat bleibt aus · Abdeckung wird ausgewiesen · Grund nur an den Basis-Größen · **WP-Strom/Wärme/JAZ aus der Tagesebene** · **Tabelle je Gerät ohne Monatszeile** · **gepflegte Zeile schlägt sie auch bei der WP** · ohne Tagesspur bleibt es beim Grund); Client `src/v4/MonatBilanz.test.tsx` (Grund-Gruppe, 3 Proben) + `src/v4/ProvenanzQuellen.test.tsx` (MQTT-Teilzeitraum · „Tageswerte" schweigt ab dem Ersten) | Regression |
 | **S5 anlagenweit — die Eingänge der Funktions-Arbeitszahl aus denselben Geräte-Mengen** (WK-16i, N-503) | **Eine** Faltung in `services/waerme_klima_block.py::funktions_eingaenge_der_anlage` (Σ über die Geräte mit der Achse · *Beitrag statt Bestand* · `hat_split` · `waerme_ist_gesamt` · Deckung je Funktion über den Layer-SoT `deckung_aus_geraeten`), die S5-Weiche `::traegt_menge` für **beide** Fragen (je Gerät und anlagenweit), Aufruf in `aktueller_monat.py` — beide Herkünfte tragen dieselben Feldnamen, deshalb **ein** Codeweg | `test_wk16i_laufender_monat_funktionen.py` (19 Proben: Achsen-Filter in Faltung **und** Route · Beitrag statt Bestand · `waerme_ist_gesamt` · Deckung als Identitäts-Vergleich (drei Lagen) · **Kühlen beantwortet sie nicht** · leere Faltung sagt nichts (P4) · Vokabular-Wächter über beide Herkünfte · der Kasten widerspricht der Tabelle nicht mehr · Deckung je Funktion statt je Block · **die Monatszeile gewinnt, auch wo die Faltung strenger wäre** · ohne Tagesspur bleibt der alte Grund · abgeschlossener Monat liest die Zeile); dazu 24 Antworten aus r27/r28 gegen HEAD, **23 bitgleich** | Regression |
+| **Der Tag prüft die Deckung an seinen eigenen Geräte-Kennzahlen** (WK-16j, N-506) | **derselbe** Aufruf wie der Monat — `api/routes/energie_profil/views.py` ruft `waerme_klima_block.funktions_eingaenge_der_anlage`, und der Block mit den Geräte-Kennzahlen steht dafür **vor** der Deckung; der **Nenner** der Funktions-Arbeitszahl kommt aus derselben Faltung, der **Zähler** bleibt die Tagessumme (sie kennt jedes Gerät mit Wärme). Die Kühl-Deckung bleibt am Tag (`deckung_aus_geraeten`, Bauschnitt 6) | `test_wk16j_tag_deckung.py` (19 Proben: Ein-Achsen-Regel in der Faltung **mit** Zahl-Schranke und **mit** Gegenprobe funktionsfremder Strom · zwei Achsen fallen nicht zurück · Wärme ohne Strom bleibt im Zähler-Kreis · Kennzeichen weiter *Beitrag statt Bestand* · Handrechnung Nibe + Brauchwasser (96,359 ÷ 29,083) · **Gegenprobe** mit dem dritten Gerät · Kasten R-5 mit drei Gegenproben · über die Route: Sperre wie im Monat · **die Monatszeile entscheidet die Tages-Deckung nicht mehr** · Ein-Geräte-Tag behält seine Zahlen · **12,5 ÷ 3,5 statt 8,33** · die Wärme-Menge schrumpft nicht); dazu 22 Antworten aus r27/r28 gegen HEAD — **r27 vollständig bitgleich** | Regression |
+| **Der Kasten führt je Größe eine Auskunft — die mit der Adresse** (WK-16j) | `waerme_klima_block.py::was_noch_moeglich` (R-5 nach dem Aufbau: generische Zeile verliert jede Größe, die eine **überlebende** Geräte-Zeile erklärt; der Dedup der Gegenrichtung bleibt) | `test_wk16j_tag_deckung.py` (vier Proben: generische Zeile entfällt · **je Größe**, nicht als Ganzes · derselbe Grund lässt die anlagenweite Zeile stehen · **ein Zeitraum-Grund verdrängt nichts**) | Regression |
 | **A6 — eine Kennzahl zeigt ihre eingesetzten Werte** | Kacheln in Cockpit und Hub | `npm run check:formel-herleitung` (Wrapper `src/test/check-formel-herleitung.test.ts`) — TypeScript-AST über `src/**`, zwei Trägerformen (Objektliteral inkl. Shorthand, JSX-Attribut), drei Prüfungen, **abschmelzende** Allowlist mit Pflicht-Begründung; dazu `TKonto.a6-herleitung.test.tsx`, `KomponentenSektionen.jaz-herleitung.test.tsx`, `test_a6_arbeitszahl_je_funktion_herleitung.py` | **Wächter** + Regression |
 | **R-A — kein Feld ohne Auswertung, und die Fläche nennt sie** | Liste `core/feld_auswertungen.py` (je Registry-Feld Sicht · Datei · Symbol, dazu `FELDER_OHNE_AUSWERTUNG_BEKANNT` mit Obergrenze); Route `api/routes/datenquellen.py::get_datenquellen_felder` (`ausgewertet_in`); Client `components/live/DatenquellenZuordnung.tsx` | `test_jedes_feld_hat_eine_auswertung.py` — leitet seine Referenzmenge bei **jedem Lauf** aus den Registries ab (`alle_registry_felder`, inkl. `BASIS_ENERGY_TOPICS` und `KUMULATIVE_COUNTER_FELDER`) und prüft je Eintrag: Datei existiert · Symbol ist dort definiert · Feldname **oder** die deklarierten Trägertoken stehen im Quelltext genau dieser Funktion. Dazu: ein modus-generischer Leser (`betriebsart_*_kwh(daten, modus)`) muss **seinen Modus** nennen — ohne diese Klausel belegte er alle vier Betriebsarten und reproduzierte den N-398-Blindfleck (an einem Sprengsatz gemessen, 14.09.2026). Baseline **0** für `waermepumpe`. Client `DatenquellenZuordnung.ausgewertet-in.test.tsx` (3 Proben, mit Gegenprobe „ohne Auswertung kein Satz") | **Wächter** (über die Registries) + Regression |
 | **R-B/R-C — jede gemessene Betriebsart-Nutzenergie erscheint, auch am TAG** (R-2) | `waermepumpe_kennzahl.py::heizwaerme_kwh` (D1-Stufe 3, die **eine** Weiche) · seit dem 15.09.2026 je Gerät am Tag über `::heizwaerme_je_geraet` und den Ausgabe-Key `wp_betriebsart_heizen_kwh` (`aggregator.TAGESDETAIL_AUSGABE`) · `betriebsart_gemessen.py::nutzenergie_ohne_kennzahl_kwh` (E4: Menge ohne Kennzahl) · die Lesestellen von D1 (Layer · Hub/Cockpit je Gerät · Geldpfade · HA-Export) | `test_wk16g_tag_liest_wie_der_monat.py::TestR2Heizwaerme` (4: die Weiche je Gerät · **eine gemessene 0 der Achse gewinnt** · der Tag trägt die Betriebsart-Wärme · **Σ Tage = Monat**); `test_n398_nutzenergie_je_betriebsart.py` (25 Proben: die Weiche und ihre drei Stufen · **Bitgleichheit zur alten Lesetür** für Bestandszeilen · Anlage F4h über Hub, Cockpit → Monat und Jahr · Gegenprobe ohne Zähler · Gerätefeld und Gesamtwert gewinnen · Mengenzeile nur mit Zahl · keine Kennzahl für Lüften/Entfeuchten · keine Wärmesumme); Client `WaermepumpeNutzenergieZeilen.test.tsx` + `KomponentenSektionen.soll-waerme-klima.test.tsx` (je mit Gegenprobe) | Regression |

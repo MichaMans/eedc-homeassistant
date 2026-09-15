@@ -37,7 +37,7 @@ Anlagensumme. D1 und K3 sind zu diesem Zeitpunkt längst je Gerät gefallen.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable, Optional, Sequence
+from typing import AbstractSet, Iterable, Optional, Sequence
 
 from pydantic import BaseModel, Field
 
@@ -60,7 +60,9 @@ from backend.core.tageswert_grund import (
     GRUND_ZAEHLER_RUECKSPRUNG,
     TAGESWERT_GRUND_KURZ,
 )
-from backend.services.waermepumpe_kennzahlen_je_geraet import GeraetKennzahlen
+from backend.services.waermepumpe_kennzahlen_je_geraet import (
+    GeraetKennzahlen, GeraetMengen,
+)
 
 #: Wohin der Handgriff führt. **Drei Ziele, nicht mehr** — jeder Grund gehört zu
 #: genau einer Fläche:
@@ -328,21 +330,33 @@ def was_noch_moeglich(
     reihenfolge: list[str] = []
     groessen: dict[str, list[str]] = {}
     roh_je_zeile: dict[str, str] = {}
+    generisch: set[str] = set()
 
-    def _nimm(groesse: str, grund: Optional[str], praefix: str = "") -> None:
+    def _nimm(groesse: str, grund: Optional[str], praefix: str = "") -> bool:
+        """Legt die Zeile an (oder erweitert sie) — ``False``, wenn sie nicht in
+        den Kasten gehört (Zeitraum-Grund). **Der Rückgabewert trägt R-5:** eine
+        Größe gilt nur dann als *von einer Geräte-Zeile erklärt*, wenn wirklich
+        eine entstanden ist. Ohne ihn verschwand die anlagenweite Zeile
+        *„Arbeitszahl Kühlen — kein Kältemengenzähler zugeordnet"*, weil ein
+        Gerät daneben einen **Zeitraum**-Grund trug (*„kein Kühlbetrieb"*), den
+        der Kasten gar nicht führt (gemessen r28/Demo, Juni 2026)."""
         if not grund or not ist_ausstattungs_grund(grund):
-            return
+            return False
         zeile = f"{praefix}{grund}" if praefix else grund
         if zeile not in groessen:
             groessen[zeile] = []
             roh_je_zeile[zeile] = grund
             reihenfolge.append(zeile)
+            if not praefix:
+                generisch.add(zeile)
         if groesse not in groessen[zeile]:
             groessen[zeile].append(groesse)
+        return True
 
     for groesse, grund in gruende:
         _nimm(groesse, grund)
     anlagenweit = set(roh_je_zeile.values())
+    mit_geraete_zeile: set[str] = set()
     for g in geraete:
         for groesse, wert_feld, grund_feld, achse in _GERAET_GROESSEN:
             if achse is not None and achse not in (g.achsen or WAERME_ACHSEN):
@@ -352,7 +366,44 @@ def was_noch_moeglich(
             grund = getattr(g, grund_feld)
             if not grund or grund in anlagenweit:
                 continue
-            _nimm(groesse, grund, praefix=f"{g.name}: ")
+            if _nimm(groesse, grund, praefix=f"{g.name}: "):
+                mit_geraete_zeile.add(groesse)
+
+    # ── R-5 (WK-16j): keine generische Zeile neben einer Geräte-Zeile ──────
+    #
+    # **Für eine Größe steht genau EINE Auskunft im Kasten, und es ist die
+    # konkretere.** Nennt eine Geräte-Zeile das Gerät und den Handgriff, ist die
+    # anlagenweite Zeile daneben dieselbe Auskunft ohne Adresse — und ihr
+    # Handgriff kann sogar in die Irre führen. Gemessen an der Prüfstand-Anlage
+    # der r28 (September 2026, *Cockpit → Monat*):
+    #
+    #   *„Arbeitszahl Heizen · Arbeitszahl Warmwasser — Nutzenergie und Strom
+    #   dieser Funktion stammen von verschiedenen Geräten → Getrennte
+    #   Strommessung am zweiten Gerät einschalten und zuordnen, wenn es sie gibt"*
+    #   *„Arbeitszahl Heizen · Arbeitszahl Warmwasser — Vaillant aroTHERM plus:
+    #   Wärme nicht je Funktion gemessen → Einen zweiten Wärmemengenzähler setzen …"*
+    #
+    # Zwei Zeilen für dieselben zwei Größen; die erste zeigte auf die
+    # Brauchwasser-WP, die **keine zweite Funktion hat**, während die zweite das
+    # Gerät nennt, an dem es wirklich etwas zu tun gibt.
+    #
+    # ⛔ **Die Gegenrichtung bleibt, wie sie ist** (``anlagenweit`` oben): Trägt
+    # die Geräte-Zeile **denselben** Grund, verschwindet sie — dann sagt die
+    # anlagenweite Zeile bereits dasselbe, und der Gerätename brächte keine
+    # neue Auskunft. Die Regel greift also genau dort, wo die beiden Sätze
+    # **verschieden** sind.
+    #
+    # ⚠ **Die Größe bleibt im Kasten**, nur in der anderen Zeile — der Client
+    # fragt über den Größen-**Namen** (``imKasten``), nicht über den Text; keine
+    # Kachel kommt dadurch zurück.
+    for zeile in list(reihenfolge):
+        if zeile not in generisch:
+            continue
+        rest = [g for g in groessen[zeile] if g not in mit_geraete_zeile]
+        if rest:
+            groessen[zeile] = rest
+        else:
+            reihenfolge.remove(zeile)
 
     return [
         WpMoeglichZeile(
@@ -440,7 +491,9 @@ class FunktionsEingaengeDerAnlage:
     strom_warmwasser_kwh: float = 0.0
     #: Mindestens **ein beitragendes** Gerät führt ``getrennte_strommessung``
     #: — dieselbe ``any``-Semantik wie ``WpFakten.hat_split`` und wie der Tag
-    #: (``views.py::_wp_getrennte_strommessung_tag``).
+    #: (``views.py::_wp_getrennte_strommessung_tag``). ⚠ *Beitragend* heißt hier
+    #: **mit Strom**: Das Kennzeichen ist eine Aussage über die Messung dieses
+    #: Zeitraums, die Mengen darüber sind es nicht (WK-16j).
     hat_split: bool = False
     #: Mindestens ein beitragendes Gerät misst seine Wärme mit EINEM
     #: gemeinsamen Zähler (N-391). Ohne das Feld sagte die leere Funktions-Zeile
@@ -487,6 +540,65 @@ class FunktionsEingaengeDerAnlage:
         return None
 
 
+def _mengen_der_achse(
+    m: GeraetMengen, achse: str, achsen: AbstractSet[str],
+) -> tuple[float, float]:
+    """Welche **Mengen** steuert dieses Gerät zu ``achse`` bei? (**WK-16j/R-4**)
+
+    Die **Mengen-Seite** der Ein-Achsen-Regel, die WK-16h/**R-1** für die
+    **Kennzahl** gezogen hat (``waermepumpe_kennzahl.arbeitszahl_je_funktion``,
+    Argument ``gesamt``): *Hat eine Einheit genau EINE Wärme-Achse, ist die
+    Funktions-Arbeitszahl dieser Achse die Gesamt-Arbeitszahl* — Strom und Wärme
+    sind per Bauart dieser Funktion zugeordnet, ein getrennter Zähler könnte
+    nichts anderes messen (Konzept Wärme/Klima [5.1a]).
+
+    ⛔ **Sie muss anlagenweit GLEICH gelten, sonst widerspricht der Block sich
+    selbst.** Gemessen an der Prüfstand-Anlage der r28 (September 2026): Die
+    Brauchwasser-WP *Stiebel WWK 300* steuerte ihre 60,8 kWh Warmwasser-**Wärme**
+    bei, ihre 18,4 kWh Strom aber **nicht** — sie stehen unter
+    ``stromverbrauch_kwh``, nicht unter ``strom_warmwasser_kwh``. Die Deckung
+    Warmwasser fiel damit auch an einer Anlage, an der es nichts zu beanstanden
+    gibt, und im Kasten stand ein generischer Handgriff (*„Getrennte
+    Strommessung am zweiten Gerät einschalten"*) für ein Gerät **ohne zweite
+    Funktion**. Die Tabelle daneben zeigte für dasselbe Gerät **3,31**.
+
+    ⚠ **Sie ersetzt nur einen Grund, nie eine Zahl** — dieselbe Schranke wie im
+    Layer: Wo die feinen Zähler **beide** Seiten hergeben, bleiben sie stehen.
+    Sie sind eine Messung *dieser* Funktion; der Gesamtzähler wäre dafür der
+    gröbere Nenner (er enthält Standby und Steuerung, K1).
+
+    ⛔ **Und sie greift nicht, wo im Zeitraum funktionsfremder Strom gemessen
+    ist.** Der tragende Satz lautet *„sein ganzer Strom **ist** der Strom dieser
+    Achse"* — er gilt für ein Gerät ohne zweite **Funktion**, nicht für jedes
+    Gerät mit einer Wärme-**Achse**. Eine Split-Klimaanlage hat nach der
+    Registry nur *Heizen* (kein Warmwasserkreis, N-304), **kühlt** aber; ihren
+    Junistrom als *Strom Heizen* auszuweisen wäre eine Falschaussage über eine
+    Menge (gemessen an der Demo-Anlage der r28, 15.06.2026: die Bosch
+    Multisplit hätte **2,15 kWh „Strom Heizen"** getragen, an einem Tag mit
+    gemessenem Kühlstrom). ⚠ Die Bauart wird dabei **nicht** gefragt
+    (ADR-002/**P13**), sondern die **Messung** — dieselbe Größe, mit der
+    E7/Option A den Nenner kürzt.
+
+    ⚠ **Die Grenze, die bleibt:** Ohne Betriebsart-Zähler weiß eedc von einem
+    Kühlbetrieb nichts; dort greift die Regel wie bei einem Ein-Funktions-Gerät.
+    Dieselbe Annahme trifft WK-16h für die Kennzahl je Gerät.
+
+    Returns:
+        ``(Nutzenergie, Strom)`` dieser Achse — die beiden Seiten **eines**
+        Quotienten, aus denen Σ und Geräte-Identität (N-441) entstehen.
+    """
+    fein_q = m.heizung_kwh if achse == HEIZEN else m.warmwasser_kwh
+    fein_e = m.strom_heizen_kwh if achse == HEIZEN else m.strom_warmwasser_kwh
+    nur_diese_funktion = (
+        len(achsen) == 1
+        and m.modus_strom_kuehlen_kwh <= 0
+        and m.funktionsfremd_abzug_kwh <= 0
+    )
+    if nur_diese_funktion and not (fein_q > 0 and fein_e > 0):
+        return m.waerme_kwh, m.strom_kwh
+    return fein_q, fein_e
+
+
 def funktions_eingaenge_der_anlage(
     kennzahlen: Sequence[GeraetKennzahlen],
 ) -> FunktionsEingaengeDerAnlage:
@@ -500,9 +612,20 @@ def funktions_eingaenge_der_anlage(
     sagte *„Strom nicht getrennt je Funktion gemessen"*, während die Tabelle
     direkt darunter 5,58 und 3,32 zeigte.
 
-    ⚠ **Gezählt wird der BEITRAG, nicht der Bestand** — dieselbe Regel wie in
-    {@link achsen_der_anlage} und {@link schranken_eingang} (N-441). Ein Gerät
-    ohne Strom in diesem Zeitraum schaltet keine getrennte Strommessung frei.
+    ⚠ **Der Strom-Beitrag entscheidet über die beiden KENNZEICHEN, nicht über
+    die Mengen** (seit WK-16j präzisiert). ``hat_split`` und
+    ``waerme_ist_gesamt`` sind Aussagen über die **Messung dieses Zeitraums** —
+    ein Gerät ohne Strom schaltet keine getrennte Strommessung frei, dieselbe
+    Regel wie in {@link achsen_der_anlage} und {@link schranken_eingang}
+    (N-441). ⛔ **Mengen und Identitäten bekommen den Riegel nicht:** Ein Gerät,
+    das Wärme **ohne** Strom beisteuert, ist der Anlassfall von N-441 selbst
+    (Wärme von A, Funktions-Strom von B). Es aus dem Zähler-Kreis zu werfen
+    hieße, genau die Lage stumm zu stellen, gegen die die Deckung gebaut ist.
+
+    ⭐ **Die Ein-Achsen-Regel gilt hier wie je Gerät** (**WK-16j/R-4**,
+    {@link _mengen_der_achse}) — sonst zeigt die Tabelle *Zahlen je Gerät* für
+    die Brauchwasser-WP **3,31** und der Kasten darüber behauptet, ihr Strom sei
+    nicht je Funktion gemessen.
 
     ⛔ **Und nur die Geräte, die die Achse haben** (WK-16h/**R-1**,
     ``field_definitions.wp_waerme_achsen``): Die Heizwärme einer
@@ -520,31 +643,39 @@ def funktions_eingaenge_der_anlage(
     """
     heizung = warmwasser = strom_heizen = strom_warmwasser = 0.0
     hat_split = waerme_ist_gesamt = False
-    q_h: set[int] = set()
-    e_h: set[int] = set()
-    q_w: set[int] = set()
-    e_w: set[int] = set()
+    je_achse: dict[str, tuple[set[int], set[int]]] = {
+        HEIZEN: (set(), set()), WARMWASSER: (set(), set()),
+    }
+    summe: dict[str, list[float]] = {HEIZEN: [0.0, 0.0], WARMWASSER: [0.0, 0.0]}
     for k in kennzahlen:
         m = k.mengen
-        if m.strom_kwh <= 0:
-            continue
         achsen = m.waerme_achsen or WAERME_ACHSEN
-        hat_split = hat_split or m.hat_getrennte_strommessung
-        waerme_ist_gesamt = waerme_ist_gesamt or m.waerme_ist_gesamt_getrennt
-        if HEIZEN in achsen:
-            heizung += m.heizung_kwh
-            strom_heizen += m.strom_heizen_kwh
-            if m.heizung_kwh > 0:
-                q_h.add(m.inv_id)
-            if m.strom_heizen_kwh > 0:
-                e_h.add(m.inv_id)
-        if WARMWASSER in achsen:
-            warmwasser += m.warmwasser_kwh
-            strom_warmwasser += m.strom_warmwasser_kwh
-            if m.warmwasser_kwh > 0:
-                q_w.add(m.inv_id)
-            if m.strom_warmwasser_kwh > 0:
-                e_w.add(m.inv_id)
+        # ⚠ **Der Strom-Beitrag entscheidet nur über die beiden KENNZEICHEN.**
+        # Sie sind Aussagen über die *Messung* dieses Zeitraums: Ein Gerät ohne
+        # Strom schaltet keine getrennte Strommessung frei und stellt keinen
+        # gemeinsamen Wärmemengenzähler in Rechnung (N-441, *Beitrag statt
+        # Bestand*). ⛔ **Für die Mengen und die Identitäten gilt er NICHT** —
+        # ein Gerät, das Wärme ohne Strom beisteuert, ist der Anlassfall von
+        # N-441 selbst (Wärme von A, Funktions-Strom von B ⇒ eine Zahl, deren
+        # Zähler und Nenner verschiedene Geräte meinen). Es aus dem Zähler-Kreis
+        # zu werfen hieße, genau diese Lage stumm zu stellen.
+        if m.strom_kwh > 0:
+            hat_split = hat_split or m.hat_getrennte_strommessung
+            waerme_ist_gesamt = waerme_ist_gesamt or m.waerme_ist_gesamt_getrennt
+        for achse in (HEIZEN, WARMWASSER):
+            if achse not in achsen:
+                continue
+            q, e = _mengen_der_achse(m, achse, achsen)
+            summe[achse][0] += q
+            summe[achse][1] += e
+            if q > 0:
+                je_achse[achse][0].add(m.inv_id)
+            if e > 0:
+                je_achse[achse][1].add(m.inv_id)
+    heizung, strom_heizen = summe[HEIZEN]
+    warmwasser, strom_warmwasser = summe[WARMWASSER]
+    q_h, e_h = je_achse[HEIZEN]
+    q_w, e_w = je_achse[WARMWASSER]
     return FunktionsEingaengeDerAnlage(
         heizung_kwh=heizung,
         warmwasser_kwh=warmwasser,

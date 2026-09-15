@@ -364,22 +364,45 @@ async def test_der_kasten_widerspricht_der_tabelle_nicht_mehr(db, monkeypatch):
     assert res.wp_jaz_warmwasser_grund == GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
     gruende = [z.grund for z in res.wp_moeglich]
     assert GRUND_STROM_NICHT_JE_FUNKTION not in gruende
-    assert GRUND_FUNKTION_NICHT_DECKUNGSGLEICH in gruende
+    # ⚠ **Seit WK-16j nennt der Kasten das Gerät statt des generischen Satzes**
+    # (**R-5**: je Größe eine Auskunft, und es ist die konkretere). Die Substanz
+    # bleibt: Beide Funktionen stehen im Kasten, mit einem Grund, den es an
+    # dieser Anlage wirklich gibt — der anlagenweite Grund an der **Zahl** ist
+    # unverändert ``GRUND_FUNKTION_NICHT_DECKUNGSGLEICH`` (zwei Zeilen weiter oben).
+    assert gruende == [f"{_B[0]}: Wärme nicht je Funktion gemessen"]
+    assert {g for z in res.wp_moeglich for g in z.groessen} == {
+        "Arbeitszahl Heizen", "Arbeitszahl Warmwasser",
+    }
     assert res.wp_hub_hilft is True, "der Hub zeigt jedes Gerät für sich"
     zeile_a = next(z for z in res.wp_geraete if z.name == _A[0])
     assert (zeile_a.jaz_heizen, zeile_a.jaz_warmwasser) == (4.0, 3.0)
 
 
+#: Gerät E — **zwei** Achsen, ohne getrennte Strommessung, nur Warmwasser-Wärme.
+#: ⚠ **Es ist seit WK-16j der Verletzer, nicht mehr die Brauchwasser-WP:** Deren
+#: ganzer Strom *ist* Warmwasser-Strom (Ein-Achsen-Regel, **R-4**), sie deckt
+#: sich also. Ein Gerät mit zwei Achsen hat eine Aufteilung, die fehlen kann.
+_E = ("Zwei Achsen ohne Split", _LW, {
+    "stromverbrauch_kwh": 2.0, "warmwasser_kwh": 8.0,
+})
+
+
 async def test_die_deckung_gilt_je_funktion_nicht_je_block(db, monkeypatch):
     """SOLL §3.2b: eine saubere Funktion behält ihre Zahl.
 
-    Gerät C (Brauchwasser, ohne getrennte Strommessung) steuert
-    Warmwasser-**Wärme** ohne Warmwasser-**Strom** bei — das trifft die
-    Warmwasser-Zeile und **nur** sie.
+    Gerät E steuert Warmwasser-**Wärme** ohne Warmwasser-**Strom** bei — das
+    trifft die Warmwasser-Zeile und **nur** sie.
+
+    ⚠ **Hier stand bis WK-16j die Brauchwasser-WP** (``_C``). Sie war nur so
+    lange ein Verletzer, wie die Faltung ihren Strom nirgends zählte: Mit **R-4**
+    steht ihr Gesamtstrom als Warmwasser-Strom im Nenner, und die Deckung ist zu
+    Recht erfüllt (eigene Probe in ``test_wk16j_tag_deckung.py``). Die **Substanz
+    dieser Probe** — Deckung je Funktion, nicht je Block — braucht ein Gerät mit
+    **zwei** Achsen, dem die Aufteilung fehlt.
     """
     import backend.api.routes.aktueller_monat as am
     monkeypatch.setattr(am, "datetime", _FesteUhr)
-    anlage, _ = await _anlage_mit_tagesebene(db, [_A, _C])
+    anlage, _ = await _anlage_mit_tagesebene(db, [_A, _E])
 
     res = await _monat(db, anlage.id)
 
@@ -387,8 +410,27 @@ async def test_die_deckung_gilt_je_funktion_nicht_je_block(db, monkeypatch):
     assert res.wp_jaz_heizen_grund is None
     assert res.wp_jaz_warmwasser is None
     assert res.wp_jaz_warmwasser_grund == GRUND_FUNKTION_NICHT_DECKUNGSGLEICH
-    assert res.wp_warmwasser_kwh == 162.5, "58,5 (A) + 104,0 (C) — beide haben die Achse"
-    assert res.wp_strom_heizen_kwh == 32.5, "C hat die Heiz-Achse nicht"
+    assert res.wp_warmwasser_kwh == 162.5, "58,5 (A) + 104,0 (E) — beide haben die Achse"
+    assert res.wp_strom_heizen_kwh == 32.5, "E hat keinen Heizstrom"
+
+
+async def test_die_brauchwasser_wp_deckt_sich_seit_r4(db, monkeypatch):
+    """Die **Gegenprobe** dazu — und der Grund, warum ``_E`` oben eingezogen ist.
+
+    Dieselbe Lage mit der Brauchwasser-WP: Ihr Gesamtstrom **ist** der Strom
+    ihrer einzigen Achse (**WK-16j/R-4**), Zähler und Nenner meinen dieselben
+    zwei Geräte. Handrechnung: (58,5 + 104,0) ÷ (19,5 + 26,0) = 162,5 ÷ 45,5
+    = **3,5714**.
+    """
+    import backend.api.routes.aktueller_monat as am
+    monkeypatch.setattr(am, "datetime", _FesteUhr)
+    anlage, _ = await _anlage_mit_tagesebene(db, [_A, _C])
+
+    res = await _monat(db, anlage.id)
+
+    assert res.wp_jaz_warmwasser == pytest.approx(3.5714, abs=1e-4)
+    assert res.wp_jaz_warmwasser_grund is None
+    assert res.wp_strom_warmwasser_kwh == 45.5, "19,5 (A) + 26,0 (C)"
 
 
 async def test_die_route_summiert_nur_die_achsen_des_geraets(db, monkeypatch):

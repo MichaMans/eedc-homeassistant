@@ -313,10 +313,29 @@ direkt darunter die Zahlen zeigte.
 > ⚠ **Bei mehreren Geräten kann trotzdem ein Grund stehen — und er ist der richtige.** Eine
 > Arbeitszahl je Funktion gibt es für die ganze Anlage nur, wenn Wärme und Strom **derselben**
 > Funktion von **denselben** Geräten kommen. Misst ein zweites Gerät seine Wärme mit einem
-> gemeinsamen Zähler oder trennt es seinen Strom nicht, dann steht dort *„Nutzenergie und
-> Strom dieser Funktion stammen von verschiedenen Geräten"* — mit dem Weg in den
-> Komponenten-Hub, der jedes Gerät für sich zeigt. **Die Zahlen je Gerät bleiben davon
-> unberührt.**
+> gemeinsamen Zähler, dann steht dort *„Nutzenergie und Strom dieser Funktion stammen von
+> verschiedenen Geräten"* — mit dem Weg in den Komponenten-Hub, der jedes Gerät für sich zeigt.
+> **Die Zahlen je Gerät bleiben davon unberührt.**
+>
+> ⭐ **Eine Brauchwasser-Wärmepumpe daneben ist dabei kein Hindernis** (seit v4.0.45). Sie hat
+> nur eine Funktion — ihr **ganzer** Strom ist Warmwasser-Strom, auch ohne getrennte Zähler.
+> eedc rechnet sie deshalb auf beiden Seiten mit: Eine Anlage aus Wärmepumpe und
+> Brauchwasser-WP bekommt ihre *Arbeitszahl Warmwasser* aus der Wärme **und** dem Strom
+> beider Geräte. ⚠ Für eine **Klimaanlage** gilt das nicht: Sie kühlt auch, ihr Strom gehört
+> nicht ganz zum Heizen.
+
+### Und der Tag rechnet jetzt wie der Monat
+
+⭐ **Seit v4.0.45 prüft auch *Cockpit → Tag*, ob Wärme und Strom einer Funktion von denselben
+Geräten kommen** — an den Zahlen **dieses Tages**. Vorher fragte er den Monat, und solange der
+noch läuft, weiß der nichts: An einer Anlage aus drei Wärmepumpen standen im Tag zwei
+Arbeitszahlen ohne jeden Hinweis, während *Cockpit → Monat* für dieselbe Anlage schon sagte,
+warum es sie nicht gibt.
+
+> ⚠ **Damit kann im Tag ein Grund auftauchen, wo vorher eine Zahl stand.** Die Zahl war nicht
+> belastbar: In ihrem Zähler stand die Wärme des einen Geräts, in ihrem Nenner der Strom eines
+> anderen. Es ist derselbe Grund, den derselbe Monat nach seinem Abschluss nennt — und
+> **dieselbe Auskunft auf allen drei Zeitebenen** ist der eigentliche Gewinn.
 
 ### Der Fremdanteil — die einzige Angabe, die eedc nicht messen kann
 
