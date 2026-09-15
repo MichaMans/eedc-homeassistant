@@ -7,7 +7,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
-## [4.0.45] - 2026-09-14 — Wärme und Klima zeigen, was deine Daten hergeben: wohin der Strom ging, wann und was er gekostet hat — und der Strom der Wärmepumpe wird voll gerechnet
+## [4.0.45] - 2026-09-15 — Wärme und Klima zeigen, was deine Daten hergeben: wohin der Strom ging, wann und was er gekostet hat — und der Strom der Wärmepumpe wird voll gerechnet
 
 ### Added
 

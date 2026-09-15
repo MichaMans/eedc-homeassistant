@@ -9,7 +9,7 @@
 
 ---
 
-## v4.0.45 — 14. September 2026
+## v4.0.45 — 15. September 2026
 
 **Wohin ist der Strom deiner Wärmepumpe gegangen — und was hat er gekostet?**
 
