@@ -34,7 +34,7 @@ from backend.api.routes.strompreise import (
     resolve_einspeise_preis_cent,
     resolve_netzbezug_preis_cent,
 )
-from backend.services.strompreis_aggregator import aufgeloester_monatspreis
+from backend.services.strompreis_aggregator import PreisMessung, aufgeloester_monatspreis
 from backend.core.berechnungen import FinanzMonatsZeile
 from backend.core.wirtschaftlichkeit_defaults import (
     EINSPEISEVERGUETUNG_DEFAULT_CENT,
@@ -72,11 +72,17 @@ async def baue_finanz_zeile(
     eingabe: FinanzZeileEingabe,
     *,
     tarif_cache: dict[date, dict],
+    preis_messung: Optional[PreisMessung] = None,
 ) -> FinanzMonatsZeile:
     """Baut EINE ``FinanzMonatsZeile`` mit dem je Monat gültigen Tarif.
 
     ``tarif_cache`` ist caller-eigen (ein Dict pro Aggregations-Lauf), damit der
     Tarif je Stichtag nur einmal aus der DB geladen wird.
+
+    ``preis_messung`` ist dieselbe Bauform für Stufe 2 der Preis-Kaskade: Wer
+    vorher ``lade_monats_fakten`` gerufen hat, reicht **dasselbe** Objekt weiter
+    — sonst fragt diese Funktion die Stundenpreise des Monats ein weiteres Mal
+    ab (drittes Mal je Monat, gemessen 15.09.2026).
     """
     stichtag = date(eingabe.jahr, eingabe.monat, 1)
     if stichtag not in tarif_cache:
@@ -98,6 +104,7 @@ async def baue_finanz_zeile(
     # Stundenpreise mitschreibt.
     preis = await aufgeloester_monatspreis(
         db, anlage_id, eingabe.jahr, eingabe.monat, eingabe.monatsdaten, allgemein,
+        messung=preis_messung,
     )
     verg_cent = (
         allgemein.einspeiseverguetung_cent_kwh if allgemein else EINSPEISEVERGUETUNG_DEFAULT_CENT

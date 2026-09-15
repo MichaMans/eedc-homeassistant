@@ -75,7 +75,9 @@ from backend.api.routes.strompreise import (
     resolve_strompreis_for_komponente,
 )
 from backend.services.strompreis_aggregator import (
+    PreisMessung,
     aufgeloester_monatspreis,
+    lade_preis_aggregate_je_monat,
     wirksamer_arbeitspreis_cent,
 )
 from backend.core.berechnungen import (
@@ -1034,6 +1036,7 @@ async def lade_monats_fakten(
     von: Optional[MonatsSchluessel] = None,
     bis: Optional[MonatsSchluessel] = None,
     tarif_cache: Optional[dict[date, dict]] = None,
+    preis_messung: Optional[PreisMessung] = None,
     inkl_nur_tageswerte: bool = False,
 ) -> list[MonatsFakt]:
     """Baut die Monats-Fakten einer Anlage — ein Query-Satz, danach reine Faltung.
@@ -1043,6 +1046,13 @@ async def lade_monats_fakten(
         anlage_id: Anlage.
         von: frühester Monat ``(jahr, monat)``, **inklusive**. ``None`` = offen.
         bis: spätester Monat ``(jahr, monat)``, **inklusive**. ``None`` = offen.
+        preis_messung: die **gemessenen** Monats-Ø dieser Anlage, einmal je
+            Anfrage geladen (``strompreis_aggregator.lade_preis_aggregate_je_monat``).
+            Dieselbe Bauform wie ``tarif_cache``: Wer danach ``baue_finanz_zeile``
+            ruft, reicht **dasselbe** Objekt weiter. Ohne sie fragt Stufe 2 der
+            Preis-Kaskade je Monat **einzeln** — an einer Anlage mit 39 Monaten
+            waren das 117 Abfragen über die Stundentabelle (gemessen 15.09.2026).
+            Wird sie nicht übergeben, legt die Schicht sie selbst an.
         tarif_cache: derselbe Cache, den der Aufrufer an ``baue_finanz_zeile``
             weiterreicht. Ohne ihn löst der Tarif-Stichtag **zweimal** je Monat
             auf — einmal hier, einmal im Finanz-Zeilen-Builder (Risiko 2 des
@@ -1226,6 +1236,19 @@ async def lade_monats_fakten(
     # die Stundenpreise ab; über ein Jahr wären das sonst zwölf Abfragen pro
     # Leser, und Cockpit → Jahr hat mehrere.
     preis_cache: dict = {}
+    if preis_messung is None:
+        # EINE gruppierte Abfrage für die ganze Anfrage. Der Aufrufer darf sie
+        # mitbringen (und reicht dann dasselbe Objekt an `baue_finanz_zeile`
+        # weiter) — sonst entsteht sie hier, mit demselben Fenster wie die
+        # Fakten selbst.
+        preis_messung = await lade_preis_aggregate_je_monat(
+            db, anlage_id,
+            von=date(von[0], von[1], 1) if von else None,
+            bis=(
+                date(bis[0] + (bis[1] == 12), (bis[1] % 12) + 1, 1)
+                if bis else None
+            ),
+        )
     fakten: list[MonatsFakt] = []
     for schluessel in sorted(k for k in kandidaten if _im_fenster(k, von, bis)):
         fakten.append(
@@ -1243,6 +1266,7 @@ async def lade_monats_fakten(
                 zeittarif_cache=zeittarif_cache,
                 tages_summe=tages_summen.get(schluessel),
                 preis_cache=preis_cache,
+                preis_messung=preis_messung,
             )
         )
     return fakten
@@ -2013,6 +2037,7 @@ async def _baue_fakt(
     zeittarif_cache: dict,
     tages_summe: Optional[TagesMonatsSumme] = None,
     preis_cache: Optional[dict] = None,
+    preis_messung: Optional[PreisMessung] = None,
 ) -> MonatsFakt:
     jahr, monat = schluessel
 
@@ -2123,7 +2148,7 @@ async def _baue_fakt(
 
     tarif = await _lade_tarif(
         db, anlage_id, schluessel, monatsdaten, tarif_cache, zeittarif_cache,
-        preis_cache=preis_cache,
+        preis_cache=preis_cache, preis_messung=preis_messung,
     )
 
     speicher = SpeicherFakten(
@@ -2321,6 +2346,7 @@ async def _lade_tarif(
     cache: dict[date, dict],
     zeittarif_cache: dict,
     preis_cache: Optional[dict] = None,
+    preis_messung: Optional[PreisMessung] = None,
 ) -> TarifFakten:
     """Tarif zum Monatsersten (P8) — ein Cache-Eintrag je Stichtag pro Anfrage."""
     stichtag = date(schluessel[0], schluessel[1], 1)
@@ -2351,7 +2377,7 @@ async def _lade_tarif(
     # Komponenten-Kaskade (`_komponenten_preis`) und eine eigene Aussage.
     preis = await aufgeloester_monatspreis(
         db, anlage_id, schluessel[0], schluessel[1], monatsdaten, allgemein,
-        cache=preis_cache,
+        cache=preis_cache, messung=preis_messung,
     )
     return TarifFakten(
         netzbezug_preis_cent=preis.cent,
@@ -2377,7 +2403,7 @@ async def _lade_tarif(
         # `stammpreis_override`: der Wallbox-Tarif bleibt Stufe 4.
         wallbox_preis_effektiv_cent=(await aufgeloester_monatspreis(
             db, anlage_id, schluessel[0], schluessel[1], monatsdaten, allgemein,
-            stammpreis_override=wallbox_cent,
+            stammpreis_override=wallbox_cent, messung=preis_messung,
         )).cent,
         kraftstoffpreis_euro=monatsdaten.kraftstoffpreis_euro if monatsdaten else None,
         gaspreis_cent_kwh=monatsdaten.gaspreis_cent_kwh if monatsdaten else None,

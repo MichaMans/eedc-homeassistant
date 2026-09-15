@@ -18,9 +18,10 @@ from __future__ import annotations
 import logging
 from calendar import monthrange
 from dataclasses import dataclass
+from datetime import date
 from typing import Optional
 
-from sqlalchemy import and_, extract, select
+from sqlalchemy import and_, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.berechnungen.zeittarif import (
@@ -30,6 +31,21 @@ from backend.core.berechnungen.zeittarif import (
 from backend.models.tages_energie_profil import TagesEnergieProfil
 
 logger = logging.getLogger(__name__)
+
+
+def monats_fenster(jahr: int, monat: int) -> tuple[date, date]:
+    """``[erster Tag, erster Tag des Folgemonats)`` — die Monatsgrenzen als **Bereich**.
+
+    ⛔ **Nicht auf ``extract("year"/"month", datum)`` zurückdrehen.** Eine Funktion
+    über der Spalte macht den Index ``ix_tep_anlage_datum (anlage_id, datum)`` für
+    die Monatseingrenzung unbrauchbar: SQLite grenzt dann nur noch auf die *Anlage*
+    ein und liest je Aufruf **alle** ihre Stundenzeilen — auch für einen Monat, der
+    gar keine hat. Gemessen am 15.09.2026 an der produktiven Anlage (16.391 Zeilen):
+    **117 solcher Aufrufe je ``GET /monatsdaten/aggregiert``**, zusammen rund 1,4 s
+    von 2,4 s. Der Wächter dazu ist
+    ``backend/tests/test_query_budget_monats_fakten.py``.
+    """
+    return date(jahr, monat, 1), date(jahr + (monat == 12), (monat % 12) + 1, 1)
 
 
 @dataclass
@@ -67,6 +83,7 @@ async def berechne_monats_durchschnittspreis(
     Returns:
         StrompreisAggregat oder None wenn keine Preisdaten vorhanden.
     """
+    _von, _bis = monats_fenster(jahr, monat)
     result = await db.execute(
         select(
             TagesEnergieProfil.strompreis_cent,
@@ -74,8 +91,8 @@ async def berechne_monats_durchschnittspreis(
         ).where(
             and_(
                 TagesEnergieProfil.anlage_id == anlage_id,
-                extract("year", TagesEnergieProfil.datum) == jahr,
-                extract("month", TagesEnergieProfil.datum) == monat,
+                TagesEnergieProfil.datum >= _von,
+                TagesEnergieProfil.datum < _bis,
                 TagesEnergieProfil.strompreis_cent.isnot(None),
             )
         )
@@ -111,6 +128,113 @@ async def berechne_monats_durchschnittspreis(
         abgedeckte_stunden=n,
         sollstunden=sollstunden,
     )
+
+
+# =============================================================================
+# Dieselbe Messung für ALLE Monate — eine Abfrage statt einer je Monat
+# =============================================================================
+
+
+class PreisMessung:
+    """Die gemessenen Monats-Aggregate **einer** Anlage, einmal je Anfrage geladen.
+
+    ⭐ **Sie hält die Messung, nicht den aufgelösten Preis.** Das ist der
+    Unterschied, auf den es ankommt: Stufe 2 der Kaskade („gemessen") ist von
+    ``stammpreis_override`` unabhängig — derselbe gemessene Monats-Ø gilt für den
+    Netzbezug **und** für die Wallbox. Ein Cache über dem *Ergebnis* konnte das
+    nicht, weshalb ``wallbox_preis_effektiv_cent`` bis hierher bewusst ohne Cache
+    lief und die Messung ein zweites Mal anstieß (``monats_fakten._lade_tarif``).
+
+    Ein Monat **ohne** Preiszeilen fehlt im Dict — genau wie
+    ``berechne_monats_durchschnittspreis`` dort ``None`` liefert. Die
+    Unterscheidung „kein Eintrag" gegen „Eintrag ohne gewichteten Wert" bleibt
+    damit erhalten (letzteres: Preise vorhanden, Netzbezug überall 0).
+    """
+
+    __slots__ = ("anlage_id", "_je_monat")
+
+    def __init__(self, anlage_id: int, je_monat: dict[tuple[int, int], StrompreisAggregat]):
+        self.anlage_id = anlage_id
+        self._je_monat = je_monat
+
+    def hole(self, jahr: int, monat: int) -> Optional[StrompreisAggregat]:
+        return self._je_monat.get((jahr, monat))
+
+    def __len__(self) -> int:  # für Proben und Protokoll
+        return len(self._je_monat)
+
+
+async def lade_preis_aggregate_je_monat(
+    db: AsyncSession,
+    anlage_id: int,
+    *,
+    von: Optional[date] = None,
+    bis: Optional[date] = None,
+) -> PreisMessung:
+    """Alle Monats-Aggregate auf einmal — dieselbe Aussage wie
+    ``berechne_monats_durchschnittspreis``, **ein** Query.
+
+    Gegenstück zum Einzelmonat für Aufrufer, die eine ganze Historie aufbereiten
+    (``services/monats_fakten.py``): je Monat einzeln zu fragen waren an der
+    produktiven Anlage **117 Abfragen** je ``GET /monatsdaten/aggregiert``.
+    Bauform wie ``einspeise_erloes_service.get_neg_preis_einspeisung_je_monat``.
+
+    ⚠ **Der Clamp trägt, das ``COALESCE`` nicht — beides gemessen.** Ein
+    negativer Netzbezug muss auf 0 **geclampt** und nicht verworfen werden;
+    nimmt man ``MAX(…, 0)`` heraus, meldet
+    ``backend/tests/test_preis_aggregat_symmetrie.py`` drei Proben rot
+    (Gegenprobe 15.09.2026). Das ``COALESCE`` davor ist dagegen **folgenlos**:
+    ``MAX(NULL, 0)`` ist in SQLite zwar ``NULL``, aber ``SUM`` überspringt
+    ``NULL``, und die Stunde trüge ohnehin 0 bei — ``arithmetisch_cent`` und
+    ``abgedeckte_stunden`` hängen an ``strompreis_cent`` bzw. ``COUNT(*)``, nicht
+    am Bezug. Es steht hier, damit die Absicht („fehlender Bezug = 0", wie
+    ``max(0.0, bezug or 0.0)`` im Original) nicht von einer Ignorier-Regel des
+    SQL-Dialekts abhängt — ohne den Anspruch, eine Zahl zu retten.
+
+    Die Gleichheit beider Wege hält ``backend/tests/test_preis_aggregat_symmetrie.py``
+    fest.
+    """
+    bezug = func.max(func.coalesce(TagesEnergieProfil.netzbezug_kw, 0.0), 0.0)
+    bedingungen = [
+        TagesEnergieProfil.anlage_id == anlage_id,
+        TagesEnergieProfil.strompreis_cent.isnot(None),
+    ]
+    if von is not None:
+        bedingungen.append(TagesEnergieProfil.datum >= von)
+    if bis is not None:
+        bedingungen.append(TagesEnergieProfil.datum < bis)
+
+    jahr_spalte = extract("year", TagesEnergieProfil.datum).label("jahr")
+    monat_spalte = extract("month", TagesEnergieProfil.datum).label("monat")
+    # `extract` steht hier in GROUP BY und SELECT, **nicht** im Filter über
+    # `anlage_id`/`datum` — der Index bleibt nutzbar. Genau diese Trennung
+    # bewacht `test_query_budget_monats_fakten.py`.
+    result = await db.execute(
+        select(
+            jahr_spalte,
+            monat_spalte,
+            func.sum(TagesEnergieProfil.strompreis_cent * bezug),
+            func.sum(bezug),
+            func.sum(TagesEnergieProfil.strompreis_cent),
+            func.count(),
+        )
+        .where(and_(*bedingungen))
+        .group_by(jahr_spalte, monat_spalte)
+    )
+
+    je_monat: dict[tuple[int, int], StrompreisAggregat] = {}
+    for jahr, monat, summe_kosten, summe_kwh, summe_preise, n in result.all():
+        jahr, monat, n = int(jahr), int(monat), int(n or 0)
+        if n <= 0:
+            continue
+        summe_kwh = float(summe_kwh or 0.0)
+        je_monat[(jahr, monat)] = StrompreisAggregat(
+            gewichtet_cent=round(float(summe_kosten or 0.0) / summe_kwh, 2) if summe_kwh > 0 else None,
+            arithmetisch_cent=round(float(summe_preise or 0.0) / n, 2),
+            abgedeckte_stunden=n,
+            sollstunden=monthrange(jahr, monat)[1] * 24,
+        )
+    return PreisMessung(anlage_id, je_monat)
 
 
 # =============================================================================
@@ -172,6 +296,7 @@ async def wirksamer_arbeitspreis_cent(
     if cache is not None and schluessel in cache:
         return cache[schluessel]
 
+    _von, _bis = monats_fenster(jahr, monat)
     result = await db.execute(
         select(
             TagesEnergieProfil.datum,
@@ -180,8 +305,8 @@ async def wirksamer_arbeitspreis_cent(
         ).where(
             and_(
                 TagesEnergieProfil.anlage_id == anlage_id,
-                extract("year", TagesEnergieProfil.datum) == jahr,
-                extract("month", TagesEnergieProfil.datum) == monat,
+                TagesEnergieProfil.datum >= _von,
+                TagesEnergieProfil.datum < _bis,
             )
         )
     )
@@ -240,6 +365,7 @@ async def aufgeloester_monatspreis(
     *,
     stammpreis_override: Optional[float] = None,
     cache: Optional[dict] = None,
+    messung: Optional[PreisMessung] = None,
 ) -> MonatsPreis:
     """Der Netzbezugspreis, mit dem dieser Monat zu rechnen ist — **die ganze Kaskade**.
 
@@ -301,6 +427,7 @@ async def aufgeloester_monatspreis(
 
     ergebnis = await _aufgeloester_monatspreis_ungecacht(
         db, anlage_id, jahr, monat, monatsdaten, tarif, stammpreis_override,
+        messung=messung,
     )
     if cache is not None:
         cache[schluessel] = ergebnis
@@ -310,6 +437,8 @@ async def aufgeloester_monatspreis(
 async def _aufgeloester_monatspreis_ungecacht(
     db: AsyncSession, anlage_id: int, jahr: int, monat: int, monatsdaten, tarif,
     stammpreis_override: Optional[float] = None,
+    *,
+    messung: Optional[PreisMessung] = None,
 ) -> MonatsPreis:
     # 1 — gepflegt. ⚠ `is not None`, nicht truthy: ein Monats-Ø von 0,0 ct ist
     # bei dynamischem Tarif real (viele Negativpreis-Stunden) und wäre als
@@ -331,8 +460,14 @@ async def _aufgeloester_monatspreis_ungecacht(
         )
     tarif_hat_zeitfenster = tarif is not None and hat_zeitfenster(tarif)
 
-    # 2 — gemessen.
-    aggregat = await berechne_monats_durchschnittspreis(anlage_id, jahr, monat, db)
+    # 2 — gemessen. Liegt die Messung der ganzen Anfrage vor, steht der Monat
+    # schon darin (EINE gruppierte Abfrage statt einer je Monat und Aufrufer);
+    # sonst der Einzelmonat wie bisher.
+    aggregat = (
+        messung.hole(jahr, monat)
+        if messung is not None
+        else await berechne_monats_durchschnittspreis(anlage_id, jahr, monat, db)
+    )
     if aggregat is not None and aggregat.gewichtet_cent is not None:
         return MonatsPreis(
             cent=aggregat.gewichtet_cent,
