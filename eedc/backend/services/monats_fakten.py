@@ -1211,8 +1211,30 @@ async def lade_monats_fakten(
         m.emob_ladung_ohne_pv_anteil for m in roh.values()
     )
     if inkl_nur_tageswerte or nur_fuer_ladeanteil:
+        # ⭐ Wird die Tagesebene NUR für den Ladeanteil gebraucht, genügen die
+        # Tageszusammenfassungen — die Quote steht dort. Die **Stunden**ebene
+        # braucht nur, wer unten wirklich auf sie zurückfällt, und das sind
+        # genau zwei Stellen in `_baue_fakt`: der Zähler-Fallback (`monatsdaten
+        # is None`) und der Speicher-Fallback (keine `speicher`-Zeile im Monat).
+        # PV, BKW und die Quote kommen aus der Tageszusammenfassung.
+        #
+        # ⛔ Die Bedingung ist aus `_baue_fakt` abgeleitet, nicht aus einer
+        # Beispielanlage: an der produktiven Anlage wäre die Menge leer, und
+        # eine Regel, die nur dort stimmt, hätte jedem mit Zähler- oder
+        # Speicherlücke still die Rückfallwerte genommen.
+        stunden_nur_fuer = None
+        if not inkl_nur_tageswerte:
+            im_fenster = [
+                k for k in (set(monatsdaten_by_ym) | set(roh))
+                if _im_fenster(k, von, bis)
+            ]
+            stunden_nur_fuer = {
+                k for k in im_fenster
+                if k not in monatsdaten_by_ym
+                or "speicher" not in roh.get(k, _RohMonat()).typen_mit_zeile
+            }
         tages_summen = await lade_monats_summen_aus_tagen(
-            db, anlage_id, von=von, bis=bis
+            db, anlage_id, von=von, bis=bis, stunden_nur_fuer=stunden_nur_fuer,
         )
 
     kandidaten = (
