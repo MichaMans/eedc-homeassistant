@@ -563,6 +563,12 @@ async def list_monatsdaten_aggregiert(
     temperatur_je_monat: dict[tuple[int, int], float] = {}
     if fakten:
         try:
+            # Das Fenster gibt es seit N-426; diese Route nutzte es nicht und
+            # las die komplette Historie, obwohl sie nur die gelieferten Monate
+            # beschriftet. Grenzen aus den Fakten selbst — ohne `jahr`-Filter
+            # sind das ohnehin alle.
+            _t_von = date(min(f.jahr for f in fakten), 1, 1)
+            _t_bis = date(max(f.jahr for f in fakten), 12, 31)
             temperatur_je_monat = await lade_monatsmittel_temperatur(
                 db, anlage_id,
                 gepflegt_je_monat={
@@ -572,6 +578,7 @@ async def list_monatsdaten_aggregiert(
                     for f in fakten
                     if f.meta.monatsdaten is not None
                 },
+                von=_t_von, bis=_t_bis,
             )
         except Exception:  # pragma: no cover - eine Zusatzspalte kippt die Liste nicht
             logger.exception("Monatsmittel-Temperatur nicht ladbar")

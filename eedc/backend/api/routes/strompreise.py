@@ -271,12 +271,20 @@ async def monats_strompreis_lookup(
     )
     md_je_monat = {(m.jahr, m.monat): m for m in md_result.scalars().all()}
 
+    # Tarife und gemessene Monats-Ø EINMAL fuer alle Monate (statt je Monat
+    # eine Abfrage auf `strompreise` und eine ueber die Stundentabelle).
+    from backend.services.strompreis_aggregator import lade_preis_aggregate_je_monat
+
+    _monate = list(dict.fromkeys(monate))
+    _tarife_je_stichtag = await lade_tarife_je_stichtag(
+        db, anlage_id, [date(j, m, 1) for j, m in _monate]
+    )
+    _messung = await lade_preis_aggregate_je_monat(db, anlage_id)
+
     lookup: dict[tuple[int, int], float] = {}
     preis_cache: dict = {}
-    for jahr, monat in dict.fromkeys(monate):
-        m_tarife = await lade_tarife_fuer_anlage(
-            db, anlage_id, target_date=date(jahr, monat, 1)
-        )
+    for jahr, monat in _monate:
+        m_tarife = _tarife_je_stichtag[date(jahr, monat, 1)]
         m_tarif = resolve_tarif_for_komponente(m_tarife, verwendung)
         # Der Komponenten-Tarif ist Stufe 4 der Kaskade; ein gepflegter oder
         # gemessener Ø schlägt ihn, wie in den Monats-Fakten.
@@ -287,7 +295,7 @@ async def monats_strompreis_lookup(
         lookup[(jahr, monat)] = (await aufgeloester_monatspreis(
             db, anlage_id, jahr, monat, md_je_monat.get((jahr, monat)),
             m_tarif if m_tarif is not None else m_tarife.get("allgemein"),
-            stammpreis_override=stamm, cache=preis_cache,
+            stammpreis_override=stamm, cache=preis_cache, messung=_messung,
         )).cent
     return lookup
 

@@ -227,6 +227,17 @@ async def _gewichtete_monatspreise(
     )
     md_je_monat = {(m.jahr, m.monat): m for m in md_result.scalars().all()}
 
+    # Dieselbe Bauform wie in `monats_strompreis_lookup`: Tarife und gemessene
+    # Monats-Ø einmal fuer alle Monate, danach rechnet die Schleife nur noch.
+    from backend.api.routes.strompreise import lade_tarife_je_stichtag
+    from backend.services.strompreis_aggregator import lade_preis_aggregate_je_monat
+
+    _monate = [(j, m) for (j, m), g in gewichte.items() if g and g > 0]
+    _tarife_je_stichtag = await lade_tarife_je_stichtag(
+        db, anlage_id, [date(j, m, 1) for j, m in _monate]
+    )
+    _messung = await lade_preis_aggregate_je_monat(db, anlage_id)
+
     gewichteter_bezug = 0.0
     gewichtete_einspeisung = 0.0
     bezug_lookup: dict[tuple[int, int], float] = {}
@@ -234,9 +245,7 @@ async def _gewichtete_monatspreise(
     for (jahr, monat), gewicht in gewichte.items():
         if not gewicht or gewicht <= 0:
             continue
-        m_tarife = await lade_tarife_fuer_anlage(
-            db, anlage_id, target_date=date(jahr, monat, 1)
-        )
+        m_tarife = _tarife_je_stichtag[date(jahr, monat, 1)]
         m_bezug = resolve_strompreis_for_komponente(
             m_tarife, verwendung, fallback=fallback_bezug
         )
@@ -247,7 +256,7 @@ async def _gewichtete_monatspreise(
         m_bezug = (await aufgeloester_monatspreis(
             db, anlage_id, jahr, monat, md_je_monat.get((jahr, monat)),
             m_tarife.get("allgemein"),
-            stammpreis_override=m_bezug, cache=preis_cache,
+            stammpreis_override=m_bezug, cache=preis_cache, messung=_messung,
         )).cent
         bezug_lookup[(jahr, monat)] = m_bezug
         gewichteter_bezug += m_bezug * gewicht
