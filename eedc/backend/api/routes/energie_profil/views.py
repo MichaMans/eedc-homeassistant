@@ -865,7 +865,8 @@ async def get_tag_detail(
     from backend.core.berechnungen.waermepumpe_kennzahl import (
         GRUND_FUNKTION_NICHT_DECKUNGSGLEICH, abgrenzungs_grund,
         ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion,
-        arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
+        als_arbeitszahl, arbeitszahl, arbeitszahl_je_funktion,
+        arbeitszahl_kuehlen,
         deckung_aus_geraeten, heizwaerme_je_geraet, systemarbeitszahl,
         waerme_gesamt_je_geraet,
     )
@@ -873,7 +874,7 @@ async def get_tag_detail(
         kennzahlen_aus_mengen, mengen_aus_tageswerten,
     )
     from backend.services.waerme_klima_block import (
-        geraete_zeilen, schranken_eingang, was_noch_moeglich,
+        achsen_der_anlage, geraete_zeilen, schranken_eingang, was_noch_moeglich,
     )
     from backend.core.investition_parameter import (
         abgrenzung_stoerung, ist_luft_luft_waermepumpe,
@@ -1386,6 +1387,13 @@ async def get_tag_detail(
         # Jahr summieren vorher (`sum()` ⇒ immer eine Zahl) und dürfen den
         # Wortlaut deshalb nicht führen.
         null_ist_gemessen=True,
+        # **R-2 (WK-16h, N-499): dieselbe Frage wie im Monat und im Jahr.**
+        # Gemessen an der Demo-Anlage der r28 am 15.06.2026: An diesem Tag trägt
+        # allein die Split-Klimaanlage Strom bei — und der Kasten empfahl
+        # *„Getrennte Strommessung einschalten und beide Zähler zuordnen"* für
+        # eine Warmwasser-Achse, die es an dieser Ausstattung nicht gibt.
+        achsen=achsen_der_anlage(_wp_kennzahlen_je_geraet),
+        gesamt=als_arbeitszahl(wp_jaz_tag),
     )
 
     # ── Arbeitszahl KÜHLEN — derselbe Aufruf wie im Monat (Bauschnitt 6) ───
@@ -1418,6 +1426,12 @@ async def get_tag_detail(
         ),
         null_ist_gemessen=True,
     )
+
+    # D-Sicht 3: EINMAL gebaut — die Tabelle im Block **und** der Kasten lesen
+    # dieselben Zeilen (R-4). Zwei Aufrufe nebeneinander wären zwei Wahrheiten
+    # über dieselbe Frage, und die Dedup-Regel des Kastens hinge dann an einer
+    # zweiten Liste.
+    _wp_block_geraete = geraete_zeilen(_wp_kennzahlen_je_geraet)
 
     # ── Aktive Geräte je Typ (Namen) für die „aggregiert aus …"-Hinweise ──
     #
@@ -1491,7 +1505,7 @@ async def get_tag_detail(
         wp_jaz_kuehlen_grund=wp_az_kuehlen_tag.grund,
         wp_jaz_ist_schranke=wp_jaz_tag.ist_schranke,
         wp_jaz_schranke_hinweis=wp_jaz_tag.schranke_hinweis,
-        wp_geraete=geraete_zeilen(_wp_kennzahlen_je_geraet),
+        wp_geraete=_wp_block_geraete,
         # D-Sicht 1: Der Tag kennt einen Grund mehr als Monat und Jahr — den
         # der **Wärme** (W-18: „für diesen Tag keine Zählerstände"). Er gehört
         # in denselben Kasten; welche Klasse er trägt, entscheidet die
@@ -1505,7 +1519,9 @@ async def get_tag_detail(
             ("Arbeitszahl Heizen", wp_az_funktion_tag.heizen.grund),
             ("Arbeitszahl Warmwasser", wp_az_funktion_tag.warmwasser.grund),
             ("Arbeitszahl Kühlen", wp_az_kuehlen_tag.grund),
-        ]),
+        # R-4: die Geräte-Ausstattungsgründe, dedupliziert gegen die Zeilen
+        # darüber (WK-16h/N-502).
+        ], _wp_block_geraete),
         # Bauschnitt 8: derselbe Wert, den die Kühlzahl eben als Zähler bekam.
         wp_kaelte_kwh=(
             round(detail["wp_kaelte_kwh"], 2)

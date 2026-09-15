@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { baueKomponentenBloecke } from './KomponentenSektionen'
-import { GROESSE, imKasten, jazAnzeige, kennzahlUntertitel } from './waermeKlimaSicht'
+import {
+  ACHSE, GROESSE, geraetZelle, imKasten, jazAnzeige, kennzahlUntertitel,
+} from './waermeKlimaSicht'
 import type { ParkApi } from '../components/park'
 import type { AktuellerMonatResponse } from '../api/aktuellerMonat'
 import { aktuellerMonat } from '../test/factories'
@@ -274,5 +276,115 @@ describe('D-Sicht 3 — die Tabelle „Zahlen je Gerät" steht im Block', () => 
   it('ohne Geräte-Zeilen gibt es die Tabelle nicht', () => {
     rendere({ ...MELDER, wp_geraete: [] })
     expect(screen.queryByText('Zahlen je Gerät')).toBeNull()
+  })
+})
+
+/**
+ * **WK-16h — kein Strich ohne Grund, keine Kachel ohne Zahl** (N-500 · N-502).
+ *
+ * Gemessen an der r28 am 15.09.2026: Im Block *Wärme/Klima* stand **kein
+ * einziges** `title` — jede Zelle ohne Zahl war ein unerklärter Strich, obwohl
+ * die API je Zelle einen Grund liefert. Und die Kachel *„Ersparnis vs.
+ * Alternative"* stand in *Cockpit → Tag* an jedem geprüften Tag als „—": Der
+ * Tag rechnet keine Ersparnis, das Feld gibt es in `tag-detail` gar nicht.
+ */
+describe('WK-16h — die Zelle der Tabelle', () => {
+  it('geraetZelle: Zahl ohne title, Strich mit Grund, fehlende Achse leer', () => {
+    const bosch = {
+      investition_id: 2, name: 'Bosch', achsen: ['heizen'],
+      jaz_heizen_grund: 'kein Wärmemengenzähler zugeordnet',
+      jaz_warmwasser_grund: null,
+    }
+    // Eine Zahl erklärt sich selbst.
+    expect(geraetZelle(3.75, null)).toEqual({ leer: false })
+    // Kein Wert, Achse gilt ⇒ der Grund wird zum Tooltip.
+    expect(geraetZelle(null, bosch.jaz_heizen_grund, ACHSE.heizen, bosch))
+      .toEqual({ leer: false, title: 'kein Wärmemengenzähler zugeordnet' })
+    // ⛔ Achse gilt nicht ⇒ gar nichts: kein Strich, kein Tooltip.
+    expect(geraetZelle(null, null, ACHSE.warmwasser, bosch)).toEqual({ leer: true })
+  })
+
+  it('eine Zelle ohne Zahl trägt den Grund als title — eine mit Zahl nicht', () => {
+    rendere({
+      ...MELDER,
+      wp_geraete: [{
+        investition_id: 2, name: 'Bosch Multisplit', strom_kwh: 200,
+        waerme_kwh: null, jaz: null,
+        waerme_grund: 'kein Wärmemengenzähler zugeordnet',
+        jaz_grund: 'kein Wärmemengenzähler zugeordnet',
+        jaz_heizen: null, jaz_heizen_grund: 'kein Wärmemengenzähler zugeordnet',
+        jaz_warmwasser: null, jaz_warmwasser_grund: null,
+        jaz_kuehlen: null, jaz_kuehlen_grund: 'kein Kältemengenzähler zugeordnet',
+        achsen: ['heizen'],
+      }],
+    })
+    const zeile = screen.getByText('Bosch Multisplit').closest('tr')!
+    const zellen = [...zeile.querySelectorAll('td')]
+    // Gerät · Wärme · Strom · Arbeitszahl · Heizen · Warmwasser · Kühlen
+    expect(zellen[3].getAttribute('title')).toBe('kein Wärmemengenzähler zugeordnet')
+    expect(zellen[4].getAttribute('title')).toBe('kein Wärmemengenzähler zugeordnet')
+    expect(zellen[6].getAttribute('title')).toBe('kein Kältemengenzähler zugeordnet')
+    // ⛔ Die Warmwasser-Spalte einer Klimaanlage bleibt LEER — kein Strich,
+    // kein Tooltip. „Gilt nicht" ist kein Mangel.
+    expect(zellen[5].textContent).toBe('')
+    expect(zellen[5].getAttribute('title')).toBeNull()
+    // Die Mengen erklären sich selbst — solange sie eine Zahl sind. Die leere
+    // Wärme-Zelle trägt ihren Grund wie jede andere (R-4).
+    expect(zellen[2].getAttribute('title')).toBeNull()
+    expect(zellen[1].textContent).toBe('—')
+    expect(zellen[1].getAttribute('title')).toBe('kein Wärmemengenzähler zugeordnet')
+  })
+
+  it('Gegenprobe: eine geltende Achse ohne Zahl zeigt den Strich', () => {
+    rendere({
+      ...MELDER,
+      wp_geraete: [{
+        investition_id: 1, name: 'Daikin', strom_kwh: 800, waerme_kwh: 3000,
+        jaz: 3.75, jaz_heizen: null,
+        jaz_heizen_grund: 'kein Heizbetrieb in diesem Zeitraum',
+        jaz_warmwasser: null, jaz_warmwasser_grund: null,
+        achsen: ['heizen', 'warmwasser'],
+      }],
+    })
+    const zellen = [...screen.getByText('Daikin').closest('tr')!.querySelectorAll('td')]
+    expect(zellen[4].textContent).toBe('—')
+    expect(zellen[4].getAttribute('title')).toBe('kein Heizbetrieb in diesem Zeitraum')
+    // Warmwasser gilt, hat aber weder Zahl noch Grund ⇒ Strich ohne title.
+    expect(zellen[5].textContent).toBe('—')
+    expect(zellen[5].getAttribute('title')).toBeNull()
+  })
+
+  it('ohne `achsen` bleibt jede Spalte stehen — Altbestand einer Antwort', () => {
+    rendere({
+      ...MELDER,
+      wp_geraete: [{
+        investition_id: 1, name: 'Altbestand', strom_kwh: 800, waerme_kwh: 3000,
+        jaz: 3.75, jaz_warmwasser: null,
+        jaz_warmwasser_grund: 'Wärme nicht je Funktion gemessen',
+      }],
+    })
+    const zellen = [...screen.getByText('Altbestand').closest('tr')!.querySelectorAll('td')]
+    expect(zellen[5].textContent).toBe('—')
+    expect(zellen[5].getAttribute('title')).toBe('Wärme nicht je Funktion gemessen')
+  })
+})
+
+describe('WK-16h — die Ersparnis-Kachel erscheint nur mit Wert', () => {
+  it('Cockpit → Tag: ohne Betrag gibt es die Kachel nicht', () => {
+    rendere({ ...MELDER, wp_ersparnis_euro: null }, 'tag')
+    expect(screen.queryByText('Ersparnis vs. Alternative')).toBeNull()
+    // ⛔ Und KEINE Kasten-Zeile: Der Kasten nennt Ausstattung, an der man etwas
+    // ändern kann — hier fehlt kein Zähler, sondern eine Rechnung in dieser Sicht.
+    expect(screen.queryByText(/Ersparnis/)).toBeNull()
+  })
+
+  it('Gegenprobe: mit Betrag steht sie da', () => {
+    rendere({ ...MELDER, wp_ersparnis_euro: 58.07 }, 'monat')
+    expect(screen.getByText('Ersparnis vs. Alternative')).toBeInTheDocument()
+  })
+
+  it('auch im Monat verschwindet sie ohne Betrag — D-Sicht 1 gilt je Sicht', () => {
+    rendere({ ...MELDER, wp_ersparnis_euro: null }, 'monat')
+    expect(screen.queryByText('Ersparnis vs. Alternative')).toBeNull()
   })
 })

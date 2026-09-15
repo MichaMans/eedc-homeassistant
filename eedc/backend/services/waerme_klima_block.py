@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Iterable, Optional, Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_BAUARTEN_GEMISCHT,
@@ -44,6 +44,7 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     HANDGRIFF_JE_GRUND,
     ist_ausstattungs_grund,
 )
+from backend.core.betriebsmodus import HEIZEN, WAERME_ACHSEN, WARMWASSER
 from backend.core.tageswert_grund import (
     GRUND_KEINE_ZAEHLERSTAENDE,
     GRUND_ZAEHLER_RUECKSPRUNG,
@@ -106,6 +107,17 @@ class WpGeraetZeile(BaseModel):
     name: str
     strom_kwh: Optional[float] = None
     waerme_kwh: Optional[float] = None
+    #: Warum die Wärme-Zelle leer ist — **R-4**, damit auch sie keinen Strich
+    #: ohne Grund trägt.
+    #:
+    #: ⛔ **Nicht neu klassifiziert, sondern abgeleitet:** Steht Strom, aber
+    #: keine Wärme, dann sperrt ``arbeitszahl`` genau an ``q <= 0``, und ihr
+    #: Grund IST die Aussage über die fehlende Wärme (*„kein Wärmemengenzähler
+    #: zugeordnet"*, im Tag auch die W-18-Form). Ihn hier zu wiederholen wäre
+    #: ein zweiter Wortlaut; ihn aus dem Text zu erraten wäre die W-3-Klasse.
+    #: Die Bedingung ist deshalb **strukturell** — die Sperrreihenfolge von
+    #: ``arbeitszahl`` steht in ihrem Docstring.
+    waerme_grund: Optional[str] = None
     jaz: Optional[float] = None
     jaz_grund: Optional[str] = None
     jaz_heizen: Optional[float] = None
@@ -114,6 +126,21 @@ class WpGeraetZeile(BaseModel):
     jaz_warmwasser_grund: Optional[str] = None
     jaz_kuehlen: Optional[float] = None
     jaz_kuehlen_grund: Optional[str] = None
+    #: Die **Wärme-Achsen** dieses Geräts (WK-16h/**R-1**) — Namen aus dem
+    #: Kanon (``heizen`` · ``warmwasser``).
+    #:
+    #: ⭐ **Wozu die Anzeige sie braucht.** Eine Zelle ohne Zahl hat zwei ganz
+    #: verschiedene Bedeutungen: *„die Zahl fehlt"* (Strich mit dem Grund als
+    #: Tooltip) und *„danach ist hier nicht zu fragen"* (**leer**). Beide sind
+    #: ``None`` — das Feld hier trennt sie. Aus dem Grund allein ginge es
+    #: nicht: Eine nicht geltende Achse hat gar keinen.
+    #:
+    #: ⚠ **Der Default ist „beide", nicht die leere Liste** — und eine leere
+    #: Liste gilt beim Lesen wie „beide" (Backend wie Client). Fail-open wie in
+    #: der Registry: Eine Zeile, die das Feld nicht trägt, soll keine Spalte
+    #: verschwinden lassen; die Gegenrichtung — eine gemessene Zahl still
+    #: ausblenden — wäre der teurere Fehler.
+    achsen: list[str] = Field(default_factory=lambda: sorted(WAERME_ACHSEN))
 
 
 #: Die Namen der Größen, die im Kasten stehen können. **Sie sind Bezeichner,
@@ -185,6 +212,10 @@ def geraete_zeilen(
             strom_kwh=_r(m.strom_kwh, 1),
             # P4: eine fehlende Wärme ist keine 0 — sie ist keine Zahl.
             waerme_kwh=_r(m.waerme_kwh, 1) if m.waerme_kwh > 0 else None,
+            waerme_grund=(
+                k.gesamt.grund
+                if (m.waerme_kwh <= 0 and m.strom_kwh > 0) else None
+            ),
             jaz=_r(k.gesamt.wert),
             jaz_grund=k.gesamt.grund,
             jaz_heizen=_r(k.je_funktion.heizen.wert),
@@ -193,44 +224,135 @@ def geraete_zeilen(
             jaz_warmwasser_grund=k.je_funktion.warmwasser.grund,
             jaz_kuehlen=_r(k.kuehlen.wert),
             jaz_kuehlen_grund=k.kuehlen.grund,
+            # Sortiert, damit die Antwort stabil ist (ein `frozenset` hat keine
+            # Reihenfolge, und die Antwort wird verglichen).
+            achsen=sorted(m.waerme_achsen),
         ))
     return zeilen
 
 
+def achsen_der_anlage(
+    kennzahlen: Sequence[GeraetKennzahlen],
+) -> frozenset[str]:
+    """Welche Wärme-Achsen gibt es **anlagenweit**? (WK-16h/**R-2**)
+
+    Die Vereinigung über die Geräte, die im Zeitraum **beitragen**. Eine
+    anlagenweite Funktions-Arbeitszahl gibt es nur für eine Achse, die
+    mindestens eines dieser Geräte hat; für die andere steht weder Zahl noch
+    Grund noch eine Zeile im Kasten.
+
+    ⭐ **Der Anlass, gemessen an der Demo-Anlage der r28 am 15.06.2026** (N-499):
+    An diesem Tag trägt allein die **Split-Klimaanlage** Strom bei. Im Kasten
+    stand *„Arbeitszahl Heizen · Arbeitszahl Warmwasser — Strom nicht getrennt
+    je Funktion gemessen → Getrennte Strommessung einschalten und beide Zähler
+    zuordnen"* — ein Handgriff, der an einem Gerät ohne Warmwasserkreis ins
+    Leere führt, für eine Achse, die es an der ganzen beitragenden Ausstattung
+    nicht gibt.
+
+    ⚠ **Beitrag statt Bestand**, dieselbe Regel wie in {@link schranken_eingang}
+    und in ``deckung_aus_geraeten`` (N-441): Ein Gerät ohne Strom in diesem
+    Zeitraum öffnet keine Achse — es steht in keinem Nenner.
+
+    ⛔ **Trägt kein Gerät bei, gelten die Achsen aller übergebenen Geräte**, und
+    zur Not beide. Eine leere Menge hieße *„es gibt hier keine Funktion"* — das
+    ist eine Aussage über die Ausstattung, und eine leere Liste ist keine
+    Messung (ADR-002/**P4**).
+    """
+    beitragend = [k.mengen for k in kennzahlen if k.mengen.strom_kwh > 0]
+    quelle = beitragend or [k.mengen for k in kennzahlen]
+    if not quelle:
+        return WAERME_ACHSEN
+    return frozenset().union(*(m.waerme_achsen for m in quelle))
+
+
+#: Welche Größe zu welcher Spalte der Tabelle *„Zahlen je Gerät"* gehört — und
+#: welche Achse sie voraussetzt. ``None`` heißt: keine Wärme-Achse nötig.
+_GERAET_GROESSEN: tuple[tuple[str, str, str, Optional[str]], ...] = (
+    (GROESSE_ARBEITSZAHL, "jaz", "jaz_grund", None),
+    (GROESSE_ARBEITSZAHL_HEIZEN, "jaz_heizen", "jaz_heizen_grund", HEIZEN),
+    (GROESSE_ARBEITSZAHL_WARMWASSER, "jaz_warmwasser", "jaz_warmwasser_grund",
+     WARMWASSER),
+    (GROESSE_ARBEITSZAHL_KUEHLEN, "jaz_kuehlen", "jaz_kuehlen_grund", None),
+)
+
+
 def was_noch_moeglich(
     gruende: Iterable[tuple[str, Optional[str]]],
+    geraete: Sequence[WpGeraetZeile] = (),
 ) -> list[WpMoeglichZeile]:
     """Der Kasten — **jeder Ausstattungs-Grund genau einmal**.
 
     Args:
-        gruende: Paare ``(Größen-Name, Grund)``. Ein Grund, der die Klasse
-            *Zeitraum* trägt, erscheint **nicht** — dort steht an der Kachel ein
-            „—" ohne Text, und der Kasten bliebe sonst im Juni voll mit Sätzen,
-            zu denen es nichts zu tun gibt.
+        gruende: Paare ``(Größen-Name, Grund)`` der **anlagenweiten** Zahlen.
+            Ein Grund, der die Klasse *Zeitraum* trägt, erscheint **nicht** —
+            dort steht an der Kachel ein „—" ohne Text, und der Kasten bliebe
+            sonst im Juni voll mit Sätzen, zu denen es nichts zu tun gibt.
+        geraete: die Zeilen der Tabelle *„Zahlen je Gerät"*. Ihre
+            **Ausstattungs**-Gründe kommen mit in den Kasten, mit dem
+            Gerätenamen davor (*„Bosch Climate 5000 Multisplit: kein
+            Wärmemengenzähler zugeordnet"*).
+
+    ⭐ **Warum die Geräte-Gründe dazugehören** (WK-16h/**R-4**, N-502). Bis zum
+    15.09.2026 trug der Kasten nur die anlagenweiten Zahlen. Gemessen an der
+    Demo-Anlage der r28: *Cockpit → Monat Juni* zeigte die Bosch-Zeile mit
+    74,2 kWh Strom und **vier** Strichen, und nirgends im Block stand, dass ihr
+    der Wärmemengenzähler fehlt — der einzige Hinweis war der Schranken-Satz an
+    der Kachel darüber, und der erklärt das „≥", nicht den Strich.
+
+    ⛔ **Dedupliziert gegen die anlagenweiten Zeilen**, und zwar am **rohen**
+    Grund: Sagt die Anlage schon *„kein Kältemengenzähler zugeordnet"*, ist
+    *„Bosch …: kein Kältemengenzähler zugeordnet"* daneben keine zweite
+    Auskunft, sondern dieselbe zweimal — genau die Wiederholung, gegen die der
+    Kasten gebaut ist.
+
+    ⚠ **Eine nicht geltende Achse bringt nichts mit** — sie hat keinen Grund
+    (``ARBEITSZAHL_GILT_NICHT``), und ``achsen`` hält die Frage zusätzlich
+    zurück: Ein Gerät ohne Warmwasserkreis soll im Kasten nicht unter
+    *Arbeitszahl Warmwasser* auftauchen, auch nicht, wenn dort eines Tages ein
+    Grund stünde.
 
     ⭐ **Die Reihenfolge ist die der Aufrufer-Liste**, nicht alphabetisch: Die
-    Gesamtzahl steht oben, die Funktionen darunter — dieselbe Reihenfolge, in
-    der der Anwender sie im Block gesucht hat.
+    Gesamtzahl steht oben, die Funktionen darunter, die Geräte dahinter —
+    dieselbe Reihenfolge, in der der Anwender sie im Block gesucht hat.
     """
     reihenfolge: list[str] = []
     groessen: dict[str, list[str]] = {}
-    for groesse, grund in gruende:
+    roh_je_zeile: dict[str, str] = {}
+
+    def _nimm(groesse: str, grund: Optional[str], praefix: str = "") -> None:
         if not grund or not ist_ausstattungs_grund(grund):
-            continue
-        if grund not in groessen:
-            groessen[grund] = []
-            reihenfolge.append(grund)
-        if groesse not in groessen[grund]:
-            groessen[grund].append(groesse)
+            return
+        zeile = f"{praefix}{grund}" if praefix else grund
+        if zeile not in groessen:
+            groessen[zeile] = []
+            roh_je_zeile[zeile] = grund
+            reihenfolge.append(zeile)
+        if groesse not in groessen[zeile]:
+            groessen[zeile].append(groesse)
+
+    for groesse, grund in gruende:
+        _nimm(groesse, grund)
+    anlagenweit = set(roh_je_zeile.values())
+    for g in geraete:
+        for groesse, wert_feld, grund_feld, achse in _GERAET_GROESSEN:
+            if achse is not None and achse not in (g.achsen or WAERME_ACHSEN):
+                continue
+            if getattr(g, wert_feld) is not None:
+                continue
+            grund = getattr(g, grund_feld)
+            if not grund or grund in anlagenweit:
+                continue
+            _nimm(groesse, grund, praefix=f"{g.name}: ")
+
     return [
         WpMoeglichZeile(
-            groessen=list(groessen[g]),
-            groesse=" · ".join(groessen[g]),
-            grund=g,
-            handgriff=HANDGRIFF_JE_GRUND.get(g),
-            link=_link(g),
+            groessen=list(groessen[z]),
+            groesse=" · ".join(groessen[z]),
+            grund=z,
+            handgriff=HANDGRIFF_JE_GRUND.get(roh_je_zeile[z]),
+            link=_link(roh_je_zeile[z]),
         )
-        for g in reihenfolge
+        for z in reihenfolge
     ]
 
 

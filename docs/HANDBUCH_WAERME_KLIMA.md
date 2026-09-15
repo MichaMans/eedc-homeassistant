@@ -42,7 +42,7 @@ Das hat einen Preis, den du kennen solltest: **eedc kann nicht wissen, ob dein G
 | Ort | Was dort steht |
 |-----|----------------|
 | **Cockpit → Live** | Momentanleistung gesamt und je Funktion, Betriebsmodus, Warmwasser-Temperatur |
-| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Ersparnis, Kompressor-Starts, die **Liste je Funktion** und die Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, mit Kältemengenzähler die **gemessene Kälte als eigene Linie**, Außentemperatur auf der zweiten Achse. Jedes Gerät bleibt dabei in seinen eigenen Stunden. Die Stunden ergeben zusammen genau die Aufteilung darunter; was sich keiner Stunde zuordnen lässt, steht darunter als *„Strom / Wärme / Kälte ohne Stundenzuordnung"*; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen). Mit **getrennten Stromzählern für Heizen und Warmwasser** schaltet ein Wähler über dem Verlauf zwischen *nach Betriebsart* und *nach Funktion* um — nie beides zugleich, weil Betriebsarten Ausschnitte und Funktionen Summanden des Stroms sind; der Titel nennt die gerade gestapelte Größe. Im **Stundenverlauf** des Tages (dem Butterfly-Chart darüber, nicht in diesem Block) erscheint die Wärmepumpe getrennt nach *Heizen* und *Warmwasser*, wenn du beide **Leistungs**-Sensoren zugeordnet hast **und** *Leistung gesamt* leer bleibt — dieselben zwei Flächen wie in *Cockpit → Live* ([Schritt 6](#schritt-6--live-werte-optional)) |
+| **Cockpit → Tag** | Block *Wärme/Klima*: Arbeitszahl (auch je Funktion und für das **Kühlen**, sobald ein Kältemengenzähler zugeordnet ist — am Gerät oder je Innengerät), Wärme, Strom, Kompressor-Starts, die **Liste je Funktion** und die Betriebsart-Aufteilung — **alles tagesgenau**. Dazu ein **Verlauf je Stunde**: Strom nach Betriebsart gestapelt, gemessene Wärme als Linie, mit Kältemengenzähler die **gemessene Kälte als eigene Linie**, Außentemperatur auf der zweiten Achse. Jedes Gerät bleibt dabei in seinen eigenen Stunden. Die Stunden ergeben zusammen genau die Aufteilung darunter; was sich keiner Stunde zuordnen lässt, steht darunter als *„Strom / Wärme / Kälte ohne Stundenzuordnung"*; eine Arbeitszahl je Stunde gibt es bewusst nicht (Wärme und Strom derselben Stunde gehören nicht zusammen). Mit **getrennten Stromzählern für Heizen und Warmwasser** schaltet ein Wähler über dem Verlauf zwischen *nach Betriebsart* und *nach Funktion* um — nie beides zugleich, weil Betriebsarten Ausschnitte und Funktionen Summanden des Stroms sind; der Titel nennt die gerade gestapelte Größe. Im **Stundenverlauf** des Tages (dem Butterfly-Chart darüber, nicht in diesem Block) erscheint die Wärmepumpe getrennt nach *Heizen* und *Warmwasser*, wenn du beide **Leistungs**-Sensoren zugeordnet hast **und** *Leistung gesamt* leer bleibt — dieselben zwei Flächen wie in *Cockpit → Live* ([Schritt 6](#schritt-6--live-werte-optional)) |
 | **Cockpit → Monat** | derselbe Block auf Monatsbasis, dazu die Arbeitszahlen je Funktion und ein **Verlauf je Tag** (dieselbe Darstellung wie am Tag, mit Kälte-Linie) |
 | **Cockpit → Jahr** | Jahressummen, dieselben Kennzahlen wie im Monat — Arbeitszahl mit Grund und Heizstab-Satz, je Funktion, Kühlen, Aufteilung nach Betriebsart mit Restmenge — über das Jahr **neu gerechnet** (nicht gemittelt), ein **Verlauf je Monat** (Strom, gemessene Wärme und Kälte), Block *CO₂-Bilanz* |
 | **PDF-Jahresbericht** | dieselben Kennzahlen wie *Cockpit → Jahr* aus derselben Rechnung — Arbeitszahl mit Grund, je Funktion, Kühlen, Herkunft einer geschätzten Wärme, Vorbehalt an der CO₂-Zeile (seit 05.09.2026; vorher stand dort eine Arbeitszahl ohne Grund und nichts je Funktion) |
@@ -82,10 +82,10 @@ Diese Tabelle ist der Kern dieses Handbuchs. Sie beantwortet die Frage, die fast
 | **Stromverbrauch** der Anlage | *Stromverbrauch* (kWh) — **oder** *Strom Heizen* + *Strom Warmwasser* bei getrennter Messung | keine Auswertung, das Gerät fehlt in der Verbrauchsseite |
 | **Wärme erzeugt** | Wärmemengenzähler: *Heizwärme* (kWh) und/oder *Warmwasser-Wärme* (kWh) | eedc **rechnet** sie aus Strom × gepflegter Arbeitszahl — und kennzeichnet sie als abgeleitet — im Komponenten-Hub und unter *Cockpit → Monat/Jahr* steht die Herkunft unter der Wärme-Kachel („geschätzt: Strom × JAZ 3,5"), und Ersparnis wie CO₂ tragen den Vorbehalt „Wärme geschätzt" |
 | **Arbeitszahl (JAZ)** | beides: Strom **und** gemessene Wärme | „—" mit Grund |
-| **Arbeitszahl Heizen / Warmwasser getrennt** | getrennte Strommessung **und** getrennte Wärmemengen | „—" mit Grund *„Strom nicht getrennt je Funktion gemessen"* |
+| **Arbeitszahl Heizen / Warmwasser getrennt** | getrennte Strommessung **und** getrennte Wärmemengen | „—" mit Grund *„Strom nicht getrennt je Funktion gemessen"* — **außer** dein Gerät hat nur eine der beiden Funktionen, dann steht dort seine Gesamtzahl (s. Lage F) |
 | **Arbeitszahl Kühlen** | *Strom Kühlbetrieb* **und** *Nutzenergie Kühlbetrieb* (Kältemengenzähler) | „—" mit Grund *„kein Kältemengenzähler zugeordnet"* |
 | **Aufteilung Heizen/Kühlen/Lüften/Entfeuchten** | entweder **gemessene** Betriebsart-Zähler **oder** ein *Betriebsmodus*-Sensor, den eedc laufend mitliest | der Block fehlt ganz — und zwar bewusst, statt vier Nullen zu zeigen |
-| **Ersparnis vs. Alternative** | gemessene oder abgeleitete Wärme **und** ein Alt-Preis am Gerät | „—" |
+| **Ersparnis vs. Alternative** | gemessene oder abgeleitete Wärme **und** ein Alt-Preis am Gerät | die Kachel erscheint gar nicht. ⚠ In *Cockpit → **Tag*** gibt es sie **nie**: eedc rechnet die Ersparnis monatsweise, weil die Zusatzkosten der Altanlage Monatsgrößen sind. Der Monat und das Jahr zeigen sie |
 | **CO₂-Einsparung** | Stromverbrauch und Wärme | der Wärmepumpen-Anteil fehlt in der Bilanz |
 | **Kompressor-Starts / Betriebsstunden** | ein *Total-Increasing*-Zähler dafür | die Kacheln erscheinen gar nicht |
 | **Tages**werte statt nur Monatswerte | dieselben Zähler — aber **fortlaufend mitgeschrieben** | „—" mit Grund, siehe Kasten |
@@ -641,10 +641,14 @@ WP: 3000 kWh Wärme auf 800 kWh Strom. Klimaanlage: 200 kWh Strom, keine Wärme.
 | Sicht | Ergebnis |
 |-------|----------|
 | **Cockpit** (beide zusammen) | Arbeitszahl **„≥ 3,00"** (3000 ÷ 1000), darunter *Klimaanlage: Strom ohne Wärmemessung enthalten* |
-| **Cockpit**, Tabelle *Zahlen je Gerät* | Wärmepumpe **3,75** · Klimaanlage **„—"** |
+| **Cockpit**, Tabelle *Zahlen je Gerät* | Wärmepumpe **3,75** · Klimaanlage **„—"**, beim Überfahren *kein Wärmemengenzähler zugeordnet* |
 | **Komponenten → Wärmepumpe** | **3,75** (3000 ÷ 800) — sauber abgegrenzt |
 
 ⭐ **Die Mengen bleiben in beiden Sichten vollständig.**
+
+⭐ **Die Klimaanlage hat nur eine Wärme-Achse — und die Tabelle zeigt das.** Bei ihr steht in der Spalte *Heizen* derselbe Strich wie unter *Arbeitszahl* (mit demselben Grund: es fehlt der **Wärme**mengenzähler), und die Spalte *Warmwasser* bleibt **leer**: Eine Split-Klimaanlage hat keinen Warmwasserkreis. Bis v4.0.44 stand in beiden Spalten *„Strom nicht getrennt je Funktion gemessen"* — ein Hinweis auf getrennte Stromzähler, die dir hier gar nichts brächten, solange die Wärme nicht gemessen ist.
+
+⭐ **Und im Kasten *Was noch möglich wäre* steht jetzt, welchem Gerät was fehlt** — *„Arbeitszahl · Arbeitszahl Heizen · Bosch Climate 5000 Multisplit: kein Wärmemengenzähler zugeordnet"*, mit dem Handgriff daneben. Vorher stand das nirgends im Block: Der einzige Hinweis war der Satz unter dem „≥", und der erklärt den Mindestwert, nicht den Strich in der Zeile.
 
 ⭐ **Bis v4.0.44 stand im Cockpit „—" mit dem Grund *Wärmepumpe und Klimaanlage in einer Zahl*.** Der Grund war richtig: 3000 ÷ 1000 ist keine Arbeitszahl deiner Wärmepumpe — im Zähler steht die Wärme eines Geräts, im Nenner der Strom von zweien. Er ist aber ein **Mindestwert** für die Anlage, denn die 200 kWh der Klimaanlage können die Zahl nur **kleiner** machen. Deshalb steht dort jetzt „≥ 3,00" statt eines Strichs — und die 3,75 deiner Wärmepumpe **im selben Block** eine Zeile tiefer, statt nur hinter einem Link.
 
@@ -723,7 +727,16 @@ Ein Gerät, das ausschließlich Warmwasser macht.
 
 Wähle die Wärmepumpenart **Brauchwasser**. eedc fragt dann nur noch nach *Stromverbrauch* und *Warmwasser* — die Heiz-Achse wird weder angeboten noch erwartet, und der Daten-Checker verlangt sie nicht.
 
-> **Hast du doch einen Heizzähler** (manche Geräte unterstützen einen kleinen Heizkreis): Trag ihn unter *„Weitere Größen erfassen"* ein. Die Bauart ist ein Vorschlag, kein Verbot.
+**Deine Arbeitszahl Warmwasser ist die Arbeitszahl des Geräts.** Dein ganzer Strom geht ins Warmwasser — ein getrennter Zähler könnte gar nichts anderes messen. eedc zeigt die Zahl deshalb an beiden Stellen, mit **denselben** Werten:
+
+| | |
+|---|---|
+| 4,8 kWh Wärme ÷ 1,45 kWh Strom | **Arbeitszahl 3,31** · **Arbeitszahl Warmwasser 3,31** |
+| Arbeitszahl Heizen | **bleibt leer** — nicht „—", sondern gar nichts |
+
+> ⚑ **Warum die Heizen-Spalte leer bleibt und nicht „—" zeigt:** Ein Strich heißt *„hier fehlt etwas"*. An einer Achse, die dein Gerät nicht hat, gäbe es aber nichts nachzurüsten. Bis v4.0.44 stand dort ein Strich mit dem Satz *„Strom nicht getrennt je Funktion gemessen"* — für eine Funktion, die dein Gerät gar nicht kennt, und daneben derselbe Satz für das Warmwasser, dessen Zahl direkt danebenstand.
+
+> **Hast du doch einen Heizzähler** (manche Geräte unterstützen einen kleinen Heizkreis): Trag ihn unter *„Weitere Größen erfassen"* ein. Die Bauart ist ein Vorschlag, kein Verbot. Die **Menge** zählt dann überall mit; eine eigene *Arbeitszahl Heizen* verspricht eedc dir trotzdem nicht — dafür bräuchte es einen getrennten Stromzähler für diesen Kreis.
 
 ### G — Ein Wärmemengenzähler für Heizung und Warmwasser
 

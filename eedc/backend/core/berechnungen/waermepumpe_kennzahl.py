@@ -34,7 +34,12 @@ from typing import Optional
 # Die drei Tages-Zustände (W-18) erscheinen als Grund unter derselben
 # Kachel wie die Gründe dieser Datei; ihre Klassifizierung gehört deshalb
 # in DIESELBE Tabelle. Sie danebenzuschreiben wäre die W-3-Klasse.
-from backend.core.betriebsmodus import BETRIEBSART_NUTZENERGIE_FELD, HEIZEN
+from backend.core.betriebsmodus import (
+    BETRIEBSART_NUTZENERGIE_FELD,
+    HEIZEN,
+    WAERME_ACHSEN,
+    WARMWASSER,
+)
 from backend.core.tageswert_grund import (
     GRUND_KEINE_ZAEHLERSTAENDE,
     GRUND_ZAEHLER_RUECKSPRUNG,
@@ -1272,6 +1277,37 @@ class ArbeitszahlJeFunktion:
     warmwasser: Arbeitszahl
 
 
+#: **Die Achse gibt es an diesem Gerät nicht** — weder Zahl noch Grund (WK-16h/R-1).
+#:
+#: ⛔ **Nicht dasselbe wie „kein Wert"**, und genau deshalb eine eigene
+#: Konstante: Ein ``Arbeitszahl(None, <grund>)`` sagt *„die Zahl fehlt, und das
+#: ist der Mangel"*; diese hier sagt *„danach ist nicht zu fragen"*. Die Anzeige
+#: macht daraus eine **leere** Zelle statt eines Strichs mit Tooltip — ein
+#: „gilt nicht" ist kein Mangel, und ein Strich, den niemand beheben kann, ist
+#: die Strich-Flut, gegen die die D-Sicht gebaut ist.
+ARBEITSZAHL_GILT_NICHT = Arbeitszahl(None, None)
+
+
+def als_arbeitszahl(sys: "Systemarbeitszahl") -> Optional[Arbeitszahl]:
+    """Die anlagenweite Zahl als {@link Arbeitszahl} — **oder gar nicht**.
+
+    Für die Ein-Achsen-Regel in {@link arbeitszahl_je_funktion}: Trägt eine
+    Anlage anlagenweit nur **eine** Wärme-Achse, ist ihre Gesamtzahl die Zahl
+    dieser Funktion. Was dabei nicht mitgehen darf, ist das ``≥``.
+
+    ⛔ **Eine Schranke wird NICHT zur Funktions-Arbeitszahl** (``None``). Sie
+    ist eine *untere Grenze*, und die Funktions-Zeilen haben keine Bauform
+    dafür — eine Schranke ohne ihr Zeichen wäre eine Zahl, die mehr behauptet,
+    als sie weiß (ADR-002/**P4**). In dieser Lage bleibt es beim gewohnten Weg
+    und damit beim Grund, den die Funktion selbst findet.
+    """
+    if sys.ist_schranke:
+        return None
+    return Arbeitszahl(
+        sys.wert, sys.grund, sys.hinweis, sys.zaehler_kwh, sys.nenner_kwh,
+    )
+
+
 def arbeitszahl_je_funktion(
     *,
     heizung_kwh: Optional[float],
@@ -1286,6 +1322,8 @@ def arbeitszahl_je_funktion(
     waerme_fehlt_grund_warmwasser: Optional[str] = None,
     null_ist_gemessen: bool = False,
     abgrenzung_je_funktion_grund: Optional[dict[str, Optional[str]]] = None,
+    achsen: Optional[AbstractSet[str]] = None,
+    gesamt: Optional[Arbeitszahl] = None,
 ) -> ArbeitszahlJeFunktion:
     """Je Funktion eine eigene Arbeitszahl — oder je Funktion ihr Grund.
 
@@ -1390,10 +1428,68 @@ def arbeitszahl_je_funktion(
             längst 3,0 und 2,5 auswies. Die Klimaanlage trägt ihren Strom in
             ``stromverbrauch_kwh`` — das gehört zu keiner Funktion und steht in
             keinem der beiden Quotienten.
+        achsen: **Welche Wärme-Achsen gibt es hier überhaupt?** (WK-16h/**R-1**,
+            Namen aus ``field_definitions.WP_ACHSE_*``). ``None`` heißt „beide"
+            und ist damit **bitgleich zum Stand vor WK-16h**.
+
+            ⭐ **Die Registry antwortet, nicht diese Funktion** (ADR-001: der
+            Layer bleibt registry-frei; ADR-002/**P13**: die Bauart entscheidet
+            keine Größe). Je Gerät kommt die Menge aus
+            ``field_definitions.wp_waerme_achsen``, anlagenweit aus der
+            Vereinigung über die **beitragenden** Geräte
+            (``waerme_klima_block.achsen_der_anlage``).
+
+            Eine Achse, die nicht in ``achsen`` steht, bekommt
+            {@link ARBEITSZAHL_GILT_NICHT} — **weder Zahl noch Grund**. Das ist
+            WK-15c eine Fläche weiter: *eine Achse, die am Gerät nicht gilt,
+            trägt in keiner Rechnung und keinem Hinweis eine Zahl.*
+        gesamt: Die **Gesamt**-Arbeitszahl derselben Einheit (Gerät bzw. Anlage),
+            für die **Ein-Achsen-Regel**. ``None`` schaltet sie ab und ist
+            bitgleich zum Stand vor WK-16h.
+
+            ⭐ **Hat eine Einheit genau EINE Wärme-Achse, ist die
+            Funktions-Arbeitszahl dieser Achse die Gesamt-Arbeitszahl.** Strom
+            und Wärme sind dann per Bauart dieser Funktion zugeordnet; ein
+            getrennter Zähler könnte nichts anderes messen. Gemessen an der r28
+            (15.09.2026): Die Brauchwasser-WP *Stiebel WWK 300* hatte eine
+            Gesamtzahl von **3,31** und daneben *„Strom nicht getrennt je
+            Funktion gemessen"* an der Warmwasser-Zeile — für ein Gerät, dessen
+            gesamter Strom Warmwasser-Strom **ist** (N-499).
+
+            ⛔ **Der Grund an der Kategorie, nicht am Beispiel:** Ein Gerät ohne
+            zweite Funktion **hat** keine Aufteilung, die fehlen könnte. Deshalb
+            gilt derselbe Satz für die **Split-Klimaanlage** (nur Heizen) — und
+            dort löst er zugleich die Grund-Rangfolge (**R-2**): Ihre Gesamtzahl
+            sagt *„kein Wärmemengenzähler zugeordnet"*, und das ist der
+            zutreffende Grund; *„Strom nicht getrennt"* nannte die falsche Seite.
+
+            ⚠ **Sie ersetzt nur einen Grund, nie eine Zahl.** Wo die feinen
+            Zähler eine Funktions-Arbeitszahl hergeben, bleibt sie stehen: Sie
+            ist eine Messung *dieser* Funktion, und ein Gesamtzähler, der mehr
+            misst (Standby, Steuerung), wäre dafür der gröbere Nenner.
     """
+    _achsen = WAERME_ACHSEN if achsen is None else frozenset(achsen)
+
+    def _je_achse(achse: str, eigene: Arbeitszahl) -> Arbeitszahl:
+        """Die Achsen-Regel an EINER Stelle (**R-1**), für beide Funktionen.
+
+        Drei Lagen, in dieser Reihenfolge: die Achse gilt nicht ⇒ nichts · sie
+        ist die **einzige** und die eigene Rechnung hat keine Zahl ⇒ die
+        Gesamtzahl · sonst die eigene Rechnung. ``gesamt`` ersetzt damit nur
+        einen **Grund**, nie eine **Zahl**.
+        """
+        if achse not in _achsen:
+            return ARBEITSZAHL_GILT_NICHT
+        if gesamt is None or _achsen != {achse} or eigene.wert is not None:
+            return eigene
+        return gesamt
+
     if not hat_split:
         gesperrt = Arbeitszahl(None, GRUND_STROM_NICHT_JE_FUNKTION)
-        return ArbeitszahlJeFunktion(heizen=gesperrt, warmwasser=gesperrt)
+        return ArbeitszahlJeFunktion(
+            heizen=_je_achse(HEIZEN, gesperrt),
+            warmwasser=_je_achse(WARMWASSER, gesperrt),
+        )
 
     def _je(
         q: Optional[float],
@@ -1429,7 +1525,7 @@ def arbeitszahl_je_funktion(
     # Wert gibt. `arbeitszahl` wertet den Grund nur bei fehlendem Zähler aus —
     # wer die Aufteilung daneben pflegt, behält seine Zahlen.
     _gesamt_grund = GRUND_WAERME_NICHT_JE_FUNKTION if waerme_ist_gesamt else None
-    return ArbeitszahlJeFunktion(
+    _roh = ArbeitszahlJeFunktion(
         heizen=_je(
             heizung_kwh, strom_heizen_kwh,
             _gesamt_grund or waerme_fehlt_grund_heizen,
@@ -1442,6 +1538,15 @@ def arbeitszahl_je_funktion(
             GRUND_KEINE_WARMWASSERBEREITUNG if null_ist_gemessen else None,
             _abgrenzung("warmwasser"),
         ),
+    )
+    # **R-1 auch mit getrennten Zählern.** Ein Kennzeichen macht keine Achse:
+    # Wer `getrennte_strommessung` an einer Brauchwasser-WP setzt, bekommt für
+    # die Heiz-Achse trotzdem nichts — sonst stünde dort wieder ein Grund für
+    # eine Funktion, die es am Gerät nicht gibt. Und wo die feinen Zähler eine
+    # Zahl hergeben, bleibt sie: `_je_achse` ersetzt nur einen **Grund**.
+    return ArbeitszahlJeFunktion(
+        heizen=_je_achse(HEIZEN, _roh.heizen),
+        warmwasser=_je_achse(WARMWASSER, _roh.warmwasser),
     )
 
 

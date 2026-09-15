@@ -24,6 +24,7 @@ from backend.services.waermepumpe_kennzahlen_je_geraet import (
 from backend.services.waerme_klima_block import (
     WpGeraetZeile,
     WpMoeglichZeile,
+    achsen_der_anlage,
     geraete_zeilen,
     schranken_eingang,
     was_noch_moeglich,
@@ -45,7 +46,7 @@ from backend.api.routes.strompreise import (
 from backend.api.routes.connector import _calc_month_delta
 from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
-    ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, hub_hilft,
+    ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, als_arbeitszahl, hub_hilft,
     abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
     heizwaerme_kwh, systemarbeitszahl, waerme_gesamt_kwh,
 )
@@ -2953,6 +2954,14 @@ async def get_aktueller_monat(
         waerme_abgeleitet_kwh=wp_waerme_abgeleitet_kwh,
         abgrenzung_verletzt=wp_abgrenzung_verletzt,
         abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion,
+        # **R-2 (WK-16h, N-499): anlagenweit entsteht eine Funktions-Zahl nur
+        # aus den Geräten, die die Achse HABEN.** Die Vereinigung über die
+        # beitragenden Geräte steht an einer Stelle (`achsen_der_anlage`) —
+        # Monat, Tag und Jahr fragen dieselbe. Trägt die Ausstattung nur eine
+        # Wärme-Achse, ist die anlagenweite Gesamtzahl ihre Zahl; eine Schranke
+        # geht dabei nicht mit (`als_arbeitszahl` liefert dann `None`).
+        achsen=achsen_der_anlage(_wp_kennzahlen_je_geraet),
+        gesamt=als_arbeitszahl(wp_arbeitszahl),
     )
 
     # ── D-Sicht: die Tabelle je Gerät und der EINE Kasten ──────────────────
@@ -2962,12 +2971,14 @@ async def get_aktueller_monat(
     # Grund-Konstante (`grund_klasse`), nicht diese Route und erst recht nicht
     # der Client.
     wp_block_geraete = geraete_zeilen(_wp_kennzahlen_je_geraet)
+    # R-4: die **Geräte**-Ausstattungsgründe kommen mit in den Kasten, mit dem
+    # Namen davor und dedupliziert gegen die anlagenweiten Zeilen darüber.
     wp_block_moeglich = was_noch_moeglich([
         ("Arbeitszahl", wp_arbeitszahl.grund),
         ("Arbeitszahl Heizen", wp_az_funktion.heizen.grund),
         ("Arbeitszahl Warmwasser", wp_az_funktion.warmwasser.grund),
         ("Arbeitszahl Kühlen", wp_az_kuehlen.grund),
-    ])
+    ], wp_block_geraete)
 
     # E-Mobilität: PV/Netz/Extern-Split + V2H
     emob_pv = get_val("emob_pv_ladung_kwh")

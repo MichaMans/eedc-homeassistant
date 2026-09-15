@@ -71,6 +71,13 @@ from backend.core.investition_parameter import (
     ist_luft_luft_waermepumpe,
     lade_innengeraete,
 )
+# Nur die beiden Funktions-NAMEN des Kanons (`core/betriebsmodus.py` importiert
+# diese Datei seinerseits erst **in** seinen Funktionen — kein Zyklus). Sie
+# hier noch einmal als Literale zu schreiben wäre das zweite Vokabular für
+# dieselbe Sache, das N-336 verursacht hat.
+from backend.core.betriebsmodus import HEIZEN as BM_HEIZEN
+from backend.core.betriebsmodus import WAERME_ACHSEN as BM_WAERME_ACHSEN
+from backend.core.betriebsmodus import WARMWASSER as BM_WARMWASSER
 
 
 # =============================================================================
@@ -1780,6 +1787,73 @@ def bedingung_erfuellt(bedingung, bedingungs_werte: dict[str, bool]) -> bool:
         if bedingungs_werte[schluessel] == negiert:
             return False
     return True
+
+
+#: Welches Registry-Feld **ist** die Wärme-Achse. Die Namen kommen aus dem
+#: Kanon (``core/betriebsmodus.py``) — kein zweites Vokabular für dieselbe
+#: Sache, das war die Ursache von N-336.
+#:
+#: ⚠ **Die Wärme-Seite entscheidet, nicht die Strom-Seite:**
+#: ``strom_heizen_kwh`` trägt zusätzlich die **harte** Bedingung
+#: ``getrennte_strommessung`` und wäre an jedem Gerät ohne dieses Kennzeichen
+#: „nein" — das ist eine Aussage über die *Messung*, nicht über die *Funktion*
+#: des Geräts.
+#:
+#: ⛔ **``kuehlen`` steht hier nicht.** Kühlen ist keine Wärme-Achse; seine
+#: Kennzahl hat einen eigenen Zähler (die **Kälte**menge) und eine eigene
+#: Sperre (``arbeitszahl_kuehlen``).
+_WP_ACHSEN_FELD: Final[dict] = {
+    BM_HEIZEN: "heizenergie_kwh",
+    BM_WARMWASSER: "warmwasser_kwh",
+}
+
+#: Beide Wärme-Achsen — der Default überall dort, wo die Frage nicht gestellt
+#: wird (bitgleich zum Stand vor WK-16h). **Aus dem Kanon**, nicht aus der
+#: Tabelle darüber: Die beiden müssen deckungsgleich sein, und ein Feld, das
+#: hier fehlte, fiele so sofort auf (``assert`` darunter).
+WP_WAERME_ACHSEN_BEIDE: Final[frozenset] = BM_WAERME_ACHSEN
+assert frozenset(_WP_ACHSEN_FELD) == BM_WAERME_ACHSEN, (
+    "Jede Wärme-Achse des Kanons braucht ihr Registry-Feld"
+)
+
+
+def wp_waerme_achsen(parameter: Optional[dict]) -> frozenset:
+    """Welche Wärme-Achsen hat dieses Gerät? — **die eine Achsen-Frage** (WK-16h).
+
+    Rückgabe ist eine Teilmenge von {@link WP_WAERME_ACHSEN_BEIDE}: eine
+    **Brauchwasser**-Wärmepumpe trägt nur ``warmwasser``, eine
+    **Split-Klimaanlage** nur ``heizen`` (N-304: kein Warmwasserkreis), jedes
+    andere Gerät beide.
+
+    ⭐ **Warum es diese Funktion gibt.** WK-15c hat die Regel *„eine Achse, die
+    am Gerät nicht gilt, trägt in keiner Rechnung und keinem Hinweis eine Zahl"*
+    für ROI-Schätzung, Formular und die SCOP/COP-Hinweise durchgesetzt — die
+    **Kennzahlen je Gerät** kamen einen Tag später (WK-16ab) und kannten sie
+    nicht. Gemessen an der r28 (15.09.2026): die Brauchwasser-WP *Stiebel WWK
+    300* hatte eine Gesamt-Arbeitszahl von 3,31 und daneben zweimal den Strich
+    *„Strom nicht getrennt je Funktion gemessen"* — einmal für die Achse, deren
+    Zahl 3,31 **ist**, und einmal für eine Achse, die das Gerät nicht hat
+    (N-499).
+
+    ⚠ **`feld_urteil(...) == URTEIL_GILT` und NICHT
+    {@link groesse_gibt_es_am_geraet}** — dieselbe Trennlinie wie in
+    ``investitionen/crud.py::_achse_gilt`` (WK-15c) und
+    ``daten_checker/stammdaten.py`` (WK-15b). Jene Funktion prüft
+    ``!= URTEIL_NEIN`` und liefert an der Brauchwasser-WP für die Heiz-Achse
+    ``True``, weil die Bedingung dort **weich** ist („untypisch, nicht
+    unmöglich": wer doch einen kleinen Heizkreis hat, darf seinen Zähler
+    behalten). Für den **Lesepfad einer gemessenen Menge** ist das richtig; für
+    die Frage, welche Achse eine **Kennzahl** tragen darf, ist es zu weit.
+
+    ⛔ **Sie entscheidet nichts über Abdeckung.** „Kein Zähler zugeordnet" und
+    „das Gerät hat die Achse nicht" sind verschiedene Lagen — die erste gehört
+    dem Daten-Checker, die zweite hierher (derselbe Kasten wie bei
+    ``groesse_gibt_es_am_geraet``).
+    """
+    return frozenset(
+        achse for achse, feld in _WP_ACHSEN_FELD.items()
+        if feld_urteil("waermepumpe", feld, parameter) == URTEIL_GILT
+    )
 
 
 def groesse_gibt_es_am_geraet(

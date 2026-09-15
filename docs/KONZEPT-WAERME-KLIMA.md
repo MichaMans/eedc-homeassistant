@@ -540,6 +540,45 @@ einer Stromgröße wird ausschließlich in `waermepumpe_kennzahl.py::arbeitszahl
 liest das Ergebnis **samt Begründung**. Eine rohe Division im Client kann von der Anwender-Angabe,
 vom funktionsfremden Strom und von abgeleiteter Wärme nichts wissen.
 
+#### 5.1a · Die Achsen des Geräts entscheiden, welche Funktions-Zahl es gibt (E1 ∘ R1, 15.09.2026)
+
+**Eine Funktions-Arbeitszahl gibt es nur für eine Achse, die das Gerät hat.** Welche das sind, sagt
+die **Registry** (`field_definitions.py::wp_waerme_achsen`) und nicht die Bauart-Kette: Eine
+**Brauchwasser**-Wärmepumpe trägt nur *Warmwasser*, eine **Split-Klimaanlage** nur *Heizen*
+(N-304, kein Warmwasserkreis), jedes andere Gerät beide. Für eine Achse, die nicht gilt, gibt es
+**weder Zahl noch Grund** — kein Strich mit Text, gar nichts. Das ist WK-15c eine Fläche weiter:
+*eine Achse, die am Gerät nicht gilt, trägt in keiner Rechnung und keinem Hinweis eine Zahl.*
+
+> **Hat eine Einheit genau EINE Wärme-Achse, ist die Funktions-Arbeitszahl dieser Achse die
+> Gesamt-Arbeitszahl.** Strom und Wärme sind per Bauart dieser Funktion zugeordnet; ein getrennter
+> Zähler könnte nichts anderes messen. **Der Grund steht an der Kategorie, nicht am Beispiel:** Ein
+> Gerät ohne zweite Funktion **hat** keine Aufteilung, die fehlen könnte.
+
+⭐ **Gemessen an der nachgestellten Prüfstand-Anlage (r28, 15.09.2026), und beides traf Anwender**
+(N-499):
+
+| Gerät | vorher | nachher |
+| --- | --- | --- |
+| Brauchwasser-WP *Stiebel WWK 300* | Gesamt **3,31**, daneben zweimal *„Strom nicht getrennt je Funktion gemessen"* | Arbeitszahl **Warmwasser 3,31**; die Heiz-Achse ist leer |
+| Split-Klimaanlage *Bosch Multisplit* | *Heizen:* „Strom nicht getrennt…", *Warmwasser:* derselbe Satz | *Heizen:* **„kein Wärmemengenzähler zugeordnet"**; Warmwasser ist leer |
+
+⭐ **Damit fällt die Grund-Rangfolge heraus, ohne zweite Regel:** Fehlt die **Wärme** einer Achse,
+ist das der Grund — *vor* „Strom nicht getrennt gemessen", weil getrennte Stromzähler ohne
+Wärmemengenzähler keine einzige Kennzahl brächten. An einem Ein-Achsen-Gerät sagt die Gesamtzahl
+genau das; ein zweiter Wortlaut daneben wäre die W-3-Klasse.
+
+⚠ **Die Regel ersetzt einen Grund, nie eine Zahl.** Wo die feinen Zähler eine Funktions-Zahl
+hergeben, bleibt sie stehen: Sie ist eine Messung *dieser* Funktion, und der Gesamtzähler wäre
+dafür der gröbere Nenner (er enthält Standby und Steuerung, K1). ⛔ Und eine **Schranke** (E1b)
+geht nie mit: Die Funktions-Zeilen haben keine Bauform für ein „≥", und eine Schranke ohne ihr
+Zeichen behauptete mehr, als sie weiß (**P4**).
+
+**Anlagenweit gilt derselbe Satz, über die Geräte, die im Zeitraum beitragen**
+(`waerme_klima_block.py::achsen_der_anlage`, *Beitrag statt Bestand* wie bei der Schranke). Trägt an
+einem Tag allein die Klimaanlage Strom bei, gibt es anlagenweit keine Warmwasser-Achse — und damit
+auch keine Kasten-Zeile *„Getrennte Strommessung einschalten und beide Zähler zuordnen"*, die an
+diesem Gerät ins Leere führte (gemessen Demo-Anlage r28, 15.06.2026).
+
 ### 5.2 Woher der Nenner kommen darf
 
 > **SOLL-§9-E7 (Entscheid Gernot, 12.09.2026):** Der Nenner einer Funktions-Arbeitszahl ist der
@@ -861,6 +900,35 @@ Unterschied war die Form.
    Cockpit lesen dasselbe Ergebnis.
 4. Anlagenweite **Funktions**-Arbeitszahlen zeigt der Block nur, wo alle Geräte
    sie tragen — R2 je Funktion gilt unverändert.
+5. **Kein Strich ohne Grund, keine Kachel ohne Zahl** (15.09.2026, N-500 ·
+   N-502). Die Tabelle aus Punkt 3 kann eine Zeile nicht weglassen, solange das
+   Gerät Mengen trägt — ihre Zellen haben deshalb eine eigene Regel:
+
+   | Lage | Zelle |
+   | --- | --- |
+   | eine Zahl | die Zahl, ohne Tooltip — sie erklärt sich selbst |
+   | kein Wert, Achse gilt | „—" **mit dem API-Grund als Tooltip** |
+   | Achse gilt am Gerät nicht ([5.1a](#51a--die-achsen-des-geräts-entscheiden-welche-funktions-zahl-es-gibt-e1--r1-15092026)) | **leer** — „gilt nicht" ist kein Mangel |
+
+   ⛔ **Dass die Tabelle einen Ausstattungs-Grund als Tooltip trägt und die
+   Kachel nicht, ist kein Widerspruch:** Eine Kachel kann entfallen, dann steht
+   ihr Grund einmal im Kasten. Eine Tabellenzeile kann das nicht; ihre Zelle
+   bliebe sonst ein Strich ohne jede Auskunft. **Der Kasten nimmt den Grund
+   zusätzlich auf** — mit dem Gerätenamen davor (*„Bosch Climate 5000
+   Multisplit: kein Wärmemengenzähler zugeordnet → Wärmemengenzähler
+   zuordnen"*), dedupliziert gegen die anlagenweiten Zeilen, damit dieselbe
+   Auskunft nicht zweimal dasteht. Vorher stand **nirgends** im Block, dass
+   diesem Gerät der Zähler fehlt: Der einzige Hinweis war der Schranken-Satz an
+   der Kachel darüber, und der erklärt das „≥", nicht den Strich.
+
+   ⭐ **Und eine Kachel ohne Zahl entfällt jetzt IMMER, nicht nur mit
+   Kasten-Eintrag.** *Cockpit → Tag* zeigte die Kachel *„Ersparnis vs.
+   Alternative"* an jedem geprüften Tag als „—" ohne Betrag, ohne Untertitel und
+   ohne Tooltip — der Tag rechnet keine Ersparnis, `tag-detail` kennt das Feld
+   gar nicht ([10.3](#103-benannte-grenzen-mit-ereignis-trigger)). ⛔ **Ohne
+   Kasten-Zeile:** Der Kasten heißt *„Was noch möglich wäre"* und nennt
+   Ausstattung, an der man etwas ändern kann; hier fehlt kein Zähler, sondern
+   eine Rechnung in dieser Sicht.
 
 ⚠ **W-18 ist damit nicht zurückgenommen, sondern zu Ende geführt.** Der
 zutreffende Grund bleibt Pflicht; neu ist, dass er **einmal** dasteht statt an
@@ -1327,6 +1395,7 @@ wird der Punkt fällig. Die Zuordnung zu den Fund-IDs steht in [Kapitel 12](#12-
 | **Die Counter holen ihren Lebensdauer-Stand im Fallback als Menge** | der nächste Eingriff an den Counter-Pfaden; der Umbau verlangt, die bestehende Snapshot-Reihe mitzuziehen |
 | **Ein Modus-Feld je Innengerät** (Multisplit) | ein zweiter Multisplit-Melder, oder die Meldung, dass die Fernbedienungen auseinanderlaufen |
 | **27 Eingabefelder im Monatsabschluss bei zwei Innengeräten** — doktrinkonform, aber viel Formular | die erste Melder-Rückmeldung. **Kein Bau ohne sie** |
+| **Der Tag rechnet keine Ersparnis gegen die Alternative** — Monat und Jahr tun es; die Zusatzkosten der Altanlage sind Monatsgrößen und müssten anteilig verteilt werden. Seit 15.09.2026 **entfällt** die Kachel dort, statt als Strich ohne Grund zu stehen (D-Sicht 5) | ein Melder, der die Ersparnis am Tag vermisst |
 
 ### 10.4 Nicht-Ziele — verworfen und begründet
 
@@ -1384,6 +1453,7 @@ oder im Bericht, nicht hier.
 | Regel | Wo sie gebaut ist | gesichert durch | Art |
 | --- | --- | --- | --- |
 | **Je Funktion eine eigene Zahl** | `waermepumpe_kennzahl.py::arbeitszahl_je_funktion` | `test_soll_waerme_klima_w4_arbeitszahl_je_funktion.py` (8 Proben) | Regression |
+| **Die Achsen des Geräts entscheiden — und ein Ein-Achsen-Gerät trägt seine Gesamtzahl als Funktions-Zahl** ([5.1a](#51a--die-achsen-des-geräts-entscheiden-welche-funktions-zahl-es-gibt-e1--r1-15092026)) | die Frage in `field_definitions.py::wp_waerme_achsen` (Registry, `feld_urteil == URTEIL_GILT`), die Folge in `waermepumpe_kennzahl.py::arbeitszahl_je_funktion(achsen=…, gesamt=…)` — **eine** Stelle, kein Nachbau je Read-Site; anlagenweit `waerme_klima_block.py::achsen_der_anlage`; die Namen kommen aus dem Kanon (`betriebsmodus.WAERME_ACHSEN`) | `test_wk16h_achsen_der_kennzahl.py` (29 Proben: Registry je Bauart · Brauchwasser = Gesamt · nicht geltende Achse ohne Grund · **Gegenprobe** „ersetzt einen Grund, nie eine Zahl“ · zwei Achsen **bitgleich** · Schranke geht nicht mit · Beitrag statt Bestand mit Gegenprobe · Monat · Jahr · **Tag** · Kasten mit Gerätenamen und Dedup) | Regression |
 | **Kühl-Kennzahl aus der Kältemenge** | `::arbeitszahl_kuehlen` | `test_soll_waerme_klima_w5_arbeitszahl_kuehlen.py` (7 Proben) | Regression |
 | **E7 — der Nenner ist der gemessene Strom dieser Funktion** | `hat_split`-Tor in `arbeitszahl_je_funktion`; `imd_monatsaggregat.py` | `test_soll_waerme_klima_w4_*::test_w4_ohne_getrennte_strommessung_gibt_es_die_zahlen_nicht` · `::test_w4_zieht_keinen_funktionsfremden_strom_ab` | Regression |
 | **Abgezogen wird nur, was im Nenner steht** | `betriebsart_gemessen.py::funktionsfremd_abzug_kwh` + `field_definitions.py::nenner_ist_feine_summe` | `test_n445_kuehlstrom_im_f5_heizstrom.py`; `test_n445_nachtrag_pfad_abzug.py`; `test_n451_monatspfad_k3.py::test_k8_*` · `::test_k9_*`; Community-Seite `test_community_funktionsfremd_abzug.py` | Regression |
@@ -1410,6 +1480,7 @@ oder im Bericht, nicht hier.
 | **Hub-Link nur, wo der Hub hilft** | `waermepumpe_kennzahl.py::GRUENDE_HUB_HILFT` · `::hub_hilft`; Client liest nur das Flag | `test_n441_geraete_identitaet.py::test_p11_der_hub_link_erscheint_nur_wo_der_hub_hilft`; `test_r2_je_funktion.py::test_hub_hilft_nur_bei_gruenden_die_der_hub_beantwortet` ⚠ **Client-seitig ohne eigene Probe** — der Client vergleicht keine Texte, er liest ein Flag | Regression (Backend) |
 | **A3a — eine Sicht zeigt EINE Periode** | `CockpitTagV4.tsx`, `CockpitMonatV4.tsx`, `CockpitJahrV4.tsx`, `ZaehlerstaendeBlock.tsx` (Marke · Paarung · Beschriftung) | `CockpitTagEinTag.test.tsx`, `CockpitMonatEinePeriode.test.tsx`, `CockpitJahrEinePeriode.test.tsx` ⛔ **maschinelles Gegenstück bewusst keines** — so steht es im Style-Guide | Regression |
 | **D-Sicht — Kacheln nur mit Zahl, ein Kasten je Sicht** | Klasse an der Grund-Konstante (`GRUND_KLASSE`, `HANDGRIFF_JE_GRUND`), Zusammenstellung in `services/waerme_klima_block.py`, Anzeige `src/v4/waermeKlimaSicht.ts` + `KomponentenSektionen.tsx` | Backend `test_wk16_e1b_d_sicht.py` (jeder Grund trägt genau eine Klasse · **jeder Ausstattungs-Grund einen Handgriff** · **kein Zeitraum-Grund einen** · jeder Grund genau einmal im Kasten · Größen-Namen als Vertrag); Client `src/v4/waermeKlimaSicht.test.tsx` (12 Proben: „≥" nur bei Schranke **und Gegenprobe** · Kachel entfällt nur mit Kasten-Eintrag **und Gegenprobe** · Kasten mit Handgriff und Link · Tabelle je Gerät) | **Wächter** (über die Klassen-Tabelle) + Regression |
+| **Kein Strich ohne Grund, keine Kachel ohne Zahl** (D-Sicht 5) | `waerme_klima_block.py` (`WpGeraetZeile.achsen` · `waerme_grund` · `was_noch_moeglich(geraete=…)` mit Dedup), Anzeige `src/v4/waermeKlimaSicht.ts::geraetZelle` + die Tabelle in `KomponentenSektionen.tsx`; die Ersparnis-Kachel dort an der Wert-Bedingung | Backend `test_wk16h_achsen_der_kennzahl.py` (Kasten: Gerätename · Dedup gegen die Anlage · Zeitraum-Grund bleibt draußen · nicht geltende Achse bringt nichts mit · **Fail-open** ohne Achsen-Liste · Wärme-Zelle mit Grund **und Gegenprobe**); Client `src/v4/waermeKlimaSicht.test.tsx` (`geraetZelle` als reine Funktion · title je Zelle · leere Zelle ohne title · **Gegenprobe** geltende Achse ohne Zahl · Ersparnis-Kachel entfällt am Tag **und Gegenprobe** mit Betrag) | Regression |
 | **Verteilung je Gerät und Funktion — eine Familie je Gerät, zwei Reste, Kosten am Monatstarif** | `core/berechnungen/waerme_verteilung.py::verteile_geraet_strom` (die Weiche) · `services/waerme_verteilung.py` (Eingänge, Preise, Wetter) · `services/energie_profil/waerme_verteilung_tag.py` (Stunden) · Client `src/v4/waermeVerteilung.ts` | Backend `test_wk16c_verteilung_verlauf.py` (24 Proben: Familien-Weiche · K4 neben den Achsen · **Doppelzählung mit Gegenprobe** · gemessene 0 ist kein Segment · beide Reste getrennt · Σ Geräte = Anlagenstapel · Zeitfilter · Kosten von Hand nachgerechnet · zwei Tarife, ein gewichteter Preis · häufigster Wettercode · kein Symbol ohne Code); Client `src/v4/waermeVerteilung.test.tsx` (13 Proben: Reihenfolge Funktion vor Gerät · `null` statt 0 · kein Stapel ohne Verlaufsmenge · drei Differenz-Sätze) | Regression |
 | **S6 — der Tag sagt, was er abdeckt, und liest wie der Monat** (R-4 · R-5) | Rückfall in `services/snapshot/aggregator.py::_tagesdetail_boundary_diff_mit_grund` (`rueckfall_tagesrand`, **Schalter**) + `reader.py::letzter_stand_im_fenster`; die n-gegen-1-Präzedenz je Gerät in `core/berechnungen/wp_tages_praezedenz.py::loese_wp_tagesstrom_auf`; Wortlaut der Marke in `core/tageswert_grund.py::tages_abdeckung_hinweis`; der Strom-Grund in `waermepumpe_kennzahl.py::systemarbeitszahl(strom_fehlt_grund=…)`; Anzeige `KomponentenSektionen.tsx` (Untertitel an der Basis-Größe) | Backend `test_wk16g_tag_liest_wie_der_monat.py::TestR4Tagesrand` (8 Proben: erster Tag · laufender Tag · **kein Stand ⇒ Grund bleibt** · voller Tag bitgleich · Rücksprung · **der Rand knapp vor dem Tag**, die geschärfte Fassung nach Sprengsatz S9 · ein Stand ist kein Fenster · die Betriebsart-Zähler im selben Fenster) · `::TestR4StummerGesamtzaehler` (3: stumm ⇒ Achsen tragen · sprechend ⇒ K1 · **Tageszeile schlägt Tagesrand**) · `::TestR5EinBildschirm` (2 mit Gegenprobe); Client `KomponentenSektionen.wk16g-abdeckung.test.tsx` (4: Satz da · genau einmal · Gegenprobe · **die Naht** `baueTagAlsMonat`) | Regression |
 | **S5 — fünf Quellen im laufenden Monat, und die leere Kachel nennt ihren Grund** | Präzedenz in `core/berechnungen/datenquellen.py` (`merge_datenquellen(tagesebene=…)`, `mqtt_teilzeitraum_felder`), Rückfall in `services/snapshot/reader.py::delta_mit_rand` + `mqtt_energy_history_service.py::mqtt_monats_mengen`, fünfte Quelle in `aktueller_monat.py::_collect_tagesebene_data`, **Wärme/Klima je Gerät** in `services/energie_profil/waerme_verlauf.py::lade_waerme_monatsmengen_je_geraet` (derselbe Leser wie der Verlauf), Wortlaut in `core/monatswert_grund.py` | Backend `test_n472_laufender_monat_quellen.py` (25 Proben: Rückfall nennt seinen Zeitpunkt · **ohne Schalter bitgleich** (F-66) · Stand am Ersten bitgleich · **Rücksprung bekommt keinen Rückfall, auch mit Rand knapp vor dem Monat** · Tagesebene füllt nur Lücken · gespeicherte Zeile schlägt sie · Komponentenwert ersetzt sie (#361-Klasse) · abgeschlossener Monat bleibt aus · Abdeckung wird ausgewiesen · Grund nur an den Basis-Größen · **WP-Strom/Wärme/JAZ aus der Tagesebene** · **Tabelle je Gerät ohne Monatszeile** · **gepflegte Zeile schlägt sie auch bei der WP** · ohne Tagesspur bleibt es beim Grund); Client `src/v4/MonatBilanz.test.tsx` (Grund-Gruppe, 3 Proben) + `src/v4/ProvenanzQuellen.test.tsx` (MQTT-Teilzeitraum · „Tageswerte" schweigt ab dem Ersten) | Regression |

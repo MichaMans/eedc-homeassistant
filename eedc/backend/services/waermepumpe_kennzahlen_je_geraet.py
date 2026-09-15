@@ -70,11 +70,13 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     waerme_gesamt_kwh,
 )
 from backend.core.field_definitions import (
+    WP_WAERME_ACHSEN_BEIDE,
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     groesse_gibt_es_am_geraet,
     hat_wp_warmwasser_wert,
     nenner_ist_feine_summe,
+    wp_waerme_achsen,
 )
 from backend.core.investition_parameter import abgrenzung_stoerung
 from backend.models.investition import Investition, InvestitionMonatsdaten
@@ -121,6 +123,20 @@ class GeraetMengen:
     abgrenzung_stoerung: Optional[str] = None
     #: Gibt es die Warmwasser-Größe an diesem Gerät überhaupt? (**R1**, N-379)
     hat_warmwasser_groesse: bool = True
+    #: **Welche Wärme-Achsen hat dieses Gerät?** (WK-16h/**R-1**, N-499) —
+    #: ``field_definitions.wp_waerme_achsen``, also die **Registry**.
+    #:
+    #: ⚠ **Nicht dasselbe wie ``hat_warmwasser_groesse`` darüber, und beide
+    #: werden gebraucht.** Jenes fragt ``groesse_gibt_es_am_geraet`` und
+    #: entscheidet über eine **Menge** (darf ein gepflegter Warmwasser-Wert in
+    #: die Wärme dieses Geräts?); dieses fragt ``feld_urteil == URTEIL_GILT``
+    #: und entscheidet über eine **Kennzahl**. Der Unterschied ist die
+    #: **weiche** Bedingung: Wer an seiner Brauchwasser-WP doch einen
+    #: Heizzähler hat, dessen Menge zählt (jenes ``True``) — eine
+    #: *Arbeitszahl Heizen* verspricht eedc ihm trotzdem nicht (dieses ohne
+    #: ``heizen``). Dieselbe Trennlinie zieht ``crud.py::_achse_gilt`` seit
+    #: WK-15c; ihr Docstring benennt sie.
+    waerme_achsen: frozenset[str] = WP_WAERME_ACHSEN_BEIDE
 
     @property
     def hat_waermemessung(self) -> bool:
@@ -216,6 +232,13 @@ def kennzahlen_aus_mengen(m: GeraetMengen) -> GeraetKennzahlen:
         waerme_ist_gesamt=m.waerme_ist_gesamt_getrennt,
         waerme_abgeleitet_kwh=1.0 if m.waerme_abgeleitet else 0.0,
         abgrenzung_verletzt=_stoerung,
+        # **R-1 (WK-16h, N-499): die Achsen dieses Geräts entscheiden.** Eine
+        # Achse, die es hier nicht gibt, trägt weder Zahl noch Grund; hat das
+        # Gerät nur EINE, ist ihre Zahl die Gesamtzahl darüber — sein ganzer
+        # Strom gehört per Bauart dieser Funktion. Die Antwort kommt aus der
+        # Registry und steht an genau einer Stelle (`wp_waerme_achsen`).
+        achsen=m.waerme_achsen,
+        gesamt=gesamt,
     )
     kuehlen = arbeitszahl_kuehlen(
         m.kaelte_kwh, m.modus_strom_kuehlen_kwh,
@@ -246,6 +269,8 @@ def mengen_aus_monatszeilen(
     hat_warmwasser = groesse_gibt_es_am_geraet(
         "waermepumpe", "warmwasser_kwh", wp.parameter,
     )
+    # WK-16h/R-1: ebenfalls am GERÄT, ebenfalls einmal gefragt.
+    _achsen = wp_waerme_achsen(wp.parameter)
     _stoerung = abgrenzung_stoerung(wp)
 
     # ⚠ **Die Start-Typen sind die des Hubs (``int`` gegen ``float``), und das
@@ -361,6 +386,12 @@ def mengen_aus_monatszeilen(
                 1.0 if heizwaerme_ist_abgeleitet(md.source_provenance) else 0.0
             ),
             abgrenzung_verletzt=GRUND_JE_ABGRENZUNG.get(_stoerung or ""),
+            # **R-1 auch je Monatszeile** (WK-16h). Die Achsen hängen am GERÄT,
+            # nicht an der Zeile — anders als `hat_split` daneben, das mitten
+            # in der Historie umspringen kann. Ohne sie zeigte der
+            # Saison-Vergleich einer Brauchwasser-WP eine „Heiz"-Arbeitszahl.
+            achsen=_achsen,
+            gesamt=_md_az,
         )
         jaz_je_monat.append({
             'jahr': md.jahr, 'monat': md.monat,
@@ -414,6 +445,7 @@ def mengen_aus_monatszeilen(
         ),
         abgrenzung_stoerung=_stoerung,
         hat_warmwasser_groesse=hat_warmwasser,
+        waerme_achsen=_achsen,
     )
     f = GeraetFaltung(
         modus_heizen_kwh=modus_heizen,
@@ -485,6 +517,7 @@ def mengen_aus_tageswerten(
         hat_warmwasser_groesse=groesse_gibt_es_am_geraet(
             "waermepumpe", "warmwasser_kwh", wp.parameter,
         ),
+        waerme_achsen=wp_waerme_achsen(wp.parameter),
     )
 
 

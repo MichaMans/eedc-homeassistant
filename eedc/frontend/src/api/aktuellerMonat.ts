@@ -69,6 +69,9 @@ export interface WpGeraetZeile {
   name: string
   strom_kwh?: number | null
   waerme_kwh?: number | null
+  /** Warum die Wärme-Zelle leer ist (WK-16h/R-4) — aus dem Layer, nicht aus
+   *  dem Client. */
+  waerme_grund?: string | null
   jaz?: number | null
   jaz_grund?: string | null
   jaz_heizen?: number | null
@@ -77,6 +80,14 @@ export interface WpGeraetZeile {
   jaz_warmwasser_grund?: string | null
   jaz_kuehlen?: number | null
   jaz_kuehlen_grund?: string | null
+  /** Die **Wärme-Achsen** dieses Geräts (WK-16h/R-1) — `'heizen'` und/oder
+   *  `'warmwasser'`, Spiegel von `services/waerme_klima_block.py`.
+   *
+   *  Eine Zelle ohne Zahl hat zwei Bedeutungen, und nur dieses Feld trennt
+   *  sie: fehlt die Achse, bleibt die Zelle **leer** (kein Strich, kein
+   *  Tooltip — „gilt nicht" ist kein Mangel); gilt sie, steht dort „—" mit
+   *  dem Grund als Tooltip. */
+  achsen?: string[] | null
 }
 
 /** Eine Zeile des Kastens „Was noch möglich wäre" (D-Sicht 1) — **eine je

@@ -47,6 +47,7 @@ from backend.services.waermepumpe_kennzahlen_je_geraet import (
 from backend.services.waerme_klima_block import (
     WpGeraetZeile,
     WpMoeglichZeile,
+    achsen_der_anlage,
     geraete_zeilen,
     schranken_eingang,
     was_noch_moeglich,
@@ -542,7 +543,18 @@ async def get_cockpit_uebersicht(
     # 05.09.2026 stand die Faltung hier, und der Bericht rechnete daneben eine
     # eigene Arbeitszahl ohne Grund. Die Namen darunter bleiben, damit die
     # Antwort-Zuordnung unten unverändert lesbar ist.
-    _wpk = waermepumpe_jahreskennzahlen(fakten, wp_invs)
+    # ⭐ **Die Geräte-Kennzahlen stehen VOR der Faltung** (WK-16h): Aus ihnen
+    # kommt die anlagenweite Achsen-Menge, und die braucht die Faltung für die
+    # Funktions-Arbeitszahlen (R-2). Der Aufruf hing bis dahin unter der
+    # Faltung; er hängt an nichts aus ihr (`wp_invs` + `_fenster`).
+    _wp_kennzahlen_je_geraet = await lade_kennzahlen_je_geraet(
+        db, anlage_id, wp_invs,
+        von=_fenster[0], bis=_fenster[1],
+    )
+    _wpk = waermepumpe_jahreskennzahlen(
+        fakten, wp_invs,
+        waerme_achsen=achsen_der_anlage(_wp_kennzahlen_je_geraet),
+    )
     wp_abgrenzung = _wpk.abgrenzung
     # ── E1b: die anlagenweite Zahl als Schranke statt als Strich ───────────
     #
@@ -555,13 +567,11 @@ async def get_cockpit_uebersicht(
     # der PDF-Jahresbericht liest sie (`pdf/builders/jahresbericht.py`), und dort
     # ist eine Zahl ohne sichtbares „≥" genau das, was P4 verbietet. Zwei
     # Fragen, zwei Größen.
-    _wp_kennzahlen_je_geraet = await lade_kennzahlen_je_geraet(
-        db, anlage_id, wp_invs,
-        von=_fenster[0], bis=_fenster[1],
-    )
     _wp_strom_ohne_waerme, _wp_geraete_ohne_waerme = schranken_eingang(
         _wp_kennzahlen_je_geraet,
     )
+    # D-Sicht 3: EINMAL gebaut — Tabelle und Kasten lesen dieselben Zeilen (R-4).
+    _wp_block_geraete = geraete_zeilen(_wp_kennzahlen_je_geraet)
     _wp_az = systemarbeitszahl(
         _wpk.waerme_kwh, _wpk.strom_kwh,
         waerme_abgeleitet_kwh=_wpk.waerme_abgeleitet_kwh,
@@ -930,13 +940,15 @@ async def get_cockpit_uebersicht(
         wp_cop_hinweis=_wp_az.hinweis,
         wp_cop_ist_schranke=_wp_az.ist_schranke,
         wp_cop_schranke_hinweis=_wp_az.schranke_hinweis,
-        wp_geraete=geraete_zeilen(_wp_kennzahlen_je_geraet),
+        wp_geraete=_wp_block_geraete,
+        # R-4: die Geräte-Ausstattungsgründe, dedupliziert gegen die Zeilen
+        # darüber (WK-16h/N-502).
         wp_moeglich=was_noch_moeglich([
             ("Arbeitszahl", _wp_az.grund),
             ("Arbeitszahl Heizen", _wp_az_funktion.heizen.grund),
             ("Arbeitszahl Warmwasser", _wp_az_funktion.warmwasser.grund),
             ("Arbeitszahl Kühlen", _wp_az_k.grund),
-        ]),
+        ], _wp_block_geraete),
         wp_jaz_zaehler_kwh=_wp_az.zaehler_kwh,
         wp_jaz_nenner_kwh=_wp_az.nenner_kwh,
         wp_waerme_abgeleitet=_wp_abgeleitet,

@@ -24,7 +24,57 @@
  * hätte dort nie getroffen, und zwar still. Ein Name ist ein Schlüssel, ein Satz
  * ist eine Formulierung.
  */
-import type { WpMoeglichZeile } from '../api/aktuellerMonat'
+import type { WpGeraetZeile, WpMoeglichZeile } from '../api/aktuellerMonat'
+
+/** Die beiden Wärme-Achsen — Spiegel des Kanons (`core/betriebsmodus.py`,
+ *  `WAERME_ACHSEN`) und des Feldes `WpGeraetZeile.achsen`. */
+export const ACHSE = {
+  heizen: 'heizen',
+  warmwasser: 'warmwasser',
+} as const
+
+export type AchsenName = typeof ACHSE[keyof typeof ACHSE]
+
+/** Was in einer Zelle der Tabelle „Zahlen je Gerät" steht (WK-16h/**R-4**).
+ *
+ *  Drei Lagen, und der Unterschied zwischen den beiden letzten ist der Grund,
+ *  warum es diese Funktion gibt:
+ *
+ *  | Lage | Zelle |
+ *  | --- | --- |
+ *  | eine Zahl | die Zahl, ohne Tooltip — sie erklärt sich selbst |
+ *  | kein Wert, Achse gilt | „—" **mit dem Grund als Tooltip** |
+ *  | Achse gilt am Gerät nicht | **leer** |
+ *
+ *  ⛔ **Die leere Zelle ist keine Kosmetik.** Ein Strich sagt *„hier fehlt
+ *  etwas"*; an einer Achse, die das Gerät nicht hat, ist das falsch — es gibt
+ *  nichts zu beheben (WK-15c: *eine Achse, die am Gerät nicht gilt, trägt in
+ *  keiner Rechnung und keinem Hinweis eine Zahl*). Ein Tooltip stünde dort
+ *  ohnehin nicht: eine nicht geltende Achse hat gar keinen Grund.
+ *
+ *  ⚠ **Hier bekommt der Ausstattungs-Grund einen Tooltip, an der KACHEL nicht**
+ *  — und das ist kein Widerspruch. Eine Kachel kann entfallen, dann steht ihr
+ *  Grund einmal im Kasten. Eine Tabellenzeile kann nicht entfallen, solange das
+ *  Gerät Mengen trägt; ihre Zelle bliebe sonst ein Strich ohne jede Auskunft.
+ *  Der Kasten führt denselben Grund zusätzlich mit dem **Handgriff**.
+ */
+export function geraetZelle(
+  wert: number | null | undefined,
+  grund: string | null | undefined,
+  achse?: AchsenName,
+  zeile?: WpGeraetZeile,
+): { leer: boolean; title?: string } {
+  const achsen = zeile?.achsen ?? []
+  // ⚠ **Fail-open wie in der Registry:** Eine Zeile ohne das Feld (oder mit
+  // leerer Liste) lässt keine Spalte verschwinden — eine fehlende Angabe ist
+  // keine Aussage „diese Achse gibt es nicht". Die teurere Richtung wäre, eine
+  // gemessene Zahl still auszublenden.
+  if (achse && achsen.length > 0 && !achsen.includes(achse)) {
+    return { leer: true }
+  }
+  if (wert != null) return { leer: false }
+  return { leer: false, title: grund ?? undefined }
+}
 
 /** Die Bezeichner, unter denen eine Größe im Kasten stehen kann.
  *

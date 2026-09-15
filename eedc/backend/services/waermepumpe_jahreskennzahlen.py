@@ -29,6 +29,7 @@ dieses Modul faltet nur die Fakten und ruft sie.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Set as AbstractSet
 from typing import Iterable, Optional, Sequence
 
 from backend.core.berechnungen.modus_split import heiz_effizienz_gepflegt
@@ -112,12 +113,29 @@ class WpJahreskennzahlen:
 
 def waermepumpe_jahreskennzahlen(
     fakten: Sequence, wp_invs: Iterable,
+    *, waerme_achsen: Optional[AbstractSet[str]] = None,
 ) -> WpJahreskennzahlen:
     """Faltet die Monats-Fakten eines Zeitraums zu den WP-Kennzahlen.
 
     ``fakten``: die Monats-Fakten der Anlage (ADR-002/P10). ``wp_invs``: die
     Wärmepumpen-Investitionen, die für den Zeitraum zählen — nur ihre Anzahl und
     (bei genau einer) ihre Parameter werden gelesen (Herkunfts-Faktor).
+
+    Args:
+        waerme_achsen: **die anlagenweiten Wärme-Achsen** (WK-16h/**R-2**), aus
+            ``waerme_klima_block.achsen_der_anlage`` — dieselbe Frage, die Monat
+            und Tag stellen. ``None`` heißt „beide" und ist bitgleich zum Stand
+            vor WK-16h.
+
+            ⚠ **Die Ein-Achsen-Regel nimmt hier ``az``**, die Gesamt-Arbeitszahl
+            dieser Faltung — nicht die **System**zahl, die die Route erst
+            danach daraus bildet. Sie wäre auch nicht zu bekommen (sie braucht
+            diese Faltung als Eingang), und sie wäre auch nicht besser: Wo die
+            Systemzahl einen Wert trägt, den ``az`` sperrt, ist sie eine
+            **Schranke** — und eine Schranke wird nie zur Funktions-Arbeitszahl
+            ({@link als_arbeitszahl} liefert dort ``None``). Die Regel lautet in
+            allen drei Sichten gleich: *die veröffentlichte Gesamt-Arbeitszahl
+            der Sicht, niemals ein „≥".*
     """
     wp_invs = list(wp_invs)
     waerme = sum(f.wp.waerme_kwh for f in fakten)
@@ -277,6 +295,9 @@ def waermepumpe_jahreskennzahlen(
         waerme_abgeleitet_kwh=waerme_abgeleitet,
         abgrenzung_verletzt=abgrenzung,
         abgrenzung_je_funktion_grund=_je_funktion_grund,
+        # R-2 (WK-16h): dieselbe Achsen-Frage wie im Monat und am Tag.
+        achsen=waerme_achsen,
+        gesamt=az,
     )
     kaelte = sum(f.wp.nutzenergie_kuehlen_kwh for f in fakten)
     modus_kuehlen = sum(f.wp.modus_strom_kuehlen_kwh for f in fakten)

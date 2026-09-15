@@ -64,6 +64,41 @@ davon — genannt schon.
 
 ---
 
+**Kein Strich ohne Grund — und keine Zahl, die dein Gerät nicht haben kann**
+
+**Betrifft dich das?** Ja, wenn du eine **Brauchwasser-Wärmepumpe** oder eine
+**Split-Klimaanlage** führst — und in der Tabelle *Zahlen je Gerät* jeden Tag.
+
+Die Tabelle zeigte für **jedes** Gerät die Spalten *Heizen* und *Warmwasser*.
+An einer Brauchwasser-Wärmepumpe stand in beiden ein Strich mit *„Strom nicht
+getrennt je Funktion gemessen"* — obwohl sie gar nicht heizt und obwohl ihre
+Arbeitszahl zwei Spalten weiter links steht. **Ihr ganzer Strom ist
+Warmwasser-Strom**, ein getrennter Zähler könnte nichts anderes messen.
+
+Jetzt gilt: **Hat ein Gerät nur eine Wärme-Funktion, ist deren Arbeitszahl
+seine Gesamt-Arbeitszahl.** Die Brauchwasser-Wärmepumpe zeigt *Warmwasser
+3,31*; die Spalte *Heizen* bleibt **leer** — nicht „—", denn ein Strich hieße
+*„hier fehlt etwas"*, und da fehlt nichts. Bei einer Split-Klimaanlage ist es
+umgekehrt: *Heizen* nennt jetzt den fehlenden **Wärme**mengenzähler statt
+getrennter Stromzähler, die ohne ihn keine einzige Kennzahl brächten.
+
+⭐ **Und jeder verbleibende Strich sagt beim Überfahren, warum er dasteht.**
+Im Kasten *Was noch möglich wäre* steht der Grund zusätzlich **mit dem
+Gerätenamen und dem Handgriff** — dass ausgerechnet deiner zweiten Wärmepumpe
+der Wärmemengenzähler fehlt, stand vorher nirgends im Block.
+
+⚠ **Die Kachel *Ersparnis vs. Alternative* ist in *Cockpit → Tag*
+verschwunden.** Sie stand dort immer als „—": eedc rechnet die Ersparnis
+gegen die Altanlage monatsweise, weil deren Zusatzkosten Monatsgrößen sind.
+In Monat und Jahr steht sie unverändert.
+
+⛔ **Wo getrennte Zähler eine eigene Zahl hergeben, ändert sich nichts** —
+ein Gerät mit beiden Funktionen zeigt dieselben Werte wie bisher.
+
+→ [Wärme & Klima: Brauchwasser-Wärmepumpe](HANDBUCH_WAERME_KLIMA.md#f--brauchwasser-wärmepumpe)
+
+---
+
 **Das Cockpit zeigt, was deine Daten hergeben**
 
 **Betrifft dich das?** Ja, wenn du im Cockpit den Block *Wärme/Klima* offen hast

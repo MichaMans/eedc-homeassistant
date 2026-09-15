@@ -35,7 +35,10 @@ import {
   balkenSegmente, kostenZeilen, verteilungHinweise, verteilungTitel,
   verteilungVerlaufDaten, zeigtVerteilung,
 } from './waermeVerteilung'
-import { GROESSE, imKasten, jazAnzeige, kennzahlUntertitel } from './waermeKlimaSicht'
+import {
+  ACHSE, GROESSE, geraetZelle, imKasten, jazAnzeige, kennzahlUntertitel,
+} from './waermeKlimaSicht'
+import type { AchsenName } from './waermeKlimaSicht'
 import {
   KOMPONENTEN_IDENTITAET, INVESTITION_TYP_ORDER, SONSTIGES_ERZEUGER_FARBE, ROLLEN_BG,
   SPEICHER_KPI, WP_KPI, EAUTO_KPI, BKW_KPI,
@@ -222,8 +225,15 @@ function FunktionsGruppenListe({ fg }: { fg: FunktionsGruppen }) {
  *
  *  ⛔ **Der Client rechnet keine Arbeitszahl** (ADR-002/P12, `check:cop-roh`):
  *  Die Zeilen kommen fertig aus derselben Rechenstelle, die auch den Hub
- *  speist. Eine Zelle ohne Zahl zeigt „—" — ihr Grund steht, wenn es einen
- *  Handgriff dazu gibt, einmal im Kasten darunter.
+ *  speist.
+ *
+ *  ⭐ **Kein Strich ohne Grund** (WK-16h/**R-4**, N-502). Bis zum 15.09.2026
+ *  trug im ganzen Block **kein einziges** `title`: Jede Zelle ohne Zahl stand
+ *  unerklärt da, obwohl die API je Zelle einen Grund liefert. Jetzt trägt sie
+ *  ihn beim Überfahren — und eine Zelle, deren **Achse es am Gerät nicht
+ *  gibt**, bleibt leer statt einen Mangel zu behaupten. Welche Lage vorliegt,
+ *  entscheidet `geraetZelle` (dort die Tabelle der drei Fälle); der
+ *  Ausstattungs-Grund steht zusätzlich **mit Handgriff** im Kasten darunter.
  *
  *  Tabellen-SoT wie überall: `Table`/`TableHead`/`TableBody`, `ZELLE`/
  *  `KOPF_ZELLE`, Header-Farbe `text-gray-500 dark:text-gray-400`, Einheit in
@@ -232,7 +242,21 @@ function GeraeteKennzahlen({ zeilen, istSchranke }: {
   zeilen: WpGeraetZeile[]
   istSchranke?: boolean | null
 }) {
-  const z2 = (v: number | null | undefined) => fmtCalc(v, 2, '—')
+  /** Eine Zahlen-Zelle: Zahl · „—" mit Grund · leer (nicht geltende Achse). */
+  const ZZ = ({ wert, grund, achse, zeile }: {
+    wert?: number | null
+    grund?: string | null
+    achse?: AchsenName
+    zeile?: WpGeraetZeile
+  }) => {
+    const z = geraetZelle(wert, grund, achse, zeile)
+    return (
+      <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}
+        title={z.title}>
+        {z.leer ? '' : fmtCalc(wert, 2, '—')}
+      </td>
+    )
+  }
   return (
     <div className="space-y-2">
       <Table flaeche="karte">
@@ -251,12 +275,15 @@ function GeraeteKennzahlen({ zeilen, istSchranke }: {
           {zeilen.map((g) => (
             <tr key={g.investition_id} className="border-b border-gray-100 dark:border-gray-800">
               <td className={`${ZELLE} text-gray-700 dark:text-gray-300`}>{g.name}</td>
-              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(g.waerme_kwh)}</td>
+              {/* Mengen, keine Kennzahlen — aber R-4 gilt auch hier: ein
+                  Strich ohne Grund ist einer zu viel. */}
+              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}
+                title={g.waerme_kwh == null ? (g.waerme_grund ?? undefined) : undefined}>{fmt(g.waerme_kwh)}</td>
               <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{fmt(g.strom_kwh)}</td>
-              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz)}</td>
-              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz_heizen)}</td>
-              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz_warmwasser)}</td>
-              <td className={`${ZELLE} text-right text-gray-900 dark:text-white tabular-nums`}>{z2(g.jaz_kuehlen)}</td>
+              <ZZ wert={g.jaz} grund={g.jaz_grund} />
+              <ZZ wert={g.jaz_heizen} grund={g.jaz_heizen_grund} achse={ACHSE.heizen} zeile={g} />
+              <ZZ wert={g.jaz_warmwasser} grund={g.jaz_warmwasser_grund} achse={ACHSE.warmwasser} zeile={g} />
+              <ZZ wert={g.jaz_kuehlen} grund={g.jaz_kuehlen_grund} />
             </tr>
           ))}
         </TableBody>
@@ -825,32 +852,33 @@ export function baueKomponentenBloecke(
       // selbst war nie falsch — falsch war, es **unbesehen** voranzustellen.
       // Titel und Vorzeichen kommen aus derselben Stelle, damit sie nicht
       // auseinanderlaufen können.
-      // Die Ersparnis folgt aus der Wärme: Steht deren Grund im Kasten und gibt
-      // es keinen Betrag, hat diese Kachel nichts zu sagen — sie entfällt mit
-      // ihr, statt ein zweites „—" neben das erste zu setzen.
-      ...((waermeEntfaellt && wpErsparnis == null) ? [] : [{
+      // ── D-Sicht 1, zu Ende geführt: keine Kachel ohne Zahl ───────────────
+      //
+      // ⛔ **Hier stand bis zum 15.09.2026 `(waermeEntfaellt && wpErsparnis == null)`**
+      // — die Kachel entfiel also nur, wenn *zusätzlich* der Wärme-Grund im
+      // Kasten stand. Gemessen an der r28 (N-500): In *Cockpit → Tag* stand sie
+      // an **jedem** geprüften Tag als „—" ohne Betrag, ohne Untertitel und
+      // ohne Tooltip. Der Grund ist einfach: `tag-detail` **kennt das Feld
+      // nicht** — der Tag rechnet keine Ersparnis (das bleibt so, N-501). Eine
+      // Kachel, deren Sicht die Größe gar nicht liefert, hat nichts zu sagen.
+      //
+      // ⚠ **Und sie bekommt KEINE Kasten-Zeile.** Der Kasten heißt *„Was noch
+      // möglich wäre"* und nennt Ausstattung, an der man etwas ändern kann; hier
+      // fehlt kein Zähler, sondern eine Rechnung in dieser Sicht. Ein Eintrag
+      // dort führte zu einem Handgriff, den es nicht gibt.
+      ...(wpErsparnis == null ? [] : [{
         ...WP_KPI.ersparnis,
         ...(wpErsparnis?.istMehrkosten
           ? { title: 'Mehrkosten vs. Alternative', icon: TrendingDown, color: 'red' as const }
           : {}),
-        value: wpErsparnis?.betrag ?? '—',
+        value: wpErsparnis.betrag,
         unit: '€',
-        // W-18: Die Ersparnis folgt aus der Wärme — fehlt die, fehlt sie aus
-        // demselben Grund. Ihn hier zu wiederholen wäre eine zweite
-        // Formulierung derselben Ursache; der Verweis hält beide zusammen.
         // B4 (C-2): der Vorbehalt aus dem Layer — geschätzte Wärme oder ein
-        // zweiter Erzeuger am Wärmezähler (F12). Er geht dem Tages-Grund vor,
-        // weil er auch bei vorhandener Zahl gilt.
-        // D-Sicht: Der Verweis „Folgt aus der Tages-Wärme — <Grund>" entfällt
-        // mit dem Grund darüber. Er war die **zweite** Wiedergabe derselben
-        // Ursache; sie steht jetzt einmal im Kasten. Der Vorbehalt bei
-        // vorhandener Zahl bleibt — er erklärt eine Zahl, er ersetzt keine.
-        subtitle: (wpErsparnis != null && d.wp_ersparnis_vorbehalt)
-          ? d.wp_ersparnis_vorbehalt
-          : undefined,
-        hinweis: d.wp_waerme_grund
-          ? undefined
-          : tagHinweis(wpErsparnis != null, 'Ersparnis folgt aus der Tages-Wärme — ' + wmz),
+        // zweiter Erzeuger am Wärmezähler (F12). Er erklärt eine **vorhandene**
+        // Zahl und ist deshalb das Einzige, was hier bleibt: Die Zweige für den
+        // fehlenden Wert (`?? '—'`, `tagHinweis`, der Verweis auf den
+        // Wärme-Grund) sind mit der Bedingung darüber tote Äste geworden.
+        subtitle: d.wp_ersparnis_vorbehalt ?? undefined,
       }]),
     ]
     // #238 Counter (Verschleiß-/Auslegungs-Indikatoren). Monat: Σ Monat prominent,

@@ -1341,6 +1341,45 @@ derselbe wie dort — **E7/Option A**, also der **Abzug** und nicht die Menge.
 > meinen. Die Systemzahl ist eine dritte Größe mit eigenem Namen, und im Block
 > steht die Zahl **je Gerät** direkt daneben.
 
+#### 3.5b-A Die **Achsen des Geräts** entscheiden über die Funktions-Arbeitszahl (WK-16h, 15.09.2026)
+
+**Die Frage:** *„Für welche Funktion darf es überhaupt eine eigene Arbeitszahl geben?"*
+
+| | |
+| --- | --- |
+| **Wer antwortet** | die **Registry** — `core/field_definitions.py::wp_waerme_achsen`, über `feld_urteil(...) == URTEIL_GILT` auf `heizenergie_kwh` bzw. `warmwasser_kwh` |
+| **Wer sie auswertet** | `core/berechnungen/waermepumpe_kennzahl.py::arbeitszahl_je_funktion(achsen=…, gesamt=…)` — **eine** Stelle für alle fünf Aufrufer |
+| **Anlagenweit** | `services/waerme_klima_block.py::achsen_der_anlage` — Vereinigung über die Geräte, die im Zeitraum **Strom beitragen** |
+| **Ergebnis je Bauart** | `brauchwasser` ⇒ {Warmwasser} · `luft_luft` ⇒ {Heizen} · sonst beide |
+
+**Die Regel in drei Zeilen:**
+
+1. Eine Achse, die nicht gilt, bekommt `ARBEITSZAHL_GILT_NICHT` — **weder Wert noch Grund**.
+2. Gilt genau **eine** Achse und hat die eigene Rechnung keinen Wert, tritt die
+   **Gesamt-Arbeitszahl** an ihre Stelle: Strom und Wärme sind per Bauart dieser
+   Funktion zugeordnet.
+3. Sonst rechnet der Pfad wie bisher — **bitgleich** zum Stand vor WK-16h.
+
+> ⭐ **Die Grund-Rangfolge fällt daraus heraus, ohne zweite Regel.** An einem
+> Ein-Achsen-Gerät ohne Wärmemengenzähler sagt die Gesamtzahl *„kein
+> Wärmemengenzähler zugeordnet"* — und das ist der zutreffende Grund; *„Strom
+> nicht getrennt je Funktion gemessen"* nannte die falsche Seite, denn getrennte
+> Stromzähler brächten ohne Wärmemessung keine einzige Kennzahl.
+>
+> ⛔ **Eine Schranke wird nie zur Funktions-Arbeitszahl** (`als_arbeitszahl`
+> liefert dort `None`): Die Funktions-Zeilen haben keine Bauform für ein „≥",
+> und eine Schranke ohne ihr Zeichen behauptete mehr, als sie weiß (**P4**).
+>
+> ⛔ **Sie ersetzt einen Grund, nie eine Zahl.** Wo die feinen Zähler eine
+> Funktions-Arbeitszahl hergeben, bleibt sie stehen — sie ist eine Messung
+> *dieser* Funktion, und der Gesamtzähler wäre der gröbere Nenner (K1: er misst
+> Standby und Steuerung mit).
+>
+> ⚠ **`feld_urteil` und nicht `groesse_gibt_es_am_geraet`** — dieselbe Trennlinie
+> wie in WK-15c: Jenes prüft `!= URTEIL_NEIN` und liefert an der Brauchwasser-WP
+> für die Heiz-Achse `True`, weil die Bedingung dort **weich** ist. Für eine
+> gemessene **Menge** ist das richtig, für eine **Kennzahl** zu weit.
+
 #### 3.5b-V Verteilung des Wärme/Klima-Stroms und **Kosten je Funktion** (WK-16c, 14.09.2026)
 
 **Die Frage:** *„Wohin ist der Strom dieses Geräts gegangen — und was hat es gekostet?"*
