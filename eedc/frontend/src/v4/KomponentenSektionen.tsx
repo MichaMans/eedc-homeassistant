@@ -813,7 +813,13 @@ export function baueKomponentenBloecke(
           ? (d.wp_waerme_abgeleitet && d.wp_waerme_herkunft ? d.wp_waerme_herkunft : undefined)
           : undefined,
         hinweis: d.wp_waerme_grund ? undefined : tagHinweis(hat(d.wp_waerme_kwh), wmz) }]),
-      { ...WP_KPI.strom, value: fmt(d.wp_strom_kwh), unit: 'kWh' },
+      // R-4/N-491: Deckt der Tag nicht 0–24 Uhr ab, sagt die Kachel es — unter
+      // der Zahl, wie die Herkunft der Wärme darüber. ⛔ **Nur hier**, an der
+      // Basis-Größe: derselbe Satz an Wärme, Arbeitszahl und Ersparnis wäre die
+      // Strich-Flut, gegen die die D-Sicht gebaut ist. Der Wortlaut kommt aus
+      // dem Layer; der Client entscheidet nur, wo er steht.
+      { ...WP_KPI.strom, value: fmt(d.wp_strom_kwh), unit: 'kWh',
+        subtitle: d.wp_abdeckung_hinweis ?? undefined },
       // W-10: Ein negativer Betrag ist keine Ersparnis, und „+-49,53 €" ist
       // keine Zahl. Zwei Melder-Screenshots (dietmar1968, 25.08.). Das Plus
       // selbst war nie falsch — falsch war, es **unbesehen** voranzustellen.

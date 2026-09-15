@@ -147,6 +147,10 @@ export function baueTagAlsMonat(
     // einziger, ob der Zaehler fehlt, ob er zugeordnet aber fuer diesen Tag
     // leer ist, oder ob er zurueckgesprungen ist.
     wp_waerme_grund: tagDetail?.wp_waerme_grund ?? null,
+    // R-4/N-491: „gemessen ab 11:00 Uhr" — die Marke steht an der Basis-Größe
+    // des Blocks (Strom), nicht an jeder abgeleiteten Zahl. Dieselbe Regel, mit
+    // der N-472 die Gründe im laufenden Monat verteilt hat.
+    wp_abdeckung_hinweis: tagDetail?.wp_abdeckung_hinweis ?? null,
     emob_ladung_pv_grund: tagDetail?.emob_ladung_pv_grund ?? null,
     // #263/T2 — Aufteilung Heizen/Kühlen des Tages (gemeldet von OB73-gif).
     // Die Blockfabrik zeigt den Balken bereits, sobald `wp_modus_abdeckung_h`

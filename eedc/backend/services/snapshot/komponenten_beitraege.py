@@ -22,6 +22,10 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Iterable, Optional
 
+from backend.core.berechnungen.betriebsart_gemessen import (
+    MODI_OHNE_BEWERTETE_NUTZENERGIE,
+    betriebsart_strom_felder_belegt,
+)
 from backend.core.field_definitions import (
     SONSTIGES_KATEGORIE_UNGEPFLEGT,
     feine_strom_achsen,
@@ -248,6 +252,7 @@ def investition_beitraege(
     *,
     ist_verfuegbar: Optional[Callable[[str], bool]] = None,
     wallbox_deckt_ladung: bool = False,
+    kandidaten: Optional[Iterable[str]] = None,
 ) -> list[KomponentenBeitrag]:
     """Per-Typ-Beiträge einer Investition zur `komponenten_kwh`.
 
@@ -265,6 +270,13 @@ def investition_beitraege(
             Pfad (#317) reicht „MQTT-Key vorhanden" durch, damit Whitelist +
             Either-Or + parent-Skip quellen-agnostisch über DIESELBE Funktion
             laufen statt über rohe `_categorize_counter`-Aufrufe.
+        kandidaten: alle Feldnamen, die dieses Gerät tragen **kann** — inklusive
+            der Innengerät-Kopien mit `-<id>`-Suffix
+            (`snapshot/keys.zaehler_feld_kandidaten`). Nur K3 Regel 4 (R-1)
+            braucht sie: ein Betriebsart-Zähler kann je Innengerät sitzen, und
+            dann gibt es sein Gerätefeld gar nicht. Default (None) = die
+            Schlüssel des Mapping-Dicts — bitgleich zu vor dem 15.09.2026, weil
+            die übrigen Zweige nur exakte Feldnamen kennen.
 
     Returns:
         Liste der Beiträge. Leer wenn keinem der zulässigen Felder ein
@@ -376,16 +388,55 @@ def investition_beitraege(
         # der Zuordnungs-Ebene gibt es keine Werte, also auch keinen
         # Widerspruch „Gesamtzähler kleiner als die Summe" zu prüfen — den
         # meldet der Daten-Checker an der Monatszeile, wo die Zahlen stehen.
+        #
+        # ⭐ **K3 Regel 4 seit dem 15.09.2026 (R-1, N-486):** Ist weder ein
+        # Gesamtzähler noch eine feine Achse zugeordnet, tragen die **gemessenen
+        # Betriebsart-Zähler**. Sie sind sonst eine Teilmenge von
+        # `stromverbrauch_kwh` und dürfen deshalb keinen eigenen Beitrag leisten
+        # (`_SNAPSHOT_OHNE_KOMPONENTEN_BEITRAG`) — in dieser Lage gibt es die
+        # Menge, deren Teilmenge sie wären, aber gar nicht. Ohne diesen Zweig
+        # trug ein Gerät mit nur Betriebsart-Zählern **nichts** bei: kein
+        # `waermepumpe_<id>` in der Tagesbilanz, kein Tageswert, keine Kennzahl.
         params = getattr(inv, "parameter", None) or {}
         if not isinstance(params, dict):
             params = {}
         fein_belegt = [f for f in feine_strom_achsen(params) if ist_verfuegbar(f)]
-        if wp_strom_stufe(
+        betriebsart_belegt = betriebsart_strom_felder_belegt(
+            kandidaten if kandidaten is not None else felder.keys(), ist_verfuegbar,
+        )
+        _stufe = wp_strom_stufe(
             hat_gesamtzaehler=ist_verfuegbar("stromverbrauch_kwh"),
-        ) == "gesamt":
+            hat_feine_achsen=bool(fein_belegt),
+            hat_betriebsart_zaehler=bool(betriebsart_belegt),
+        )
+        if _stufe == "gesamt":
             _add("stromverbrauch_kwh")
+        elif _stufe == "betriebsart":
+            for feld in betriebsart_belegt:
+                _add(feld)
         else:
             for feld in fein_belegt:
+                _add(feld)
+            # ⭐ **W-16 am Tag (R-1-Folge, 15.09.2026).** Die **gemessenen**
+            # funktionsfremden Teilmengen (Kühlen · Lüften · Entfeuchten) stehen
+            # NEBEN den beiden Achsen, nicht darin — genau das rechnet
+            # `wp_feine_summe_kwh` an der Monatszeile seit W-16. Der Tag ließ sie
+            # weg und lieferte damit eine **kleinere** Menge als der Monat für
+            # denselben Bestand (gemessen r28/Anlage 2, 15.07.2026: `0,921`
+            # statt `5,398` kWh — 4,5 kWh gemessener Kühlstrom fielen aus
+            # Tagesbilanz, Kosten und CO₂; der Prüfstand-Seed schreibt in
+            # `komponenten_kwh` schon die 5,399).
+            #
+            # ⛔ **Heizen gehört NICHT dazu.** `betriebsart_strom_heizen_kwh`
+            # steht IN `strom_heizen_kwh`; beide zu addieren wäre die
+            # Doppelzählung von W-16b. Welche drei Betriebsarten gemeint sind,
+            # sagt `MODI_OHNE_BEWERTETE_NUTZENERGIE` — eine Aufzählung hier wäre
+            # die zweite Stelle.
+            for feld in betriebsart_strom_felder_belegt(
+                kandidaten if kandidaten is not None else felder.keys(),
+                ist_verfuegbar,
+                modi=MODI_OHNE_BEWERTETE_NUTZENERGIE,
+            ):
                 _add(feld)
 
     elif typ == "wallbox":
@@ -583,6 +634,7 @@ def investition_hourly_eintraege(
     sensor_mapping_for_inv: dict,
     *,
     ist_verfuegbar: Optional[Callable[[str], bool]] = None,
+    kandidaten: Optional[Iterable[str]] = None,
 ) -> list[HourlyEintrag]:
     """Hourly-Einträge einer Investition — Whitelist + Either-Or + parent-Skip
     aus `investition_beitraege` (Daily-SoT), gemappt auf die Energiefluss-
@@ -600,7 +652,10 @@ def investition_hourly_eintraege(
     typ = getattr(inv, "typ", None)
     parameter = getattr(inv, "parameter", None)
     out: list[HourlyEintrag] = []
-    for b in investition_beitraege(inv, sensor_mapping_for_inv, ist_verfuegbar=ist_verfuegbar):
+    for b in investition_beitraege(
+        inv, sensor_mapping_for_inv,
+        ist_verfuegbar=ist_verfuegbar, kandidaten=kandidaten,
+    ):
         kat = _categorize_counter(b.feld, typ, parameter)
         if kat:
             out.append(HourlyEintrag(feld=b.feld, kategorie=kat,
@@ -671,6 +726,10 @@ def mqtt_hourly_eintraege(
         for he in investition_hourly_eintraege(
             inv, inv_data,
             ist_verfuegbar=lambda feld, _s=felder_vorhanden: feld in _s,
+            # K3 Regel 4 (R-1): ein per MQTT gespeister Betriebsart-Zähler steht
+            # in KEINEM `felder`-Dict — seine Kandidaten sind genau die Keys,
+            # die der Broker geliefert hat (N-328b, eine Ebene weiter).
+            kandidaten=felder_vorhanden,
         ):
             out.append((f"inv:{inv_id}:{he.feld}", he.kategorie, he.fallback_gruppe))
     return out

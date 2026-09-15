@@ -8,6 +8,7 @@ from datetime import date
 from typing import Optional
 
 from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
+from backend.core.berechnungen.waermepumpe_kennzahl import heizwaerme_kwh
 from backend.core.berechnungen.spez_ertrag import PV_ERZEUGER_TYPEN
 from backend.core.betriebsmodus import MODUS_STROM_FELD
 from backend.core.field_definitions import (
@@ -15,7 +16,6 @@ from backend.core.field_definitions import (
     basis_feld_key,
     get_feld_bedarf,
     get_speicher_netzladung_kwh,
-    get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     groesse_gibt_es_am_geraet,
@@ -1148,7 +1148,10 @@ class MonatsdatenChecks:
             _gesamt_waerme = daten.get("waerme_kwh")
             if not _gesamt_waerme:
                 continue
-            _teile = (get_wp_heizenergie_kwh(daten)
+            # R-3/N-488: dieselbe Weiche wie die Anzeige (D1-Stufe 3) — sonst
+            # sähe der Widerspruchs-Prüfer an einem Gerät mit Betriebsart-Wärme
+            # eine kleinere Summe als der Block daneben und schwiege zu Unrecht.
+            _teile = ((heizwaerme_kwh(daten) or 0.0)
                       + get_wp_warmwasser_kwh(daten, param))
             if _teile > float(_gesamt_waerme) + 0.5:
                 waerme_widerspruch.append(f"{monat:02d}/{jahr}")
@@ -1316,7 +1319,10 @@ class MonatsdatenChecks:
                     # ⚠ Beide Lesetüren mit dem, was sie brauchen (N-450):
                     # `get_wp_warmwasser_kwh` filtert mit `param` den Wert weg,
                     # den eine Klimaanlage gar nicht abgeben kann.
-                    if heizen_fehlt and get_wp_heizenergie_kwh(daten) > 0:
+                    # R-3/N-488: auch hier die Weiche — wer seine Heizwärme je
+                    # Betriebsart misst, hat sehr wohl geheizt, und der fehlende
+                    # Heizstrom gehört genannt.
+                    if heizen_fehlt and (heizwaerme_kwh(daten) or 0.0) > 0:
                         fehlend_strom_heizen.append(label)
                     if ww_fehlt and get_wp_warmwasser_kwh(daten, param) > 0:
                         fehlend_strom_ww.append(label)

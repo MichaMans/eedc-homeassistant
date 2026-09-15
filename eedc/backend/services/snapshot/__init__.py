@@ -43,6 +43,7 @@ from backend.services.snapshot.reader import (
     delta,
     delta_mit_rand,
     erster_stand_im_fenster,
+    letzter_stand_im_fenster,
     get_counter_lifetime,
     get_snapshot,
 )
@@ -86,6 +87,7 @@ __all__ = [
     "delta",
     "delta_mit_rand",
     "erster_stand_im_fenster",
+    "letzter_stand_im_fenster",
     "get_counter_lifetime",
     "get_snapshot",
     # Aggregator

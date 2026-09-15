@@ -103,6 +103,27 @@ Diese Tabelle ist der Kern dieses Handbuchs. Sie beantwortet die Frage, die fast
 >
 > **Was du tun kannst:** Frühere Tage lassen sich über die **Reparatur-Werkbank** nachrechnen (*Einstellungen → Daten → Tag neu berechnen*). Oder du wartest — ab morgen entstehen die Werte von selbst.
 
+> ### ⭐ Der erste Tag und der heutige — was du seit v4.0.45 siehst
+>
+> Ein Tageswert entsteht aus **zwei** Zählerständen: einem zum Tagesanfang, einem zum Tagesende.
+> An zwei Tagen fehlt davon einer, und beide Tage sind der Normalfall:
+>
+> | Wann | Was fehlt | Was eedc jetzt tut |
+> | --- | --- | --- |
+> | **Der erste Tag nach der Zuordnung** | der Stand um 0 Uhr — eedc hat erst ab 11:30 mitgeschrieben | misst **ab dem ersten Stand** und schreibt *„gemessen ab 11:30 Uhr"* unter die Strom-Kachel |
+> | **Heute** | der Stand um 24 Uhr — der Tag läuft noch | misst **bis zum letzten Stand**: *„gemessen bis 05:00 Uhr"* |
+>
+> **Bis v4.0.44 blieb an beiden Tagen alles leer** — keine Zahlen je Gerät, keine Arbeitszahl, keine
+> Aufteilung —, obwohl die Zählerstände längst da waren. Dass die Anzeige darüber trotzdem eine
+> Strommenge nannte, machte es nicht besser: Daneben stand *„kein Stromverbrauch erfasst"*.
+>
+> ⛔ **Hochgerechnet wird nichts.** Die Zahl ist die Menge des **gemessenen** Zeitraums, nicht eine
+> auf 24 Stunden gestreckte Schätzung — deshalb steht die Uhrzeit daneben. Und **liegt an einem Tag
+> gar kein Stand vor**, bleibt es beim bisherigen Satz: dann gibt es wirklich nichts zu messen.
+>
+> ⚠ **Ein Zähler, der an diesem Tag zurückgesprungen ist, bekommt den Rückfall nicht** — eedc sagt
+> dort weiterhin nichts, statt eine kleinere, ebenso falsche Zahl zu bilden.
+
 ### Kumulativ oder Tageszähler — beides geht
 
 eedc erwartet **fortlaufend steigende Zählerstände** („total increasing"). Ein Sensor, der jede Nacht auf 0 zurückspringt (`utility_meter` mit Tages-Zyklus), funktioniert über Home Assistant trotzdem: Dort liest eedc die reset-bereinigte Summe, nicht den Rohwert.
@@ -255,7 +276,7 @@ Das ist die unangenehmste Eigenschaft dieser Fläche und zugleich ihre wichtigst
 Sie beantworten die Frage „Warum ist der Tag leer, obwohl der Monat gefüllt ist?" (siehe [§2](#2-voraussetzungen--welcher-zähler-für-welche-anzeige)):
 
 - **Kein Zähler zugeordnet** — mit dem Weg dorthin.
-- **Zähler zugeordnet, aber für diesen Tag liegen keine Zählerstände vor. Tageswerte entstehen ab der Zuordnung; frühere Tage lassen sich in der Reparatur-Werkbank nachrechnen.** Der Regelfall kurz nach einer Zuordnung.
+- **Zähler zugeordnet, aber für diesen Tag liegen keine Zählerstände vor. Tageswerte entstehen ab der Zuordnung; frühere Tage lassen sich in der Reparatur-Werkbank nachrechnen.** ⭐ **Seit v4.0.45 nur noch, wenn im Tag wirklich kein einziger Stand liegt** — beginnt die Reihe mitten am Tag, zeigt eedc die Menge und schreibt *„gemessen ab hh:mm Uhr"* dazu (Kasten in [§2](#2-voraussetzungen--welcher-zähler-für-welche-anzeige)).
 - **Der Zähler ist an diesem Tag zurückgesprungen — für diesen Tag gibt es deshalb keine Aussage.**
 
 > ⛔ **Bis v4.0.28 stand an dieser Stelle unterschiedslos *„Sensor zuordnen"*** — auch bei jemandem, der zugeordnet hatte. Ein Tester hat daraufhin zu Recht gefragt, was die Anzeige ihm eigentlich sagen will. **Eine falsche Ursache ist schlimmer als keine:** Ohne Hinweis sucht man selbst, mit einem falschen sucht man an der falschen Stelle.

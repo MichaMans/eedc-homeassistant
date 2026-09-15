@@ -193,6 +193,11 @@ export interface AktuellerMonatResponse {
   /** B4 (C-2): Herkunft der Wärme („gemessen" | „geschätzt: Strom × JAZ 3,5") und der
    *  Vorbehalt an Ersparnis/CO₂ — fertig aus dem Layer, dieselben Worte wie im Hub. */
   wp_waerme_herkunft?: string | null
+  /** R-4/N-491 (**nur Cockpit → Tag**): „gemessen ab 11:00 Uhr", wenn der Tag
+   *  nicht von 0 bis 24 Uhr gemessen ist — erster Tag nach der Zuordnung bzw.
+   *  laufender Tag. `null`/undefined überall sonst. Der Satz kommt fertig aus
+   *  dem Layer (`core/tageswert_grund.py`). */
+  wp_abdeckung_hinweis?: string | null
   wp_ersparnis_vorbehalt?: string | null
   /** B6/Y-3: der Rechenweg hinter der Ersparnis, aus dem Layer-Ergebnis. */
   wp_ersparnis_berechnung?: string | null

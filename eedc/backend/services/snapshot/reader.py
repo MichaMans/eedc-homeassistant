@@ -667,6 +667,55 @@ async def erster_stand_im_fenster(
     )).scalar_one_or_none()
 
 
+async def letzter_stand_im_fenster(
+    db: AsyncSession,
+    anlage_id: int,
+    sensor_key: str,
+    von: datetime,
+    bis: datetime,
+) -> Optional[datetime]:
+    """Der Zeitpunkt des **spätesten** mitgeschriebenen Standes im Fenster.
+
+    Die Gegenrichtung zu {@link erster_stand_im_fenster}, mit derselben
+    Suchreihenfolge und derselben Zusage: Es kommt der **Zeitpunkt** zurück,
+    nicht der Wert — der Wert wird anschließend über ``get_snapshot`` geholt,
+    damit Self-Healing und C2b-Read-Through auch für diesen Rand gelten.
+
+    ⭐ **Wofür sie gebraucht wird (R-4b, N-491):** der **laufende Tag**. Sein
+    rechter Rand liegt in der Zukunft; ohne ihn gibt es heute keinen einzigen
+    Tageswert je Gerät, obwohl seit Mitternacht Stände mitgeschrieben werden.
+    Der Monat hat dieselbe Frage seit N-472 auf der linken Seite beantwortet.
+    """
+    ts = (await db.execute(
+        select(func.max(SensorSnapshot.zeitpunkt)).where(
+            and_(
+                SensorSnapshot.anlage_id == anlage_id,
+                SensorSnapshot.sensor_key == sensor_key,
+                SensorSnapshot.zeitpunkt >= von,
+                SensorSnapshot.zeitpunkt <= bis,
+                SensorSnapshot.wert_kwh.isnot(None),
+            )
+        )
+    )).scalar_one_or_none()
+    if ts is not None:
+        return ts
+
+    mqtt_key = _sensor_key_to_mqtt_key(sensor_key)
+    if not mqtt_key:
+        return None
+    return (await db.execute(
+        select(func.max(MqttEnergySnapshot.timestamp)).where(
+            and_(
+                MqttEnergySnapshot.anlage_id == anlage_id,
+                MqttEnergySnapshot.energy_key == mqtt_key,
+                MqttEnergySnapshot.timestamp >= von,
+                MqttEnergySnapshot.timestamp <= bis,
+                MqttEnergySnapshot.value_kwh.isnot(None),
+            )
+        )
+    )).scalar_one_or_none()
+
+
 async def delta_mit_rand(
     db: AsyncSession,
     anlage_id: int,

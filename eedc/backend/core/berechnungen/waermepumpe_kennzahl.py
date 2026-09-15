@@ -34,6 +34,7 @@ from typing import Optional
 # Die drei Tages-Zustände (W-18) erscheinen als Grund unter derselben
 # Kachel wie die Gründe dieser Datei; ihre Klassifizierung gehört deshalb
 # in DIESELBE Tabelle. Sie danebenzuschreiben wäre die W-3-Klasse.
+from backend.core.betriebsmodus import BETRIEBSART_NUTZENERGIE_FELD, HEIZEN
 from backend.core.tageswert_grund import (
     GRUND_KEINE_ZAEHLERSTAENDE,
     GRUND_ZAEHLER_RUECKSPRUNG,
@@ -192,6 +193,55 @@ def heizwaerme_kwh(daten: Optional[dict]) -> Optional[float]:
     from backend.core.betriebsmodus import HEIZEN
 
     return betriebsart_nutzenergie_kwh(d, HEIZEN)
+
+
+def heizwaerme_je_geraet(
+    heizenergie_je_inv: Optional[Mapping[str, float]],
+    betriebsart_heizen_je_inv: Optional[Mapping[str, float]],
+) -> dict[str, float]:
+    """**D1-Stufe 3 je Gerät** — Wärmemengenzähler, sonst Nutzenergie Heizbetrieb.
+
+    Der Zwilling zu {@link waerme_gesamt_je_geraet} eine Achse tiefer, und aus
+    demselben Grund **je Gerät**: Welcher Zähler die Heizwärme trägt, entscheidet
+    das Gerät, nicht die Anlage (E1 — die Anlage ist die Summe ihrer je
+    aufgelösten Geräte, nie die Auflösung ihrer Summe).
+
+    ⭐ **Wozu (R-2, N-487):** Bis zum 15.09.2026 kannte der **Tag** von den vier
+    Nutzenergie-Feldern nur KÜHLEN. Ein Gerät, das seine abgegebene Heizwärme je
+    Betriebsart misst (der #263-Kanon einer Split-Klimaanlage), zeigte sie in
+    Monat und Jahr — und im Tag stand *„kein Wärmemengenzähler zugeordnet"*,
+    obwohl er zugeordnet war. Dieselbe Falschaussage, die N-398 im Monat
+    beseitigt hat, eine Zeitebene tiefer.
+
+    ⛔ **Die Regel selbst wird nicht nachgebaut** — jede Zeile läuft durch
+    {@link heizwaerme_kwh}. Damit gilt auch hier: eine gemessene **0** aus dem
+    Wärmemengenzähler gewinnt gegen den Betriebsart-Zähler (F-42), und addiert
+    wird nie.
+
+    Args:
+        heizenergie_je_inv: ``{inv_id: kwh}`` des Heiz-Wärmemengenzählers
+            (Tages-Ausgabekey ``wp_heizung_kwh``).
+        betriebsart_heizen_je_inv: ``{inv_id: kwh}`` der gemessenen Nutzenergie
+            Heizbetrieb (``wp_betriebsart_heizen_kwh``), je Gerät bereits
+            K2-aufgelöst.
+
+    Returns:
+        ``{inv_id: kwh}`` über die Vereinigung beider Schlüsselmengen; Geräte
+        ohne jede Heizwärme erscheinen **nicht** (ADR-002/P4).
+    """
+    _achse: Mapping[str, float] = heizenergie_je_inv or {}
+    _betriebsart: Mapping[str, float] = betriebsart_heizen_je_inv or {}
+    ergebnis: dict[str, float] = {}
+    for inv in set(_achse) | set(_betriebsart):
+        daten: dict[str, float] = {}
+        if inv in _achse:
+            daten["heizenergie_kwh"] = _achse[inv]
+        if inv in _betriebsart:
+            daten[BETRIEBSART_NUTZENERGIE_FELD[HEIZEN]] = _betriebsart[inv]
+        wert = heizwaerme_kwh(daten)
+        if wert is not None:
+            ergebnis[inv] = wert
+    return ergebnis
 
 
 def waerme_gesamt_je_geraet(
@@ -1061,6 +1111,7 @@ def systemarbeitszahl(
     waerme_abgeleitet_kwh: float = 0.0,
     abgrenzung_verletzt: Optional[str] = None,
     waerme_fehlt_grund: Optional[str] = None,
+    strom_fehlt_grund: Optional[str] = None,
 ) -> Systemarbeitszahl:
     """Σ gemessene Wärme ÷ (Σ Strom − Kühlstrom) — die **Systemarbeitszahl** (E1b).
 
@@ -1125,6 +1176,15 @@ def systemarbeitszahl(
       vollständig ins Kühlen — ``GRUND_NUR_KUEHLBETRIEB``. Beide Wortlaute sind
       die von ``arbeitszahl``; zwei Sprachen für einen Sachverhalt wären die
       N-327-Klasse.
+      ⭐ **Es sei denn, der Aufrufer weiß es besser** (``strom_fehlt_grund``,
+      **R-5**/N-492, 15.09.2026): *„kein Stromverbrauch erfasst"* ist eine
+      Aussage über das **Gerät**, und sie ist falsch, wenn die Kachel daneben
+      eine Strommenge zeigt und nur der **Randstand** dieses Tages fehlt.
+      Dieselbe Bauform und derselbe Grund wie ``waerme_fehlt_grund``: Der
+      Erhebungspfad weiß, welcher der drei W-18-Zustände vorliegt, der Layer
+      kann es nicht wissen. Gemessen am Lab-Screenshot vom 15.09.2026: Kachel
+      *„Strom verbraucht 2 kWh"*, daneben *„Arbeitszahl — kein Stromverbrauch
+      erfasst"*.
     * **Nur ein Gerät**, dessen Wärme gemessen ist ⇒ ``strom_ohne_waerme_kwh``
       ist 0, ``ist_schranke`` bleibt ``False`` — die gewohnte Arbeitszahl, ohne
       „≥". Die Schranke ist ein Zusatz für gemischte Anlagen, keine neue
@@ -1136,7 +1196,7 @@ def systemarbeitszahl(
     # aus einer anderen Quelle ziehen.
     e = e_gesamt - min(max(kuehlstrom_kwh, 0.0), max(e_gesamt, 0.0))
     if e_gesamt <= 0:
-        return Systemarbeitszahl(None, grund=GRUND_KEIN_STROM)
+        return Systemarbeitszahl(None, grund=strom_fehlt_grund or GRUND_KEIN_STROM)
     if e <= 0:
         return Systemarbeitszahl(None, grund=GRUND_NUR_KUEHLBETRIEB)
     if q <= 0:

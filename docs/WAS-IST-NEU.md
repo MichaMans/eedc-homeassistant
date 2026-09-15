@@ -1275,6 +1275,59 @@ Was sich ändert, ist nur, dass ihre Zahl jetzt irgendwo steht.
 **Was du tun musst:** nichts. Pflegst du die Felder nicht, ändert sich für dich
 gar nichts.
 
+### Der erste Tag und der heutige zeigen jetzt Zahlen
+
+**Betrifft dich das?** Ja, wenn du *Cockpit → Tag* am Tag der Zuordnung oder für
+**heute** aufmachst — und jeden, dessen Wärmepumpe einen Gesamt-Stromzähler hat,
+der an einem Tag einmal nichts liefert.
+
+**Was war:** Ein Tageswert entsteht aus **zwei** Zählerständen — einem zum
+Tagesanfang, einem zum Tagesende. Am ersten Tag nach einer Zuordnung fehlt der
+um 0 Uhr, heute fehlt der um 24 Uhr. Die Folge: keine Zahlen je Gerät, keine
+Arbeitszahl, keine Aufteilung — und daneben zwei Sätze, die nicht stimmten,
+*„Arbeitszahl · kein Stromverbrauch erfasst"* und *„Wärme erzeugt · für diesen
+Tag keine Zählerstände"*, während über ihnen eine Strommenge stand.
+
+**Was jetzt:** eedc misst **ab dem ersten** bzw. **bis zum letzten** Stand des
+Tages und schreibt es unter die Strom-Kachel — *„gemessen ab 11:30 Uhr"*,
+*„gemessen bis 05:00 Uhr"*. Die Zahlen sind wieder da, und man sieht, worauf sie
+sich beziehen.
+
+⛔ **Hochgerechnet wird nichts.** Es ist die Menge des gemessenen Zeitraums, nicht
+eine auf 24 Stunden gestreckte Schätzung — deshalb die Uhrzeit daneben.
+
+⛔ **Ein Zähler, der an diesem Tag zurückgesprungen ist, bekommt das nicht:** Dort
+sagt eedc weiterhin nichts, statt eine kleinere, ebenso falsche Zahl zu bilden.
+Und liegt an einem Tag **gar kein** Stand vor, bleibt der bisherige Satz.
+
+**Was du tun musst:** nichts.
+
+### Betriebsart-Zähler zählen jetzt auch als Strommenge
+
+**Betrifft dich das?** Ja, wenn du an einer Split-Klimaanlage **nur** Zähler je
+Betriebsart zugeordnet hast (Heizen · Kühlen · Lüften · Entfeuchten) — ohne
+Gesamt-Stromzähler und ohne getrennte Zähler für Heizen und Warmwasser.
+
+**Was war:** eedc rechnete für dieses Gerät **0 kWh**. Keine Kosten, kein CO₂,
+keine Arbeitszahl, kein Tageswert — obwohl die Zähler zugeordnet waren und die
+Datenquellen-Fläche daneben behauptete, das Feld werde ausgewertet.
+
+**Was jetzt:** Die Menge deines Geräts ist die **Summe seiner gemessenen
+Betriebsart-Ströme** — überall, wo eine Menge gebraucht wird. Es gilt derselbe
+Satz wie für alle anderen Zähler: *Ein Zähler, der misst, ist die einzige
+Messung, die es gibt.*
+
+⛔ **An der Reihenfolge ändert sich nichts:** Ein Gesamtzähler bleibt die Menge,
+und gepflegte Zähler für *Strom Heizen* / *Strom Warmwasser* gehen der Aufteilung
+nach Betriebsart weiterhin vor.
+
+⭐ **Dazu eine zweite Korrektur an derselben Stelle:** Wer getrennte Zähler für
+Heizen und Warmwasser **und** einen Kühlzähler hat, sah im **Tag** bisher nur die
+beiden Funktionszähler — der gemessene Kühlstrom fehlte in Tagesbilanz, Kosten
+und CO₂. Der Monat hat ihn immer mitgezählt; jetzt tut es der Tag auch.
+
+**Was du tun musst:** nichts.
+
 ---
 
 ## v4.0.44 — 9. September 2026

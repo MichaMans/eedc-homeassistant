@@ -30,10 +30,10 @@ from backend.core.berechnungen.betriebsart_gemessen import (
 )
 from backend.core.berechnungen.waermepumpe_kennzahl import (
     arbeitszahl,
+    heizwaerme_kwh,
     waerme_gesamt_kwh,
 )
 from backend.core.field_definitions import (
-    get_wp_heizenergie_kwh,
     get_wp_strom_kwh,
     get_wp_warmwasser_kwh,
     nenner_ist_feine_summe,
@@ -115,7 +115,13 @@ class WaermepumpeChecks:
                 # nicht-getrennten Zweig und liefert an jeder F5-Anlage 0.
                 params = inv.parameter or {}
                 strom = get_wp_strom_kwh(daten, params)
-                waerme_h = get_wp_heizenergie_kwh(daten)
+                # R-3/N-488: **dieselbe Weiche wie die Anzeige** (D1-Stufe 3).
+                # Die alte Lesetür `get_wp_heizenergie_kwh` kennt die gemessene
+                # Nutzenergie Heizbetrieb nicht; an einem Gerät, das sie pflegt,
+                # prüfte der Checker damit eine andere Heizwärme als Hub und
+                # Cockpit zeigen — die N-450-Klasse mit Ansage (Konzept 11.5:
+                # der Prüfer liest dieselben Eingänge wie die Anzeige).
+                waerme_h = heizwaerme_kwh(daten) or 0.0
                 waerme_w = get_wp_warmwasser_kwh(daten, params)
                 if not strom:
                     continue

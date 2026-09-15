@@ -98,8 +98,10 @@ from backend.core.wirtschaftlichkeit_defaults import (
 )
 from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
 from backend.core.betriebsmodus import BETRIEBSART_NUTZENERGIE_FELD
+from backend.core.betriebsmodus import BETRIEBSART_STROM_FELD
 from backend.core.betriebsmodus import HEIZEN as BM_HEIZEN
 from backend.core.betriebsmodus import KUEHLEN as BM_KUEHLEN
+from backend.core.betriebsmodus import MESSBARE_MODI
 from backend.core.betriebsmodus import MODUS_STROM_FELD
 from backend.core.field_definitions import (
     FEINE_STROM_FELDER,
@@ -2038,16 +2040,22 @@ async def get_aktueller_monat(
         hat, steht nicht in ``resolved`` und ist damit unbelegt — genau die
         Ebene, auf der ``get_wp_strom_kwh`` an einer IMD-Zeile entscheidet.
 
-        ⚠ **Bewusst nur die drei Achsen, die die Tabelle vorher trug.**
-        Betriebsart-Zaehler (Kuehlen · Lueften · Entfeuchten) hebt diese Route
-        nicht in eine Top-Level-Groesse; sie bleiben auch hier draussen, damit
-        dieser Bau **eine** Verhaltensaenderung traegt (Summe → K3) und keine
-        zweite. Die Folge ist gemessen und benannt, nicht gebaut: Im
-        abgeschlossenen Monat zaehlt der Kuehlstrom im WP-Strom mit und wird
-        aus dem Arbeitszahl-Nenner wieder abgezogen; der Abzug kommt hier
-        immer aus den Monats-Fakten und waere im Nicht-DB-Pfad 0.
+        ⭐ **Seit dem 15.09.2026 stehen die Betriebsart-Zaehler mit in der
+        Feldliste (R-1/K3 Regel 4, N-486).** Bis dahin stand hier: *„bewusst nur
+        die drei Achsen, die die Tabelle vorher trug"* — mit der Begruendung,
+        dieser Bau solle **eine** Verhaltensaenderung tragen (Summe → K3). Die
+        Begruendung war fuer WK-12c richtig und ist mit R-1 verbraucht: Ein
+        Geraet, dessen einzige Messung die Betriebsart-Zaehler sind, saehe im
+        laufenden Monat sonst **0 kWh**, waehrend der abgeschlossene Monat
+        daneben seine Menge traegt — genau der S1-Bruch zwischen zwei Sichten,
+        gegen den K3 gebaut ist. ⚠ Die Felder muessen dafuer nichts Neues
+        liefern: Steht kein ``inv_<id>_betriebsart_strom_*_kwh`` in
+        ``resolved``, ist die Liste leer wie vorher und der Lauf bitgleich.
         """
-        _felder = ("stromverbrauch_kwh", *FEINE_STROM_FELDER)
+        _felder = (
+            "stromverbrauch_kwh", *FEINE_STROM_FELDER,
+            *(BETRIEBSART_STROM_FELD[_m] for _m in MESSBARE_MODI),
+        )
         _eintraege = {
             f: resolved[f"inv_{inv_id}_{f}"]
             for f in _felder
@@ -2061,13 +2069,18 @@ async def get_aktueller_monat(
         # Die Marke ist die des Wertes, der K3 gewonnen hat — bei der feinen
         # Aufteilung die der **letzten** vorhandenen Achse, wie es die frueheren
         # drei `_aggregate`-Aufrufe hinterliessen (verhaltensgleich).
-        _traeger = (
-            ("stromverbrauch_kwh",)
-            if wp_strom_aufteilung(
-                {f: e[0] for f, e in _eintraege.items()}, parameter,
-            ).stufe == "gesamt"
-            else FEINE_STROM_FELDER
-        )
+        _stufe = wp_strom_aufteilung(
+            {f: e[0] for f, e in _eintraege.items()}, parameter,
+        ).stufe
+        _traeger = {
+            "gesamt": ("stromverbrauch_kwh",),
+            "fein": FEINE_STROM_FELDER,
+            # K3 Regel 4 (R-1): dann traegt die Marke der Betriebsart-Zaehler,
+            # nicht die einer Achse, die gar nichts beigesteuert hat.
+            "betriebsart": tuple(
+                BETRIEBSART_STROM_FELD[_m] for _m in MESSBARE_MODI
+            ),
+        }[_stufe]
         _quelle = next(
             (_eintraege[f][1] for f in reversed(_traeger) if f in _eintraege),
             None,

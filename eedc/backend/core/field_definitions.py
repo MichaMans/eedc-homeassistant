@@ -2586,6 +2586,14 @@ _SNAPSHOT_OHNE_KOMPONENTEN_BEITRAG: dict[tuple[str, str], str] = {
 #   dieselbe Klasse wie `wallbox/ladung_pv_kwh` darüber. Als eigener
 #   Komponenten-Beitrag stünde der Verbrauch der Wärmepumpe in der Tages- und
 #   Stundenbilanz doppelt (einmal gesamt, einmal je Betriebsart).
+#   ⭐ **Seit dem 15.09.2026 gilt dieser Satz mit einer Bedingung (R-1/K3 Regel
+#   4, N-486): „Teilmenge von" setzt voraus, dass es die Menge gibt.** Ist weder
+#   ein Gesamtzähler noch eine feine Achse zugeordnet, tragen die
+#   Betriebsart-Zähler die Menge selbst und liefern dann sehr wohl einen
+#   Beitrag (`komponenten_beitraege.investition_beitraege`). Der Eintrag bleibt
+#   hier stehen, weil er den **Regelfall** beschreibt — und weil ihn der
+#   Wächter `test_snapshot_felder_sot_konformitaet.py` in der Lage ohne
+#   Gesamtzähler ohnehin als „gedeckt" sieht.
 # * **Nutzenergie je Betriebsart ist thermisch**, nicht elektrisch — dieselbe
 #   Klasse wie `heizenergie_kwh`.
 #
@@ -2921,6 +2929,15 @@ FEINE_STROM_FELDER: Final[tuple[str, ...]] = (
     "strom_heizen_kwh", "strom_warmwasser_kwh",
 )
 
+#: Die Feldnamen, unter denen eine **Gesamt**-Strommenge einer Wärmepumpe in
+#: einer Monatszeile stehen kann — das kanonische Feld und seine zwei
+#: Legacy-Namen. ⭐ Sie stehen hier als Liste, seit K3 Regel 4 (R-1) fragen muss,
+#: ob **überhaupt** eine Gesamtmenge da ist: dieselbe Kette ein zweites Mal
+#: hinzuschreiben wäre die F-56-Form.
+WP_GESAMT_STROM_FELDER: Final[tuple[str, ...]] = (
+    "stromverbrauch_kwh", "strom_kwh", "verbrauch_kwh",
+)
+
 
 def feine_strom_achsen(parameter: dict) -> list[str]:
     """Welche feinen Strom-Achsen **hat** dieses Gerät? (K3, SOLL §3.2)
@@ -2996,7 +3013,9 @@ def wp_strom_stufe(
     gesamt_kwh: float | None = None,
     feine_summe_kwh: float | None = None,
     toleranz_mindest_kwh: float = WP_STROM_TOLERANZ_MIN_MONAT_KWH,
-) -> Literal["fein", "gesamt"]:
+    hat_feine_achsen: bool = True,
+    hat_betriebsart_zaehler: bool = False,
+) -> Literal["fein", "gesamt", "betriebsart"]:
     """K3 in EINER Stelle — die Regel, nicht ihre Eingänge (Konzept Kap. 3).
 
     Die Vorrangkette für *„welche Menge ist der Stromverbrauch dieses
@@ -3013,6 +3032,33 @@ def wp_strom_stufe(
     3. **Kein Gesamtzähler** ⇒ ``"fein"``: die Aufteilung ist dann die einzige
        Messung, die es gibt, ob sie vollständig ist oder nicht. Sie zu verwerfen
        hieße den Block verschwinden zu lassen (#263, OB73-gif).
+    4. **Auch keine feinen Achsen, aber gemessene Betriebsart-Zähler** ⇒
+       ``"betriebsart"``: dann sind *sie* die einzige Messung, und derselbe Satz
+       aus Regel 3 gilt für sie (**R-1**, Konzept Kap. 3/K3, 15.09.2026).
+
+    ⛔ **Regel 4 fehlte bis zum 15.09.2026, und der Satz von Regel 3 galt
+    trotzdem schon** (N-486). Gemessen:
+    ``get_wp_strom_kwh({'betriebsart_strom_heizen_kwh': 700}, {'wp_art':
+    'luft_luft'})`` = **0,0**. Wer an seiner Split-Klimaanlage nur
+    Betriebsart-Zähler zuordnete, bekam **gar keinen** Strom — keine Kosten,
+    kein CO₂, keine Kennzahl —, während die Datenquellen-Fläche daneben
+    „ausgewertet in …" behauptete. Die Begründung ist die **der Kategorie**,
+    nicht des Beispiels: *ein Zähler, der misst, ist die einzige Messung, die es
+    gibt.* Sie trägt für die feinen Achsen (Regel 3) und für die
+    Betriebsart-Zähler gleichermaßen.
+
+    ⚠ **Die Reihenfolge ist keine Geschmacksfrage.** Die Betriebsart-Zähler sind
+    **Teilmengen** (Konzept Kap. 3, Familientabelle) — neben einer
+    Summanden-Achse dürfen sie die Menge nicht tragen, sonst stünde in derselben
+    Zeile eine Teilmenge an der Stelle eines Summanden. Sie kommen deshalb erst,
+    wenn **weder** ein Gesamtzähler **noch** eine feine Achse da ist; dann teilen
+    sie nichts mehr auf, sondern *sind* die Menge (Modus-Rest 0).
+
+    ⚠ **E7 bleibt unberührt.** Die Summe ist eine **Menge**, kein
+    Funktions-Nenner: ``arbeitszahl_je_funktion`` nimmt weiterhin ausschließlich
+    den gemessenen Strom *dieser* Funktion, und der steht in
+    ``strom_heizen_kwh``/``strom_warmwasser_kwh`` — in dieser Stufe gibt es ihn
+    per Definition nicht.
 
     ⛔ **Hier stand bis zum 14.09.2026 eine erste Stufe: „Die feine Aufteilung
     ist vollständig ⇒ fein; ein zusätzlicher Gesamtzähler wird verworfen, sonst
@@ -3048,18 +3094,33 @@ def wp_strom_stufe(
             das, was der feine Zweig von {@link get_wp_strom_kwh} rechnet.
         toleranz_mindest_kwh: ``WP_STROM_TOLERANZ_MIN_MONAT_KWH`` oder
             ``…_TAG_KWH``, je nach Ebene des Aufrufers.
+        hat_feine_achsen: trägt dieses Gerät eine **Summanden**-Achse
+            (``strom_heizen_kwh``/``strom_warmwasser_kwh``) — in der Ebene des
+            Aufrufers. ⚠ **Default ``True``**, damit ein Aufrufer, der die Frage
+            nicht stellt, bitgleich zu vor dem 15.09.2026 antwortet: Regel 4
+            greift dann nie.
+        hat_betriebsart_zaehler: trägt es einen **gemessenen**
+            Betriebsart-Stromzähler (Gerätefeld oder Innengerät) — nur dann gibt
+            es Regel 4 überhaupt.
 
     Returns:
-        ``"fein"`` (die feinen Achsen tragen die Menge) oder ``"gesamt"``
-        (``stromverbrauch_kwh`` trägt sie).
+        ``"gesamt"`` (``stromverbrauch_kwh`` trägt die Menge), ``"fein"`` (die
+        Summanden-Achsen tragen sie) oder ``"betriebsart"`` (Σ der gemessenen
+        Betriebsart-Ströme trägt sie).
     """
-    if not hat_gesamtzaehler:
+    def _ohne_gesamtzaehler() -> Literal["fein", "betriebsart"]:
+        # Regel 4 vor Regel 3 nur dort, wo Regel 3 nichts zu tragen hat.
+        if not hat_feine_achsen and hat_betriebsart_zaehler:
+            return "betriebsart"
         return "fein"
+
+    if not hat_gesamtzaehler:
+        return _ohne_gesamtzaehler()
     if gesamt_kwh is not None and feine_summe_kwh is not None:
         if gesamt_kwh < feine_summe_kwh - wp_strom_toleranz_kwh(
             feine_summe_kwh, mindest_kwh=toleranz_mindest_kwh,
         ):
-            return "fein"
+            return _ohne_gesamtzaehler()
     return "gesamt"
 
 
@@ -3165,12 +3226,53 @@ def wp_strom_aufteilung(
     if not d:
         return WpStromAufteilung(0.0, 0.0, 0.0, "fein", False)
 
+    # Lokaler Import: `betriebsart_gemessen` liest `basis_feld_key` aus diesem
+    # Modul — ein Import auf Modulebene wäre zirkulär.
+    from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
+
+    zeile = modus_strom_zeile(d)
+
     if not (params or {}).get("getrennte_strommessung"):
         # ⚠ **Im Nicht-getrennt-Zweig wird NICHTS addiert und nichts
         # aufgeteilt:** ``stromverbrauch_kwh`` ist der Zählerstand des ganzen
         # Geräts und enthält den Kühlbetrieb bereits. Die feinen Felder sind
         # hier keine Summanden (das sagt gerade das fehlende Kennzeichen), es
         # gibt also auch keinen Rest einer Summanden-Aufteilung.
+        #
+        # ⭐ **R-1/K3 Regel 4 (15.09.2026, N-486):** Steht hier **gar keine**
+        # Gesamtmenge — weder das kanonische Feld noch einer der beiden
+        # Legacy-Namen —, dann sind die gemessenen Betriebsart-Zähler die
+        # einzige Messung, die es gibt, und sie tragen. Das ist der Satz von
+        # Regel 3, eine Familie weiter. ⚠ Der Zweig steht **vor** der
+        # Menge-Zeile darunter, aber **hinter** der Frage nach dem Gesamtwert:
+        # ein zugeordneter Gesamtzähler bleibt die Menge (K1), die
+        # Betriebsart-Zähler bleiben seine Aufteilung.
+        # ⛔ **Die Bedingung wird hier NICHT nachgebaut** — sonst stünde K3
+        # Regel 4 an zwei Stellen, und genau das hat der Sprengsatz S1 am
+        # 15.09.2026 sichtbar gemacht: Regel 4 aus ``wp_strom_stufe``
+        # herausgenommen, und diese Zeile trug sie trotzdem weiter (F-56 in
+        # Reinform, im selben Bau entstanden).
+        if wp_strom_stufe(
+            hat_gesamtzaehler=any(
+                d.get(f) is not None for f in WP_GESAMT_STROM_FELDER
+            ),
+            # Ohne Kennzeichen sind die feinen Felder **keine** Summanden (das
+            # sagt gerade das fehlende Kennzeichen) — sie können hier nichts
+            # tragen, und Regel 3 hat nichts, worauf sie fallen könnte.
+            hat_feine_achsen=False,
+            hat_betriebsart_zaehler=zeile.gemessen,
+        ) == "betriebsart":
+            return WpStromAufteilung(
+                menge_kwh=zeile.gemessene_summe_kwh,
+                # Es gibt keine **Summanden**-Aufteilung — also auch keinen
+                # Summanden-Rest (K5 setzt eine Aufteilung voraus). Der
+                # Modus-Rest ist 0, weil die Menge Σ der Teilmengen IST; er
+                # entsteht ohnehin woanders (`WpFakten.modus_nicht_aufgeteilt_kwh`).
+                feine_summe_kwh=0.0,
+                nicht_aufgeteilt_kwh=0.0,
+                stufe="betriebsart",
+                gesamtzaehler_zu_klein=False,
+            )
         return WpStromAufteilung(
             menge_kwh=float(
                 d.get("stromverbrauch_kwh")
@@ -3184,11 +3286,6 @@ def wp_strom_aufteilung(
             gesamtzaehler_zu_klein=False,
         )
 
-    # Lokaler Import: `betriebsart_gemessen` liest `basis_feld_key` aus diesem
-    # Modul — ein Import auf Modulebene wäre zirkulär.
-    from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
-
-    zeile = modus_strom_zeile(d)
     # W-16 und die Begründung stehen im Docstring von `wp_feine_summe_kwh` —
     # seit WK-16c an einer Stelle, weil die Tagesebene der Verteilungs-Sicht
     # dieselbe Formel auf Snapshot-Summen anwendet (F-56).
@@ -3198,11 +3295,31 @@ def wp_strom_aufteilung(
     )
 
     gesamt = d.get("stromverbrauch_kwh")
+    # R-1/K3 Regel 4: „hat feine Achsen?" fragt die **Zeile**, wie überall im
+    # Monatspfad — `is not None`, nicht truthy: ein Warmwasser-Strom von 0,0 im
+    # Sommer ist eine Messung und hält die Summanden-Familie offen.
+    hat_f5_wert = any(d.get(f) is not None for f in FEINE_STROM_FELDER)
     stufe = wp_strom_stufe(
         hat_gesamtzaehler=gesamt is not None,
         gesamt_kwh=float(gesamt) if gesamt is not None else None,
         feine_summe_kwh=feine_summe,
+        hat_feine_achsen=hat_f5_wert,
+        hat_betriebsart_zaehler=zeile.gemessen,
     )
+    if stufe == "betriebsart":
+        # Kennzeichen gesetzt, aber keine der beiden Achsen gepflegt — das
+        # Kennzeichen sagt, dass die Achsen *Summanden wären*, nicht dass sie
+        # da sind (K3 gilt in beide Richtungen). Dann tragen die gemessenen
+        # Betriebsart-Zähler, und zwar **alle vier**: bis zum 15.09.2026 stand
+        # hier nur ihr funktionsfremder Teil (über `wp_feine_summe_kwh`), der
+        # Heizstrom fiel heraus.
+        return WpStromAufteilung(
+            menge_kwh=zeile.gemessene_summe_kwh,
+            feine_summe_kwh=0.0,
+            nicht_aufgeteilt_kwh=0.0,
+            stufe="betriebsart",
+            gesamtzaehler_zu_klein=False,
+        )
     zu_klein = gesamt is not None and stufe == "fein"
     menge = float(gesamt) if stufe == "gesamt" else feine_summe
     # K5 setzt eine Aufteilung voraus — s. Feld-Docstring. `is not None`, nicht

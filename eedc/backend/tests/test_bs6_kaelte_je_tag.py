@@ -176,11 +176,17 @@ class TestFenster:
 # ── P3: der Geräte-Kreis, beidseitig ────────────────────────────────────────
 
 class TestGeraeteKreis:
-    async def _zwei_klimageraete(self, db, bezug_a):
+    async def _zwei_klimageraete(self, db, bezug_a, *, strom_a: bool = True):
         a = await _anlage(db)
         ia, ib = await _geraet(db, a), await _geraet(db, a)
         for inv in (ia, ib):
-            _tageszaehler(db, a, inv, STROM_K, 10.0)
+            if inv is ia and not strom_a:
+                # Zähler **zugeordnet**, aber ohne einen einzigen Stand an diesem
+                # Tag: dann gibt es für dieses Gerät keinen Nenner — weder aus der
+                # Tageszeile noch aus den Rändern (R-4).
+                _zaehler(db, a, inv, STROM_K)
+            else:
+                _tageszaehler(db, a, inv, STROM_K, 10.0)
             _tageszaehler(db, a, inv, KAELTE, 30.0)
         bezug = {ib.id: 12.0}
         if bezug_a is not None:
@@ -188,11 +194,30 @@ class TestGeraeteKreis:
         _tageszeile(db, a, bezug)
         return await _tag(db, a)
 
-    @pytest.mark.parametrize("bezug_a", [None, 5.0], ids=["ohne_bezug", "invariante"])
-    async def test_ein_geraet_faellt_aus_dem_stapel(self, db, bezug_a):
-        """Gerät A fehlt im Stapel (kein Tagesbezug bzw. Teilmenge > Bezug), seine
-        30 kWh Kälte stünden aber im Zähler ⇒ vorher **6,0**. Jetzt: der Grund."""
-        r = await self._zwei_klimageraete(db, bezug_a)
+    @pytest.mark.parametrize(
+        "bezug_a,strom_a", [(None, False), (5.0, True)],
+        ids=["ohne_stromwert", "invariante"],
+    )
+    async def test_ein_geraet_faellt_aus_dem_stapel(self, db, bezug_a, strom_a):
+        """Gerät A fehlt im Stapel, seine 30 kWh Kälte stünden aber im Zähler ⇒
+        vorher **6,0**. Jetzt: der Grund.
+
+        ⛔ **Die erste Lage hieß bis zum 15.09.2026 „ohne_bezug" und gab Gerät A
+        einen vollen Kühlstrom-Tageswert, nur keine Zeile in
+        ``komponenten_kwh``.** Genau diese Lage gibt es seit **R-4** nicht mehr:
+        Fehlt die Tageszeile, löst der Tag den Strom aus den Randständen auf
+        (``core/berechnungen/wp_tages_praezedenz``) — Gerät A trägt dann sehr
+        wohl einen Nenner, und 60 ÷ 20 = 3,0 ist die **richtige** Antwort (die
+        Kontrollprobe darunter hält sie fest). *Die Probe war nur wahr, weil der
+        Tag eine Messung verlor.*
+
+        **Die Substanz bleibt und wird schärfer:** R2 gilt beidseitig — ein
+        Gerät, das Kälte in den Zähler gibt, ohne einen Nenner beizusteuern,
+        sperrt die Kühlzahl. Die Lage dafür ist jetzt die echte: der
+        Kühlstrom-Zähler ist **zugeordnet, liefert aber an diesem Tag keinen
+        einzigen Stand**.
+        """
+        r = await self._zwei_klimageraete(db, bezug_a, strom_a=strom_a)
 
         assert r.wp_modus_strom_kuehlen_kwh == pytest.approx(10.0)
         assert r.wp_jaz_kuehlen is None
@@ -203,6 +228,20 @@ class TestGeraeteKreis:
         r = await self._zwei_klimageraete(db, 12.0)
 
         assert r.wp_jaz_kuehlen == pytest.approx(3.0)
+
+    async def test_ohne_tageszeile_traegt_der_tagesrand(self, db):
+        """**R-4, die Gegenprobe zur ersten Lage oben.** Gerät A hat gemessene
+        Randstände, aber keinen Eintrag in ``komponenten_kwh`` — der Tag löst
+        seinen Strom selbst auf, beide Geräte stehen im Stapel: 60 ÷ 20 = 3,0.
+
+        Vor dem 15.09.2026 fiel A hier aus dem Stapel und die Kühlzahl war
+        gesperrt, obwohl **beide** Zähler dieses Geräts gemessen hatten.
+        """
+        r = await self._zwei_klimageraete(db, None)
+
+        assert r.wp_modus_strom_kuehlen_kwh == pytest.approx(20.0)
+        assert r.wp_jaz_kuehlen == pytest.approx(3.0)
+        assert r.wp_jaz_kuehlen_grund is None
 
 
 # ── P4–P6: der Grund sagt, was zutrifft ─────────────────────────────────────

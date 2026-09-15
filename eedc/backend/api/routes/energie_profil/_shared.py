@@ -689,6 +689,16 @@ class TagDetailResponse(BaseModel):
     # WP-Strom-Split (getrennte Strommessung) — Tages-Boundary-Diff.
     wp_strom_heizen_kwh: Optional[float] = None
     wp_strom_warmwasser_kwh: Optional[float] = None
+    #: **Was dieser Tag wirklich abdeckt** (R-4/N-491) — der fertige Satz
+    #: *„gemessen ab 11:00 Uhr"*, ``None`` am vollen Tag. Er entsteht am ersten
+    #: Tag nach einer Zuordnung und am laufenden Tag, wenn ein Tagesrand fehlt
+    #: und eedc deshalb ab dem ersten bzw. bis zum letzten Stand misst.
+    #:
+    #: ⛔ **Der Satz kommt aus dem Layer** (``core/tageswert_grund.py``), nicht
+    #: aus dem Client — dieselbe Regel 3 wie bei den drei W-18-Gründen: eine
+    #: TS-Kopie der Textliste wäre eine zweite Wahrheit über denselben
+    #: Sachverhalt.
+    wp_abdeckung_hinweis: Optional[str] = None
     # WP-Wärme (thermisch, nur mit Wärmemengenzähler-Sensor) — Tages-Boundary-Diff.
     # Ermöglicht Tages-JAZ (= Wärme ÷ Strom) und Wärme-Aufteilung.
     wp_heizung_kwh: Optional[float] = None

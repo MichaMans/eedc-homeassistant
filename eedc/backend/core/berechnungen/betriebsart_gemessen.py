@@ -45,7 +45,9 @@ from backend.core.betriebsmodus import (
 from backend.core.field_definitions import basis_feld_key
 
 __all__ = [
+    "MODI_OHNE_BEWERTETE_NUTZENERGIE",
     "betriebsart_strom_kwh",
+    "betriebsart_strom_felder_belegt",
     "betriebsart_nutzenergie_kwh",
     "funktionsfremd_abzug_kwh",
     "geraetefeld_oder_innengeraete",
@@ -55,6 +57,19 @@ __all__ = [
     "NutzenergieOhneKennzahl",
     "nutzenergie_ohne_kennzahl_kwh",
 ]
+
+
+#: Die Betriebsarten **ohne bewertete Nutzenergie** — Kühlen · Lüften ·
+#: Entfeuchten (SOLL §3.2a/**E4**). Ihr Strom ist der Nenner-Abzug einer
+#: Arbeitszahl ({@link ModusStromZeile.funktionsfremd_kwh}) und — auf der
+#: Zuordnungs-Ebene — der Teil der Betriebsart-Zähler, der **neben** den
+#: Summanden-Achsen steht statt darin (W-16).
+#:
+#: ⛔ **Sie stehen als Liste hier und nicht dreimal ausgeschrieben.** Bis zum
+#: 15.09.2026 gab es nur die Summe; mit R-1 fragt auch die Beitragsschicht des
+#: Tages nach **genau diesen drei**, und eine zweite Aufzählung daneben wäre die
+#: Bauform, an der W-14 entstanden ist.
+MODI_OHNE_BEWERTETE_NUTZENERGIE: tuple[str, ...] = (KUEHLEN, LUEFTEN, ENTFEUCHTEN)
 
 
 def _aufgeloest(daten: Optional[dict], basis_feld: str) -> Optional[float]:
@@ -109,6 +124,49 @@ def betriebsart_nutzenergie_kwh(daten: Optional[dict], modus: str) -> Optional[f
     """Gemessene **abgegebene Nutzenergie** dieser Betriebsart, oder ``None``."""
     feld = BETRIEBSART_NUTZENERGIE_FELD.get(modus)
     return _aufgeloest(daten, feld) if feld else None
+
+
+def betriebsart_strom_felder_belegt(
+    kandidaten, ist_belegt, *, modi=MESSBARE_MODI,
+) -> list[str]:
+    """Die Betriebsart-Strom-**Feldnamen**, die für dieses Gerät einen Zähler
+    tragen — Gerätefeld schlägt Innengeräte, je Betriebsart (K2 auf der
+    **Zuordnungs**-Ebene).
+
+    ⭐ **Warum das hierher gehört und nicht in die Beitragsschicht** (R-1,
+    15.09.2026): Es ist dieselbe Regel, die {@link _aufgeloest} auf der
+    **Werte**-Ebene anwendet — *Gerätefeld, sonst Σ Innengeräte, nie beides*.
+    Der Tag fragt sie an der Zuordnung (*„ist ein Zähler da?"*), der Monat an der
+    Zeile (*„steht ein Wert?"*); die Regel steht deshalb einmal hier und nicht
+    zweimal (F-56).
+
+    Args:
+        kandidaten: alle Feldnamen, die dieses Gerät tragen **kann** — inklusive
+            der Innengerät-Kopien mit ``-<id>``-Suffix
+            (``snapshot/keys.zaehler_feld_kandidaten``).
+        ist_belegt: ``feld -> bool`` — trägt dieses Feld einen Zähler?
+        modi: welche Betriebsarten gefragt sind. Default **alle messbaren**
+            (K3 Regel 4: sie sind zusammen die Menge). Die Summanden-Lage fragt
+            nur nach {@link MODI_OHNE_BEWERTETE_NUTZENERGIE} — dort steht
+            ``betriebsart_strom_heizen_kwh`` **in** ``strom_heizen_kwh``, und
+            beide zu nehmen wäre Doppelzählung (W-16/W-16b).
+
+    Returns:
+        Sortierte Feldnamen; leer, wenn kein Betriebsart-Zähler zugeordnet ist.
+    """
+    treffer: list[str] = []
+    for modus in modi:
+        basis = BETRIEBSART_STROM_FELD.get(modus)
+        if not basis:
+            continue
+        if ist_belegt(basis):
+            treffer.append(basis)
+            continue
+        treffer.extend(sorted(
+            k for k in kandidaten
+            if k != basis and basis_feld_key(k) == basis and ist_belegt(k)
+        ))
+    return treffer
 
 
 def hat_gemessene_betriebsart(daten: Optional[dict]) -> bool:
@@ -170,6 +228,24 @@ class ModusStromZeile:
         return self.gemessen or self.abdeckung_h > 0
 
     @property
+    def gemessene_summe_kwh(self) -> float:
+        """Σ **aller** Betriebsart-Ströme dieser Zeile — die Menge in K3-Stufe 4.
+
+        ⚠ **Nur im gemessenen Zweig eine Menge.** Im abgeleiteten Zweig
+        *verteilt* der Split eine Menge, die schon woanders steht; ihn hier zu
+        summieren gäbe sie ein zweites Mal (W-16b). Der einzige Aufrufer
+        ({@link backend.core.field_definitions.wp_strom_aufteilung}) fragt
+        deshalb vorher ``gemessen``.
+
+        ⭐ **Warum sie neben ``funktionsfremd_kwh`` steht und nicht darin.** Jene
+        Eigenschaft beantwortet *„welcher Teil hat keine bewertete
+        Nutzenergie?"* (E4, der Nenner-Abzug); diese beantwortet *„wie viel hat
+        das Gerät insgesamt verbraucht?"* (K1/R-1). Zwei Fragen, zwei Namen —
+        sie zu einer zu falten wäre die F-56-Form.
+        """
+        return self.heizen_kwh + self.warmwasser_kwh + self.funktionsfremd_kwh
+
+    @property
     def funktionsfremd_kwh(self) -> float:
         """Strom in Funktionen **ohne bewertete Nutzenergie** — der JAZ-Nenner-Abzug.
 
@@ -203,7 +279,12 @@ class ModusStromZeile:
         allen Bilanzen und Kosten; es ändert sich allein der Nenner der
         Kennzahl.
         """
-        return self.kuehlen_kwh + self.lueften_kwh + self.entfeuchten_kwh
+        je_modus = {
+            KUEHLEN: self.kuehlen_kwh,
+            LUEFTEN: self.lueften_kwh,
+            ENTFEUCHTEN: self.entfeuchten_kwh,
+        }
+        return sum(je_modus[m] for m in MODI_OHNE_BEWERTETE_NUTZENERGIE)
 
     #: Stunden mit gültigem Modus-Signal, aus der Zeile übernommen.
     abdeckung_h: float = 0.0

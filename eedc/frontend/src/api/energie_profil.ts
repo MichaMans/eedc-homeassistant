@@ -217,6 +217,16 @@ export interface TagDetail {
   datum: string
   wp_strom_heizen_kwh: number | null
   wp_strom_warmwasser_kwh: number | null
+  /**
+   * **Was dieser Tag wirklich abdeckt** (R-4/N-491) — der fertige Satz
+   * „gemessen ab 11:00 Uhr", `null` am vollen Tag. Er entsteht am ersten Tag
+   * nach einer Zuordnung und am laufenden Tag, wenn ein Tagesrand fehlt.
+   *
+   * ⛔ **Der Wortlaut kommt aus dem Layer** (`core/tageswert_grund.py`) —
+   * eine TS-Kopie wäre die zweite Wahrheit, dieselbe Regel wie bei den drei
+   * W-18-Gründen darunter.
+   */
+  wp_abdeckung_hinweis: string | null
   wp_heizung_kwh: number | null
   wp_warmwasser_kwh: number | null
   /** Wärme gesamt des Tages — **aus dem Backend**, nicht als Client-Summe.

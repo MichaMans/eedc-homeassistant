@@ -242,6 +242,32 @@ beantwortet (`core/field_definitions.py::wp_strom_stufe`; die Auflösung samt Re
    Wärme-Invariante im nächsten Abschnitt — nur *diese* Richtung ist ein Fehler.
 3. **Kein Gesamtzähler** ⇒ die Achsen tragen, vollständig oder nicht: sie sind die einzige
    Messung, die es gibt. Sie zu verwerfen hieße, den Block verschwinden zu lassen.
+4. **Auch keine feinen Achsen, aber gemessene Betriebsart-Zähler** ⇒ **sie** tragen: die Menge des
+   Geräts ist die Σ der gemessenen Betriebsart-Ströme, der Modus-Rest ist 0, die Herkunft heißt
+   *gemessen*. Derselbe Satz wie in Regel 3, eine Familie weiter.
+
+> ⛔ **Regel 4 fehlte bis zum 15.09.2026, und Regel 3 galt trotzdem schon** (N-486). Gemessen:
+> `get_wp_strom_kwh({'betriebsart_strom_heizen_kwh': 700}, {'wp_art': 'luft_luft'})` = **0,0**. Wer
+> an seiner Split-Klimaanlage nur Betriebsart-Zähler zuordnete, bekam **gar keinen** Strom — keine
+> Kosten, kein CO₂, keine Kennzahl —, während die Datenquellen-Fläche daneben „ausgewertet in …"
+> behauptete. Die Begründung gilt **der Kategorie**, nicht dem Beispiel: *ein Zähler, der misst, ist
+> die einzige Messung, die es gibt.*
+>
+> ⚠ **Die Reihenfolge ist keine Geschmacksfrage.** Betriebsart-Zähler sind **Teilmengen**; neben
+> einer Summanden-Achse dürfen sie die Menge nicht tragen, sonst stünde eine Teilmenge an der Stelle
+> eines Summanden. Sie kommen erst, wenn **weder** Gesamtzähler **noch** feine Achse da sind — dann
+> teilen sie nichts mehr auf, sondern *sind* die Menge.
+>
+> ⚠ **E7 bleibt unberührt:** Die Summe ist eine **Menge**, kein Funktions-Nenner. Eine
+> Funktions-Arbeitszahl nimmt weiterhin nur den gemessenen Strom *dieser* Funktion — und den gibt es
+> in dieser Stufe per Definition nicht.
+>
+> ⭐ **Und die Additionsseite des Tages folgt seit dem 15.09.2026 der des Monats** (W-16 am Tag): Ein
+> **gemessener** funktionsfremder Betriebsart-Zähler (Kühlen · Lüften · Entfeuchten) steht *neben*
+> den beiden Achsen, nicht darin — die Monatszeile rechnet das seit W-16, die Tagesbilanz ließ ihn
+> weg. Gemessen an der Prüfstand-Anlage r28 am 15.07.2026: **0,921 statt 5,398 kWh**; 4,5 kWh
+> gemessener Kühlstrom fielen aus Tagesbilanz, Kosten und CO₂. ⛔ *Heizen* gehört nicht dazu — es
+> steht **in** `strom_heizen_kwh`, und beide zu nehmen wäre die Doppelzählung von W-16b.
 
 **Die Toleranz steht an einer Stelle** (`wp_strom_toleranz_kwh`) und gilt für die Rechnung **und**
 den Checker: 1 % der Summe, mindestens 0,5 kWh im Monat bzw. 0,05 kWh im Tag. Zwei Schwellen für
@@ -273,6 +299,15 @@ jeden Zähler von Hand gepflegt sein. Was beide teilen, ist die **Vorrangkette**
 an einer Stelle und nicht zweimal. **Folge für Regel 2:** Auf der Zuordnungs-Ebene gibt es keine
 Werte, also auch keinen Widerspruch zu prüfen — er wird an der Monatszeile gemeldet, wo die Zahlen
 stehen.
+
+⭐ **Und der Tag fragt seit dem 15.09.2026 ein zweites Mal — an den Werten** (N-482). Ein
+zugeordneter Gesamtzähler, der an **diesem** Tag keinen Stand liefert, ließ die gemessenen feinen
+Achsen daneben nicht tragen: die Beitragsschicht entscheidet 1-aus-n an der *Zuordnung*, und der
+vorhandene Either-Or-Mechanismus nähme bei zwei Achsen genau eine. Fehlt der aggregierte Tageswert
+eines Geräts, löst der Tag seinen Strom deshalb **nach** dem Lesen der Randstände mit derselben
+Vorrangkette auf (`core/berechnungen/wp_tages_praezedenz.py`, Bauform `pv_tages_praezedenz`). ⛔ Die
+**Tageszeile gewinnt**, wo sie eine Zahl trägt — sie ist die Zahl, mit der Bilanz, Kosten und CO₂
+dieses Tages gerechnet haben; eine zweite daneben wäre ein S1-Bruch.
 
 ⛔ **Das Kennzeichen `getrennte_strommessung` entscheidet nur, ob die feinen Achsen *Summanden*
 sind** — nicht, ob ein Zähler zählt. Kennzeichen aus, kein Gesamtzähler, aber ein feiner Zähler
@@ -757,6 +792,37 @@ die der Seed nach dem ersten gefüllt hat. Die Differenz ist in beiden Monaten k
 ⚠ **Die ehrliche Grenze, die bleibt:** Die **E-Mob**-Mengen trägt die Tagesebene weiterhin nicht
 (`TagesMonatsSumme` führt dort nur die *Aufteilung* der Heimladung, nicht die Menge). Und eine
 Wärme-Kachel bleibt leer, wo gar kein Wärmemengenzähler zugeordnet ist — dann greift Punkt 4.
+
+**S6 · Der Tag sagt, was er abdeckt — und liest wie der Monat** (R-4, 15.09.2026, N-491 · N-492).
+Ein Tageswert entsteht aus **zwei** Randständen. Fehlt einer, gab es bis dahin **keine** Zahl je
+Gerät — und der Grund daneben war falsch.
+
+1. **Fehlt der Stand am Tagesanfang, gilt der erste Stand des Tages.** Der Regelfall nach einer
+   frischen Zuordnung: Snapshots entstehen erst ab der Zuordnung, der Monatswert kommt aus der
+   HA-Langzeitstatistik und steht deshalb da. Die Zahl trägt dann *„gemessen ab 11:00 Uhr"*.
+2. **Fehlt der Stand am Tagesende, gilt der letzte Stand** — der **laufende Tag**, dessen rechter
+   Rand in der Zukunft liegt. Marke: *„gemessen bis 05:00 Uhr"*.
+3. ⛔ **Hochgerechnet wird nichts** (ADR-002/**P4**) — und ein **Zählerrücksprung** bekommt keinen
+   Rückfall: sein „keine Aussage" ist eine Entscheidung über Datenqualität (N-341), kein fehlender
+   Punkt. Deshalb wird nur der Rand nachgefragt, der wirklich fehlt.
+4. **Der W-18-Grund *„für diesen Tag keine Zählerstände"* bleibt** — aber nur, wenn im Tag **kein
+   einziger** Stand liegt. Ein Stand allein ist kein Fenster; er ergäbe eine gemessene 0.
+5. **Die Marke steht an der Basis-Größe**, nicht an jeder abgeleiteten — dieselbe Regel, mit der
+   **S5** die Gründe im laufenden Monat verteilt. Der Wortlaut kommt aus dem Layer
+   (`core/tageswert_grund.py::tages_abdeckung_hinweis`), der Client trägt ihn nur.
+6. **Und eine Strommenge je Bildschirm** (N-492): *„kein Stromverbrauch erfasst"* ist eine Aussage
+   über das **Gerät**. Sie ist falsch, wenn die Kachel daneben eine Zahl trägt und nur der Randstand
+   dieses Tages fehlt — dann nennt der Grund die tatsächliche Lücke. Gemessen an der **Demo-Anlage**
+   der r27: am 05.12.2025 stand *„Strom verbraucht 10,3 kWh"* neben *„Arbeitszahl — kein
+   Stromverbrauch erfasst"*. ⛔ Ist **gar kein** Stromzähler zugeordnet, bleibt der alte Satz samt
+   Handgriff: der W-18-Wortlaut spräche dort von einem *Wärme*mengenzähler.
+
+⚠ **Die ehrliche Grenze, die bleibt:** Kachel *„Strom verbraucht"* (Σ der Stundenspalte) und
+Arbeitszahl-Nenner (Randdifferenz) messen weiterhin zwei um eine Stunde versetzte Fenster
+([6.3](#63-die-fenster--warum-tag-und-monat-um-eine-stunde-auseinanderliegen)). An einem vollen Tag
+mit stetigem Zähler ist der Unterschied nicht sichtbar; an einem **angeschnittenen** Tag ist er eine
+von dreizehn Stunden (gemessen 16.09.: 2,16 gegen 2,34 kWh). Im HA-Add-on entfällt er, weil die
+Tageszeile dort rückwärts liegt und der Detailpfad ihr folgt (**S1a**).
 
 **A3a · Eine Sicht zeigt EINE Periode.** Nutzlasten tragen ihren Zeitraum, und eine Sicht paart nur
 Antworten desselben Zeitraums. Zwei Abfragen mit denselben Abhängigkeiten, von denen eine ihren
@@ -1302,6 +1368,7 @@ oder im Bericht, nicht hier.
 | --- | --- | --- | --- |
 | **K1 · K3** — die Vorrangkette | `core/field_definitions.py::wp_strom_stufe` · `::wp_strom_aufteilung` | `test_soll_waerme_klima_achse1_erfassung.py::test_i1…test_i3c` (sieben Lagen: Kennzeichen an/aus × Zählerbestand); `test_n451_monatspfad_k3.py` (Tag **und** Monat **und** Stundenpfad, Lagen i–ix); `test_n451b_k3_laufender_monat.py` (8 Proben: der **laufende Monat aus Nicht-DB-Quellen** — `aktueller_monat.py::_wp_strom_k3`, je Gerät; bis zum 14.09.2026 addierte dieser Pfad Gesamtzähler und Aufteilung: 2000 statt 1000, Arbeitszahl 1,5 statt 3,0) | Regression |
 | **K1 · K5** — der Gesamtzähler ist die Menge, der Rest heißt *nicht aufgeteilt* | `field_definitions.py::wp_strom_aufteilung` (Menge · Rest · Toleranz an **einer** Stelle), `daten_checker/monatsdaten.py` (Widerspruch + Plausibilitätsfrage), `datenquellen_validierung.py::stufe_bedarf_ein` (eine Summanden-Gruppe deckt nichts ab) | `test_k3_gesamtzaehler_ist_die_menge.py` (17 Proben: Gesamt > Σ · Gleichstand · Toleranzkante · Widerspruch · Rest > 25 % · die zwei Ebenen · Handbuch B/B2 · Mischfall · Nicht-getrennt-Zweig) | Regression |
+| **K3 Regel 4** — Betriebsart-Zähler sind feine Zähler (R-1) | `field_definitions.py::wp_strom_stufe` (die Stufe) · `betriebsart_gemessen.py::ModusStromZeile.gemessene_summe_kwh` (die Menge) · `::betriebsart_strom_felder_belegt` (K2 an der Zuordnung) · `komponenten_beitraege.py` (Tag/Stunde/Vorschau) · `aktueller_monat.py::_wp_strom_k3` (laufender Monat) | `test_wk16g_tag_liest_wie_der_monat.py::TestR1Menge` (8 Lagen: alle vier Betriebsarten · Innengeräte · Legacy-Gesamtfeld · abgeleiteter Split · **zwei Gegenproben**, Gesamtzähler und feine Achse schlagen die Teilmenge) · `::TestR1Zuordnung` (6 Lagen inkl. **W-16 am Tag** und seiner Gegenprobe) · `::TestR1AmTag` (Ende zu Ende) | Regression |
 | **K2** — gemessen schlägt abgeleitet, je Gerät ganz oder gar nicht | `core/berechnungen/betriebsart_gemessen.py`, `core/berechnungen/tages_stapel.py` | `test_tages_stapel_gemessen_verdraengt_abgeleitet.py`; `test_263_innengeraete_varianten.py` (acht benannte Datenlagen V1–V8 über sechs Flächen, dazu die Mischanlage aus zwei Geräten) | Regression |
 | **K4** — Summanden und Teilmengen nebeneinander | Registry + `funktionsfremd_abzug_kwh` | `test_n445_kuehlstrom_im_f5_heizstrom.py` (14 Proben, F5 mit und ohne Kühlzähler) | Regression |
 | **K5** — der Rest heißt *nicht aufgeteilt* | `core/betriebsmodus.py`, Modus-Split | `test_263_k2_modus_split.py`; `test_soll_waerme_klima_e4_lueften_entfeuchten.py::test_e4_restmenge_zieht_die_neuen_segmente_ab` | Regression |
@@ -1344,10 +1411,11 @@ oder im Bericht, nicht hier.
 | **A3a — eine Sicht zeigt EINE Periode** | `CockpitTagV4.tsx`, `CockpitMonatV4.tsx`, `CockpitJahrV4.tsx`, `ZaehlerstaendeBlock.tsx` (Marke · Paarung · Beschriftung) | `CockpitTagEinTag.test.tsx`, `CockpitMonatEinePeriode.test.tsx`, `CockpitJahrEinePeriode.test.tsx` ⛔ **maschinelles Gegenstück bewusst keines** — so steht es im Style-Guide | Regression |
 | **D-Sicht — Kacheln nur mit Zahl, ein Kasten je Sicht** | Klasse an der Grund-Konstante (`GRUND_KLASSE`, `HANDGRIFF_JE_GRUND`), Zusammenstellung in `services/waerme_klima_block.py`, Anzeige `src/v4/waermeKlimaSicht.ts` + `KomponentenSektionen.tsx` | Backend `test_wk16_e1b_d_sicht.py` (jeder Grund trägt genau eine Klasse · **jeder Ausstattungs-Grund einen Handgriff** · **kein Zeitraum-Grund einen** · jeder Grund genau einmal im Kasten · Größen-Namen als Vertrag); Client `src/v4/waermeKlimaSicht.test.tsx` (12 Proben: „≥" nur bei Schranke **und Gegenprobe** · Kachel entfällt nur mit Kasten-Eintrag **und Gegenprobe** · Kasten mit Handgriff und Link · Tabelle je Gerät) | **Wächter** (über die Klassen-Tabelle) + Regression |
 | **Verteilung je Gerät und Funktion — eine Familie je Gerät, zwei Reste, Kosten am Monatstarif** | `core/berechnungen/waerme_verteilung.py::verteile_geraet_strom` (die Weiche) · `services/waerme_verteilung.py` (Eingänge, Preise, Wetter) · `services/energie_profil/waerme_verteilung_tag.py` (Stunden) · Client `src/v4/waermeVerteilung.ts` | Backend `test_wk16c_verteilung_verlauf.py` (24 Proben: Familien-Weiche · K4 neben den Achsen · **Doppelzählung mit Gegenprobe** · gemessene 0 ist kein Segment · beide Reste getrennt · Σ Geräte = Anlagenstapel · Zeitfilter · Kosten von Hand nachgerechnet · zwei Tarife, ein gewichteter Preis · häufigster Wettercode · kein Symbol ohne Code); Client `src/v4/waermeVerteilung.test.tsx` (13 Proben: Reihenfolge Funktion vor Gerät · `null` statt 0 · kein Stapel ohne Verlaufsmenge · drei Differenz-Sätze) | Regression |
+| **S6 — der Tag sagt, was er abdeckt, und liest wie der Monat** (R-4 · R-5) | Rückfall in `services/snapshot/aggregator.py::_tagesdetail_boundary_diff_mit_grund` (`rueckfall_tagesrand`, **Schalter**) + `reader.py::letzter_stand_im_fenster`; die n-gegen-1-Präzedenz je Gerät in `core/berechnungen/wp_tages_praezedenz.py::loese_wp_tagesstrom_auf`; Wortlaut der Marke in `core/tageswert_grund.py::tages_abdeckung_hinweis`; der Strom-Grund in `waermepumpe_kennzahl.py::systemarbeitszahl(strom_fehlt_grund=…)`; Anzeige `KomponentenSektionen.tsx` (Untertitel an der Basis-Größe) | Backend `test_wk16g_tag_liest_wie_der_monat.py::TestR4Tagesrand` (8 Proben: erster Tag · laufender Tag · **kein Stand ⇒ Grund bleibt** · voller Tag bitgleich · Rücksprung · **der Rand knapp vor dem Tag**, die geschärfte Fassung nach Sprengsatz S9 · ein Stand ist kein Fenster · die Betriebsart-Zähler im selben Fenster) · `::TestR4StummerGesamtzaehler` (3: stumm ⇒ Achsen tragen · sprechend ⇒ K1 · **Tageszeile schlägt Tagesrand**) · `::TestR5EinBildschirm` (2 mit Gegenprobe); Client `KomponentenSektionen.wk16g-abdeckung.test.tsx` (4: Satz da · genau einmal · Gegenprobe · **die Naht** `baueTagAlsMonat`) | Regression |
 | **S5 — fünf Quellen im laufenden Monat, und die leere Kachel nennt ihren Grund** | Präzedenz in `core/berechnungen/datenquellen.py` (`merge_datenquellen(tagesebene=…)`, `mqtt_teilzeitraum_felder`), Rückfall in `services/snapshot/reader.py::delta_mit_rand` + `mqtt_energy_history_service.py::mqtt_monats_mengen`, fünfte Quelle in `aktueller_monat.py::_collect_tagesebene_data`, **Wärme/Klima je Gerät** in `services/energie_profil/waerme_verlauf.py::lade_waerme_monatsmengen_je_geraet` (derselbe Leser wie der Verlauf), Wortlaut in `core/monatswert_grund.py` | Backend `test_n472_laufender_monat_quellen.py` (25 Proben: Rückfall nennt seinen Zeitpunkt · **ohne Schalter bitgleich** (F-66) · Stand am Ersten bitgleich · **Rücksprung bekommt keinen Rückfall, auch mit Rand knapp vor dem Monat** · Tagesebene füllt nur Lücken · gespeicherte Zeile schlägt sie · Komponentenwert ersetzt sie (#361-Klasse) · abgeschlossener Monat bleibt aus · Abdeckung wird ausgewiesen · Grund nur an den Basis-Größen · **WP-Strom/Wärme/JAZ aus der Tagesebene** · **Tabelle je Gerät ohne Monatszeile** · **gepflegte Zeile schlägt sie auch bei der WP** · ohne Tagesspur bleibt es beim Grund); Client `src/v4/MonatBilanz.test.tsx` (Grund-Gruppe, 3 Proben) + `src/v4/ProvenanzQuellen.test.tsx` (MQTT-Teilzeitraum · „Tageswerte" schweigt ab dem Ersten) | Regression |
 | **A6 — eine Kennzahl zeigt ihre eingesetzten Werte** | Kacheln in Cockpit und Hub | `npm run check:formel-herleitung` (Wrapper `src/test/check-formel-herleitung.test.ts`) — TypeScript-AST über `src/**`, zwei Trägerformen (Objektliteral inkl. Shorthand, JSX-Attribut), drei Prüfungen, **abschmelzende** Allowlist mit Pflicht-Begründung; dazu `TKonto.a6-herleitung.test.tsx`, `KomponentenSektionen.jaz-herleitung.test.tsx`, `test_a6_arbeitszahl_je_funktion_herleitung.py` | **Wächter** + Regression |
 | **R-A — kein Feld ohne Auswertung, und die Fläche nennt sie** | Liste `core/feld_auswertungen.py` (je Registry-Feld Sicht · Datei · Symbol, dazu `FELDER_OHNE_AUSWERTUNG_BEKANNT` mit Obergrenze); Route `api/routes/datenquellen.py::get_datenquellen_felder` (`ausgewertet_in`); Client `components/live/DatenquellenZuordnung.tsx` | `test_jedes_feld_hat_eine_auswertung.py` — leitet seine Referenzmenge bei **jedem Lauf** aus den Registries ab (`alle_registry_felder`, inkl. `BASIS_ENERGY_TOPICS` und `KUMULATIVE_COUNTER_FELDER`) und prüft je Eintrag: Datei existiert · Symbol ist dort definiert · Feldname **oder** die deklarierten Trägertoken stehen im Quelltext genau dieser Funktion. Dazu: ein modus-generischer Leser (`betriebsart_*_kwh(daten, modus)`) muss **seinen Modus** nennen — ohne diese Klausel belegte er alle vier Betriebsarten und reproduzierte den N-398-Blindfleck (an einem Sprengsatz gemessen, 14.09.2026). Baseline **0** für `waermepumpe`. Client `DatenquellenZuordnung.ausgewertet-in.test.tsx` (3 Proben, mit Gegenprobe „ohne Auswertung kein Satz") | **Wächter** (über die Registries) + Regression |
-| **R-B/R-C — jede gemessene Betriebsart-Nutzenergie erscheint** | `waermepumpe_kennzahl.py::heizwaerme_kwh` (D1-Stufe 3, die **eine** Weiche) · `betriebsart_gemessen.py::nutzenergie_ohne_kennzahl_kwh` (E4: Menge ohne Kennzahl) · die Lesestellen von D1 (Layer · Hub/Cockpit je Gerät · Geldpfade · HA-Export) | `test_n398_nutzenergie_je_betriebsart.py` (25 Proben: die Weiche und ihre drei Stufen · **Bitgleichheit zur alten Lesetür** für Bestandszeilen · Anlage F4h über Hub, Cockpit → Monat und Jahr · Gegenprobe ohne Zähler · Gerätefeld und Gesamtwert gewinnen · Mengenzeile nur mit Zahl · keine Kennzahl für Lüften/Entfeuchten · keine Wärmesumme); Client `WaermepumpeNutzenergieZeilen.test.tsx` + `KomponentenSektionen.soll-waerme-klima.test.tsx` (je mit Gegenprobe) | Regression |
+| **R-B/R-C — jede gemessene Betriebsart-Nutzenergie erscheint, auch am TAG** (R-2) | `waermepumpe_kennzahl.py::heizwaerme_kwh` (D1-Stufe 3, die **eine** Weiche) · seit dem 15.09.2026 je Gerät am Tag über `::heizwaerme_je_geraet` und den Ausgabe-Key `wp_betriebsart_heizen_kwh` (`aggregator.TAGESDETAIL_AUSGABE`) · `betriebsart_gemessen.py::nutzenergie_ohne_kennzahl_kwh` (E4: Menge ohne Kennzahl) · die Lesestellen von D1 (Layer · Hub/Cockpit je Gerät · Geldpfade · HA-Export) | `test_wk16g_tag_liest_wie_der_monat.py::TestR2Heizwaerme` (4: die Weiche je Gerät · **eine gemessene 0 der Achse gewinnt** · der Tag trägt die Betriebsart-Wärme · **Σ Tage = Monat**); `test_n398_nutzenergie_je_betriebsart.py` (25 Proben: die Weiche und ihre drei Stufen · **Bitgleichheit zur alten Lesetür** für Bestandszeilen · Anlage F4h über Hub, Cockpit → Monat und Jahr · Gegenprobe ohne Zähler · Gerätefeld und Gesamtwert gewinnen · Mengenzeile nur mit Zahl · keine Kennzahl für Lüften/Entfeuchten · keine Wärmesumme); Client `WaermepumpeNutzenergieZeilen.test.tsx` + `KomponentenSektionen.soll-waerme-klima.test.tsx` (je mit Gegenprobe) | Regression |
 | **Keine Inline-Hex-Farben außerhalb des Farb-SoT** | `src/lib/colors.ts` | `npm run check:design` | **Wächter** |
 
 ### 11.5 Erfassung, Checker und Doku
@@ -1358,7 +1426,7 @@ oder im Bericht, nicht hier.
 | **Eine Alternativ-Gruppe zählt als Ganzes** (`BEDARF_GRUPPEN_ALTERNATIV`: Heizwärme ⇔ Wärme gesamt; Summanden-Gruppen wie `wp_strom` decken einander **nicht**) | `mqtt_topic_registry` (`pflicht_am_geraet`), `daten_checker/monatsdaten.py`, `daten_checker/energieprofil.py::_alternativ_geschwister` | `test_n391_gesamtwaerme.py::test_k8_…`/`::test_k12_…`; `test_daten_checker_tages_zusatzfelder_dok9.py` (Wärme gesamt deckt die Heizwärme ab · Warmwasser bleibt genannt · Summanden decken nichts) | Regression |
 | **Gesamtleistung verdrängt die Aufteilung** | `datenquellen_validierung.py` (Satz + Erkennung), `DatenquellenZuordnung.tsx` | `test_n439_leistung_kuehlen_anzeige.py::test_gesamtleistung_verdraengt_jetzt_auch_das_kuehlfeld`; Client `DatenquellenZuordnung.info-hinweis.test.tsx` („keine Schaltfläche, die das falsche Feld leeren würde", Info-Ton, Info-Symbol) | Regression |
 | **Fall L — jede fehlende Stromseite wird einzeln genannt** | `daten_checker/monatsdaten.py::_check_wp_monatsdaten` | `test_n443_f5_ein_stromfeld_fehlt.py` (drei Lagen: Warmwasser fehlt · Heizen fehlt · beide fehlen ⇒ eine Meldung) | Regression |
-| **Der Arbeitszahl-Prüfer liest dieselben Eingänge wie die Anzeige** | `daten_checker/waermepumpe.py` | `test_daten_checker_wp_arbeitszahl.py::test_n450_die_getrennt_messende_anlage_wird_ueberhaupt_gesehen` · `::test_e7_der_pruefer_kuerzt_keinen_gemessenen_f5_nenner` | Regression |
+| **Der Arbeitszahl-Prüfer liest dieselben Eingänge wie die Anzeige** | `daten_checker/waermepumpe.py` · seit R-3 (15.09.2026) auch die **Heizwärme-Weiche** D1-Stufe 3 (`heizwaerme_kwh` statt der alten Lesetür `get_wp_heizenergie_kwh`), ebenso `daten_checker/monatsdaten.py` (Widerspruch Gesamtwärme · Fall L) | `test_daten_checker_wp_arbeitszahl.py::test_n450_die_getrennt_messende_anlage_wird_ueberhaupt_gesehen` · `::test_e7_der_pruefer_kuerzt_keinen_gemessenen_f5_nenner`; R-3: `test_wk16g_tag_liest_wie_der_monat.py::TestR3Checker` (3 Proben mit Gegenprobe — der Prüfer sieht die Betriebsart-Wärme, die Achse behält den Vorrang) | Regression |
 | **Geschätzter Kühlanteil wird gemeldet, mit Handgriff und ohne „Akzeptiert"** | `daten_checker/datenquelle.py` | `test_daten_checker_geschaetzter_kuehlanteil.py` (drei Proben) | Regression |
 | **Temperatur-Historie: Zeile nennt beide Zahlen, Aktion nur die erreichbaren Monate** | `daten_checker/monatsdaten.py`, `api/routes/monatsdaten.py` | `test_n426_temperatur_historie.py` (u. a. „ohne erreichbare Monate gibt es keinen Knopf", „ein gepflegter Wert bleibt stehen", „der zweite Lauf findet nichts mehr") | Regression |
 | **`leistung_kuehlen_w` erreicht Live-Bild, Snapshot und Tagesverlauf** | `live_komponenten_builder.py`, `live_sensor_config.py`, `live_tagesverlauf_service.py`, `mqtt_live_history_service.py` | `test_n439_leistung_kuehlen_anzeige.py` (16 Proben, u. a. Snapshot-Key, MQTT-Zweig, Symbolwahl, „die Gesamtleistung gewinnt gegen die Summe") | Regression |
