@@ -69,6 +69,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.routes.strompreise import (
     lade_tarife_fuer_anlage,
+    lade_tarife_je_stichtag,
     resolve_tarif_for_komponente,
     resolve_einspeise_preis_cent,
     resolve_netzbezug_preis_cent,
@@ -1271,6 +1272,20 @@ async def lade_monats_fakten(
                 if bis else None
             ),
         )
+    # ⭐ Die Tarife aller Stichtage in EINER Abfrage vorladen (statt einer je
+    # Monat plus Nachladen der Zeitfenster). `_lade_tarif` und `baue_finanz_zeile`
+    # finden danach alles im Cache — an ihrem Code ändert sich nichts. P8 bleibt:
+    # jeder Monat bekommt den Tarif seines eigenen Stichtags.
+    _offene_stichtage = [
+        date(k[0], k[1], 1)
+        for k in sorted(kk for kk in kandidaten if _im_fenster(kk, von, bis))
+        if date(k[0], k[1], 1) not in tarif_cache
+    ]
+    if _offene_stichtage:
+        tarif_cache.update(
+            await lade_tarife_je_stichtag(db, anlage_id, _offene_stichtage)
+        )
+
     fakten: list[MonatsFakt] = []
     for schluessel in sorted(k for k in kandidaten if _im_fenster(k, von, bis)):
         fakten.append(
