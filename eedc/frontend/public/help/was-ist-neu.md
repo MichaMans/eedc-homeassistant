@@ -1310,6 +1310,35 @@ Was sich ändert, ist nur, dass ihre Zahl jetzt irgendwo steht.
 **Was du tun musst:** nichts. Pflegst du die Felder nicht, ändert sich für dich
 gar nichts.
 
+### Arbeitszahl Heizen und Warmwasser stehen jetzt auch im laufenden Monat
+
+**Betrifft dich das?** Ja, wenn du Heizung und Warmwasser mit **getrennten
+Stromzählern** misst und *Cockpit → Monat* für den **laufenden** Monat aufmachst.
+
+**Was war:** Unter dem Block stand den ganzen Monat lang *„Arbeitszahl Heizen ·
+Arbeitszahl Warmwasser — Strom nicht getrennt je Funktion gemessen → Getrennte
+Strommessung einschalten und beide Zähler zuordnen"* — ein Rat, den du längst
+befolgt hattest. Zwei Zeilen darüber zeigte die Tabelle *Zahlen je Gerät* genau
+diese beiden Arbeitszahlen. Der Grund: Die **anlagenweiten** Werte kamen bisher
+nur aus der gespeicherten Monatszeile, und die entsteht erst mit dem
+Monatsabschluss — einen automatischen gibt es nicht.
+
+**Was jetzt:** Sie entstehen aus **denselben Gerätewerten**, aus denen die
+Tabelle und der Verlauf daneben schon gespeist werden. Heizwärme,
+Warmwasser-Wärme, Strom Heizen und Strom Warmwasser stehen damit ab dem ersten
+gemessenen Tag, und die beiden Arbeitszahlen ebenso.
+
+⚠ **Bei mehreren Geräten kann trotzdem ein Grund stehen — und er ist der
+zutreffende.** Eine gemeinsame Arbeitszahl je Funktion gibt es nur, wenn Wärme
+und Strom derselben Funktion von **denselben** Geräten kommen. Misst ein zweites
+Gerät seine Wärme mit einem gemeinsamen Zähler oder trennt es seinen Strom
+nicht, steht dort *„Nutzenergie und Strom dieser Funktion stammen von
+verschiedenen Geräten"* — mit dem Weg in den Komponenten-Hub, der jedes Gerät
+für sich zeigt. Die Zahlen je Gerät bleiben davon unberührt.
+
+**Was du tun musst:** nichts. Werte, die du selbst gepflegt oder importiert
+hast, gewinnen unverändert.
+
 ### Der erste Tag und der heutige zeigen jetzt Zahlen
 
 **Betrifft dich das?** Ja, wenn du *Cockpit → Tag* am Tag der Zuordnung oder für

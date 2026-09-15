@@ -25,8 +25,10 @@ from backend.services.waerme_klima_block import (
     WpGeraetZeile,
     WpMoeglichZeile,
     achsen_der_anlage,
+    funktions_eingaenge_der_anlage,
     geraete_zeilen,
     schranken_eingang,
+    traegt_menge,
     was_noch_moeglich,
 )
 from backend.models.anlage import Anlage
@@ -2432,34 +2434,9 @@ async def get_aktueller_monat(
             monats_fakt is not None and monats_fakt.wp.geraete_verschieden
         ),
     )
-    # SOLL §3.2b (10.09.2026): WELCHE Funktionen die Verletzung trifft. Bis
-    # hierher galt sie unbesehen fuer beide Zeilen — bei einer Waermepumpe neben
-    # einer Split-Klimaanlage standen deshalb drei Striche, waehrend der
-    # Komponenten-Hub fuer dasselbe Geraet 3,0 und 2,5 auswies.
-    #
-    # ⚠ Die Gleichheit wird je Funktion aus den BEITRAEGEN gezaehlt, nicht aus
-    # der Bauart: `strom_warmwasser_kwh` wird ungefiltert gelesen, und
-    # `heizenergie_kwh` traegt kein `!luft_luft` — beides kann eine Klimaanlage
-    # tragen. Nur Gleichheit in BEIDE Richtungen schuetzt vor einer falschen
-    # Zahl (zu hoch wie zu niedrig).
-    _wp_deckung_je_funktion = (
-        {f: monats_fakt.wp.deckung_je_funktion(f) for f in ARBEITSZAHL_FUNKTIONEN}
-        if monats_fakt is not None else None
-    )
-    _wp_abgrenzung_je_funktion = abgrenzung_je_funktion(
-        abgrenzung_stoerung=(
-            monats_fakt.wp.abgrenzung_stoerung if monats_fakt is not None else None
-        ),
-        bauarten_gemischt=(
-            monats_fakt is not None and monats_fakt.wp.bauarten_gemischt
-        ),
-        geraete_ohne_waerme=(
-            monats_fakt is not None
-            and monats_fakt.wp.waerme_deckt_nicht_alle_geraete
-        ),
-        zeitraum_versetzt=_wp_seiten_teilzeitraum == 1,
-        deckung_je_funktion=_wp_deckung_je_funktion,
-    )
+    # ⭐ **Die Frage „welche Funktion trifft die Verletzung?" steht weiter
+    # unten** (SOLL §3.2b; seit WK-16i hinter den Geräte-Kennzahlen, denn aus
+    # ihnen beantwortet der laufende Monat sie).
     # W-14 + E4: Der funktionsfremde Strom (Kühlen · Lüften · Entfeuchten) kommt
     # — wie der abgeleitete Anteil darüber — IMMER aus den Monats-Fakten. Er
     # beschreibt die Aufteilung der IMD-Zeilen dieses Monats, und die ändert sich
@@ -2522,10 +2499,7 @@ async def get_aktueller_monat(
         for _k in _wp_kennzahlen_je_geraet:
             _m = _tages_wp_mengen.get(str(_k.inv_id))
             _inv = _wp_invs_by_id.get(_k.inv_id)
-            if (
-                _m is None or _inv is None
-                or _k.mengen.strom_kwh > 0 or _k.mengen.waerme_kwh > 0
-            ):
+            if _m is None or _inv is None or traegt_menge(_k.mengen):
                 _ersetzt.append(_k)
                 continue
             _ersetzt.append(kennzahlen_aus_mengen(mengen_aus_tageswerten(
@@ -2546,6 +2520,59 @@ async def get_aktueller_monat(
                 waerme_ist_gesamt=bool(_m.waerme_kwh),
             )))
         _wp_kennzahlen_je_geraet = _ersetzt
+    # ── S5 anlagenweit (WK-16i, N-503): die Eingänge der Funktions-Zahlen ──
+    #
+    # ⛔ **Sie kamen bis zum 15.09.2026 ausschließlich aus den Monats-Fakten**,
+    # und der laufende Monat hat keine `Monatsdaten`-Zeile. Im Kasten stand
+    # deshalb *„Strom nicht getrennt je Funktion gemessen → Getrennte
+    # Strommessung einschalten"*, während die Tabelle **direkt darunter** 5,58
+    # und 3,32 zeigte (r28/Prüfstand, September 2026) — zwei Leser, ein
+    # Bildschirm (dieselbe Klasse wie N-492).
+    #
+    # ⭐ **S5 gilt für alle anlagenweiten Wärme/Klima-Eingänge, nicht nur für
+    # die Kacheln.** Trägt die Monatszeile eine Menge, gilt sie — sonst
+    # entstehen die Eingänge aus **denselben** Geräte-Mengen, die die Tabelle
+    # oben speist. Die Faltung steht an EINER Stelle
+    # (`waerme_klima_block.funktions_eingaenge_der_anlage`); hier wird sie nur
+    # gerufen, und beide Herkünfte tragen dieselben Feldnamen (F-56).
+    _wp_zeile_traegt = monats_fakt is not None and traegt_menge(monats_fakt.wp)
+    _wp_funktion = (
+        monats_fakt.wp if _wp_zeile_traegt
+        else funktions_eingaenge_der_anlage(_wp_kennzahlen_je_geraet)
+    )
+    # ── SOLL §3.2b (10.09.2026): WELCHE Funktionen die Verletzung trifft ──
+    #
+    # Bis dahin galt sie unbesehen fuer beide Zeilen — bei einer Waermepumpe
+    # neben einer Split-Klimaanlage standen deshalb drei Striche, waehrend der
+    # Komponenten-Hub fuer dasselbe Geraet 3,0 und 2,5 auswies.
+    #
+    # ⚠ Die Gleichheit wird je Funktion aus den BEITRAEGEN gezaehlt, nicht aus
+    # der Bauart: `strom_warmwasser_kwh` wird ungefiltert gelesen, und
+    # `heizenergie_kwh` traegt kein `!luft_luft` — beides kann eine Klimaanlage
+    # tragen. Nur Gleichheit in BEIDE Richtungen schuetzt vor einer falschen
+    # Zahl (zu hoch wie zu niedrig).
+    #
+    # ⭐ **Aus derselben Quelle wie die Mengen darüber** (WK-16i). ⚠ Ein Dict aus
+    # lauter `None` wirkt wie das frühere `None` (`abgrenzung_je_funktion` legt
+    # `global_grund` dann ohnehin auf alle Funktionen); neu ist allein, dass der
+    # Rückfall die Deckung **beantworten** kann, statt sie offenzulassen.
+    _wp_deckung_je_funktion = {
+        f: _wp_funktion.deckung_je_funktion(f) for f in ARBEITSZAHL_FUNKTIONEN
+    }
+    _wp_abgrenzung_je_funktion = abgrenzung_je_funktion(
+        abgrenzung_stoerung=(
+            monats_fakt.wp.abgrenzung_stoerung if monats_fakt is not None else None
+        ),
+        bauarten_gemischt=(
+            monats_fakt is not None and monats_fakt.wp.bauarten_gemischt
+        ),
+        geraete_ohne_waerme=(
+            monats_fakt is not None
+            and monats_fakt.wp.waerme_deckt_nicht_alle_geraete
+        ),
+        zeitraum_versetzt=_wp_seiten_teilzeitraum == 1,
+        deckung_je_funktion=_wp_deckung_je_funktion,
+    )
     _wp_strom_ohne_waerme, _wp_geraete_ohne_waerme = schranken_eingang(
         _wp_kennzahlen_je_geraet,
     )
@@ -2894,17 +2921,20 @@ async def get_aktueller_monat(
     wp_modus_abdeckung = None
     wp_modus_gemessen = None
     wp_modus_bezug = None
+    # ⭐ **EINE Lesestelle, zwei Herkünfte** (WK-16i): `_wp_funktion` ist die
+    # Monatszeile, wo sie eine Menge trägt, sonst die Faltung über die
+    # Geräte-Mengen. Beide tragen dieselben Feldnamen — deshalb steht hier
+    # **kein** zweiter Zweig, der dieselben vier Gates noch einmal schreibt.
+    if _wp_funktion.heizung_kwh > 0:
+        wp_heizung = round(_wp_funktion.heizung_kwh, 2)
+    if _wp_funktion.warmwasser_kwh > 0:
+        wp_warmwasser = round(_wp_funktion.warmwasser_kwh, 2)
+    if _wp_funktion.hat_split:
+        # Auch 0-Werte zurückgeben, damit Frontend "getrennt erfasst, aktuell 0"
+        # vs. "gar nicht getrennt erfasst" unterscheiden kann.
+        wp_strom_heizen = round(_wp_funktion.strom_heizen_kwh, 2)
+        wp_strom_warmwasser = round(_wp_funktion.strom_warmwasser_kwh, 2)
     if mf_wp is not None:
-        if mf_wp.heizung_kwh > 0:
-            wp_heizung = round(mf_wp.heizung_kwh, 2)
-        if mf_wp.warmwasser_kwh > 0:
-            wp_warmwasser = round(mf_wp.warmwasser_kwh, 2)
-        if mf_wp.hat_split:
-            # Auch 0-Werte zurückgeben, damit Frontend "getrennt erfasst, aktuell 0"
-            # vs. "gar nicht getrennt erfasst" unterscheiden kann.
-            wp_strom_heizen = round(mf_wp.strom_heizen_kwh, 2)
-            wp_strom_warmwasser = round(mf_wp.strom_warmwasser_kwh, 2)
-
         # #263 K-2: derselbe Alles-oder-nichts-Grundsatz für den Modus-Split —
         # ohne erfasste Stunde gibt es keine Aufteilung statt einer 0.
         if mf_wp.hat_modus_split:
@@ -2946,11 +2976,14 @@ async def get_aktueller_monat(
         strom_heizen_kwh=wp_strom_heizen,
         warmwasser_kwh=wp_warmwasser,
         strom_warmwasser_kwh=wp_strom_warmwasser,
-        hat_split=bool(mf_wp is not None and mf_wp.hat_split),
+        # WK-16i: dieselbe Quelle wie die vier Mengen darüber — im laufenden
+        # Monat also das Kennzeichen der **beitragenden** Geräte, wie es der
+        # Tag seit jeher fragt (`views.py::_wp_getrennte_strommessung_tag`).
+        hat_split=_wp_funktion.hat_split,
         # N-391: Misst EIN gemeinsamer Wärmemengenzähler beide Funktionen, gibt
         # es die Wärme je Funktion nicht — die Zeile sagt dann den Grund, statt
         # die Gesamtwärme durch den Heizstrom zu teilen (gemessen: 5,0 statt 3,0).
-        waerme_ist_gesamt=bool(mf_wp is not None and mf_wp.waerme_ist_gesamt),
+        waerme_ist_gesamt=_wp_funktion.waerme_ist_gesamt,
         waerme_abgeleitet_kwh=wp_waerme_abgeleitet_kwh,
         abgrenzung_verletzt=wp_abgrenzung_verletzt,
         abgrenzung_je_funktion_grund=_wp_abgrenzung_je_funktion,

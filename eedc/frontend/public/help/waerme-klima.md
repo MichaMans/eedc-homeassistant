@@ -304,6 +304,20 @@ keinen Monatsabschluss gibt.
 > gemessenem Strom und **fehlender** Wärme wäre keine halbe Auskunft, sondern eine falsche.
 > Was dann zu tun ist, steht im Kasten *„Was noch möglich wäre"* unter dem Block.
 
+⭐ **Und seit v4.0.45 auch für die Arbeitszahlen je Funktion.** Wer Heizung und Warmwasser
+getrennt misst, sieht *Arbeitszahl Heizen* und *Arbeitszahl Warmwasser* jetzt schon im
+laufenden Monat — vorher stand dort bis zum Monatsabschluss *„Strom nicht getrennt je
+Funktion gemessen"*, obwohl beide Zähler zugeordnet waren und die Tabelle *Zahlen je Gerät*
+direkt darunter die Zahlen zeigte.
+
+> ⚠ **Bei mehreren Geräten kann trotzdem ein Grund stehen — und er ist der richtige.** Eine
+> Arbeitszahl je Funktion gibt es für die ganze Anlage nur, wenn Wärme und Strom **derselben**
+> Funktion von **denselben** Geräten kommen. Misst ein zweites Gerät seine Wärme mit einem
+> gemeinsamen Zähler oder trennt es seinen Strom nicht, dann steht dort *„Nutzenergie und
+> Strom dieser Funktion stammen von verschiedenen Geräten"* — mit dem Weg in den
+> Komponenten-Hub, der jedes Gerät für sich zeigt. **Die Zahlen je Gerät bleiben davon
+> unberührt.**
+
 ### Der Fremdanteil — die einzige Angabe, die eedc nicht messen kann
 
 Zwei Lagen machen jede Arbeitszahl unbrauchbar, **ohne dass man es den Zahlen ansieht**:

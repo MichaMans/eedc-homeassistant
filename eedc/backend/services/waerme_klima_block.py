@@ -24,10 +24,19 @@ wirklich nichts ist. Gemessen stimmte beides; der Unterschied war die Form.
   *Zeitraum* ⇒ „—" ohne Text an der Kachel. Die Klassifizierung steht an der
   Grund-Konstante im Layer, nicht hier und erst recht nicht im Client — sonst
   stünde dieselbe Aussage an zwei Orten (die W-3-Klasse).
+
+## Dazu drei Faltungen „anlagenweit aus den Geräte-Mengen"
+
+{@link achsen_der_anlage} · {@link schranken_eingang} ·
+{@link funktions_eingaenge_der_anlage}. Sie beantworten *„was gilt für die
+Anlage?"* aus dem, **was je Gerät schon aufgelöst ist** — Konzept Wärme/Klima
+§7: *„Addiert wird, was je Gerät schon aufgelöst ist"*, nie die Auflösung der
+Anlagensumme. D1 und K3 sind zu diesem Zeitpunkt längst je Gerät gefallen.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Iterable, Optional, Sequence
 
 from pydantic import BaseModel, Field
@@ -42,6 +51,7 @@ from backend.core.berechnungen.waermepumpe_kennzahl import (
     GRUND_KEIN_STROM,
     GRUND_ZEITRAUM,
     HANDGRIFF_JE_GRUND,
+    deckung_aus_geraeten,
     ist_ausstattungs_grund,
 )
 from backend.core.betriebsmodus import HEIZEN, WAERME_ACHSEN, WARMWASSER
@@ -379,3 +389,171 @@ def schranken_eingang(
         if m.name and m.name not in namen:
             namen.append(m.name)
     return menge, namen
+
+
+def traegt_menge(mengen: Optional[object]) -> bool:
+    """Trägt diese Zeile überhaupt eine Menge? — **die S5-Weiche** (WK-16i).
+
+    Die eine Frage hinter *„die Monatszeile gewinnt, wo sie eine Zahl trägt"*,
+    und sie wird **zweimal in derselben Sicht** gestellt: je Gerät (ersetzt der
+    Rückfall diese Tabellenzeile?) und anlagenweit (kommen die Eingänge der
+    Funktions-Arbeitszahl aus der Zeile oder aus den Geräte-Mengen?). Zwei
+    Schreibweisen wären die F-56-Klasse — eine Regel, zwei Stellen, eine Drift.
+
+    ⚠ **Strom ODER Wärme, nichts Feineres.** Beide Größen sind je Gerät bereits
+    kanonisch aufgelöst (K3 und D1); trägt eine Zeile eine Funktions-Achse, so
+    trägt sie zwangsläufig auch die Summe darüber (``get_wp_strom_kwh`` addiert
+    die feine Aufteilung, ``waerme_gesamt_kwh`` die Summanden). Eine Zeile ohne
+    beides trägt nichts — und **nicht** „eine gemessene 0": Die gibt es hier
+    nicht, weil ohne Zeile gar nicht erst addiert wird.
+
+    Args:
+        mengen: ``WpFakten`` oder ``GeraetMengen`` — beide tragen ``strom_kwh``
+            und ``waerme_kwh`` unter demselben Namen für dieselbe Größe.
+    """
+    return mengen is not None and (
+        getattr(mengen, "strom_kwh", 0.0) > 0 or getattr(mengen, "waerme_kwh", 0.0) > 0
+    )
+
+
+@dataclass(frozen=True)
+class FunktionsEingaengeDerAnlage:
+    """Die **anlagenweiten** Eingänge der Funktions-Arbeitszahl (WK-16i, N-503).
+
+    ⭐ **Die Feldnamen sind die von** {@link
+    backend.services.monats_fakten.WpFakten}, **und das ist Absicht.** Dieselbe
+    Frage hat zwei Herkünfte — die Monatszeile und die Geräte-Mengen —, und der
+    Aufrufer soll dafür **einen** Codeweg haben, nicht zwei. Genau die Bauform,
+    mit der {@link backend.services.waermepumpe_kennzahlen_je_geraet.GeraetMengen}
+    ihre zwei Herkünfte trägt: *„Die Felder tragen die Namen der Größen, nicht
+    die der Datenbankspalten."*
+
+    ⚠ **Sie ist kein Ersatz für die Monatszeile, sondern ihr Rückfall** (S5).
+    Trägt die Zeile eine Menge, gilt sie; diese Faltung entsteht nur, wo sie
+    nichts trägt — im laufenden Monat also immer, denn einen automatischen
+    Monatsabschluss gibt es nicht.
+    """
+
+    heizung_kwh: float = 0.0
+    warmwasser_kwh: float = 0.0
+    strom_heizen_kwh: float = 0.0
+    strom_warmwasser_kwh: float = 0.0
+    #: Mindestens **ein beitragendes** Gerät führt ``getrennte_strommessung``
+    #: — dieselbe ``any``-Semantik wie ``WpFakten.hat_split`` und wie der Tag
+    #: (``views.py::_wp_getrennte_strommessung_tag``).
+    hat_split: bool = False
+    #: Mindestens ein beitragendes Gerät misst seine Wärme mit EINEM
+    #: gemeinsamen Zähler (N-391). Ohne das Feld sagte die leere Funktions-Zeile
+    #: *„kein Wärmemengenzähler zugeordnet"* an einer Anlage, deren Zähler
+    #: zugeordnet **ist** — die W-18-Klasse.
+    waerme_ist_gesamt: bool = False
+    #: Welche Geräte stehen im **Zähler** bzw. im **Nenner** je Funktion — die
+    #: Identitäten, nicht ihre Anzahl (N-441). Namen wie in ``WpFakten``.
+    geraete_q_heizen: frozenset[int] = field(default_factory=frozenset)
+    geraete_e_heizen: frozenset[int] = field(default_factory=frozenset)
+    geraete_q_warmwasser: frozenset[int] = field(default_factory=frozenset)
+    geraete_e_warmwasser: frozenset[int] = field(default_factory=frozenset)
+
+    def deckung_je_funktion(self, funktion: str) -> Optional[bool]:
+        """Deckt sich der Geräte-Kreis von Zähler und Nenner? — wie ``WpFakten``.
+
+        Dieselbe Layer-Regel ({@link
+        backend.core.berechnungen.waermepumpe_kennzahl.deckung_aus_geraeten}),
+        nur auf den Geräte-Mengen statt auf den Monatszeilen. **Ohne sie wäre
+        der Rückfall eine neue Falschaussage:** An der nachgestellten
+        Prüfstand-Anlage steuert ein Gerät Heiz- und Warmwasser-**Strom** bei
+        und misst seine Wärme mit einem Gesamtzähler, ein anderes steuert
+        Warmwasser-**Wärme** ohne eigenen Funktions-Strom bei. Die Quotienten
+        daraus (3,35 / 4,21) stehen für keine Anlage — und derselbe Monat nach
+        dem Abschluss sperrt sie mit genau diesem Grund (gemessen an r28,
+        Juli und August 2026: *„Nutzenergie und Strom dieser Funktion stammen
+        von verschiedenen Geräten"*). Konzept Wärme/Klima §7.
+
+        ⛔ **``kuehlen`` beantwortet diese Faltung NICHT** (``None`` — *die
+        Frage stellt sich nicht*). Sie liefert die Eingänge, deren **Mengen**
+        sie auch liefert; die anlagenweite Kälte und der Kühlstrom kommen im
+        laufenden Monat weiterhin aus der Monatszeile. Eine Deckungs-Aussage
+        aus einer anderen Quelle als die Mengen wäre genau die Mischung, gegen
+        die R2 steht. ⚠ In der Rückfall-Lage sagt die Monatszeile dazu
+        ebenfalls ``None`` — sie trägt dort keine Kälte —, die Auskunft ist
+        also dieselbe, nicht nur eine Vereinfachung.
+        """
+        if funktion == "heizen":
+            return deckung_aus_geraeten(self.geraete_e_heizen, self.geraete_q_heizen)
+        if funktion == "warmwasser":
+            return deckung_aus_geraeten(
+                self.geraete_e_warmwasser, self.geraete_q_warmwasser,
+            )
+        return None
+
+
+def funktions_eingaenge_der_anlage(
+    kennzahlen: Sequence[GeraetKennzahlen],
+) -> FunktionsEingaengeDerAnlage:
+    """Σ über die Geräte, die die Achse **haben** — die eine Faltung (**WK-16i**).
+
+    Der Rückfall für **S5 anlagenweit**: Fehlt die Monatszeile, entstehen
+    Heizwärme, Warmwasser-Wärme, Strom Heizen, Strom Warmwasser, ``hat_split``
+    und die Deckung je Funktion aus **denselben** Geräte-Mengen, die die Tabelle
+    *„Zahlen je Gerät"* speisen. Zwei Quellen für einen Bildschirm wären zwei
+    Zahlen (**S1**) — genau der Widerspruch, der N-503 ausgelöst hat: der Kasten
+    sagte *„Strom nicht getrennt je Funktion gemessen"*, während die Tabelle
+    direkt darunter 5,58 und 3,32 zeigte.
+
+    ⚠ **Gezählt wird der BEITRAG, nicht der Bestand** — dieselbe Regel wie in
+    {@link achsen_der_anlage} und {@link schranken_eingang} (N-441). Ein Gerät
+    ohne Strom in diesem Zeitraum schaltet keine getrennte Strommessung frei.
+
+    ⛔ **Und nur die Geräte, die die Achse haben** (WK-16h/**R-1**,
+    ``field_definitions.wp_waerme_achsen``): Die Heizwärme einer
+    Brauchwasser-Wärmepumpe gehört in keine anlagenweite Heiz-Arbeitszahl — an
+    diesem Gerät gibt es die Achse nicht, und ein Altwert in der Zeile ändert
+    daran nichts (ADR-002/**P13**).
+
+    ⚠ **Roh-Wärme, nicht die „getrennte" Teilmenge.** Summiert werden
+    ``heizung_kwh``/``warmwasser_kwh`` (je Gerät bereits kanonisch aufgelöst,
+    D1), nicht ``heizung_getrennt_kwh`` — dieselbe Wahl, die ``WpFakten`` für
+    den abgeschlossenen Monat trifft und der Tag für seine Summe. Die andere
+    wäre eine **dritte** Antwort auf dieselbe Frage; dass Zähler und Nenner
+    dabei auseinanderlaufen können, beantwortet die Deckung darüber — mit einem
+    Grund, nicht mit einer stillen Kürzung.
+    """
+    heizung = warmwasser = strom_heizen = strom_warmwasser = 0.0
+    hat_split = waerme_ist_gesamt = False
+    q_h: set[int] = set()
+    e_h: set[int] = set()
+    q_w: set[int] = set()
+    e_w: set[int] = set()
+    for k in kennzahlen:
+        m = k.mengen
+        if m.strom_kwh <= 0:
+            continue
+        achsen = m.waerme_achsen or WAERME_ACHSEN
+        hat_split = hat_split or m.hat_getrennte_strommessung
+        waerme_ist_gesamt = waerme_ist_gesamt or m.waerme_ist_gesamt_getrennt
+        if HEIZEN in achsen:
+            heizung += m.heizung_kwh
+            strom_heizen += m.strom_heizen_kwh
+            if m.heizung_kwh > 0:
+                q_h.add(m.inv_id)
+            if m.strom_heizen_kwh > 0:
+                e_h.add(m.inv_id)
+        if WARMWASSER in achsen:
+            warmwasser += m.warmwasser_kwh
+            strom_warmwasser += m.strom_warmwasser_kwh
+            if m.warmwasser_kwh > 0:
+                q_w.add(m.inv_id)
+            if m.strom_warmwasser_kwh > 0:
+                e_w.add(m.inv_id)
+    return FunktionsEingaengeDerAnlage(
+        heizung_kwh=heizung,
+        warmwasser_kwh=warmwasser,
+        strom_heizen_kwh=strom_heizen,
+        strom_warmwasser_kwh=strom_warmwasser,
+        hat_split=hat_split,
+        waerme_ist_gesamt=waerme_ist_gesamt,
+        geraete_q_heizen=frozenset(q_h),
+        geraete_e_heizen=frozenset(e_h),
+        geraete_q_warmwasser=frozenset(q_w),
+        geraete_e_warmwasser=frozenset(e_w),
+    )
