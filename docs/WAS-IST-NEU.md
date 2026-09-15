@@ -9,6 +9,33 @@
 
 ---
 
+## Unveröffentlicht
+
+**Die Sichten mit langer Historie öffnen sich schneller — und bleiben es.**
+
+**Betrifft dich das?** Ja, wenn du *Cockpit → Monat* oder *→ Jahr*, die
+**Komponenten**-Sichten, *Auswertungen → Tabelle* oder den **Investitions-ROI**
+benutzt — und umso mehr, je länger du eedc schon pflegst.
+
+**Was war:** Beim ersten Öffnen einer dieser Sichten pro Sitzung rechnete eedc
+deine **ganze Historie** neu durch, Monat für Monat. An einer Anlage mit 39
+gepflegten Monaten dauerte das messbar: *Auswertungen → Tabelle* 2,4 Sekunden,
+der *Investitions-ROI* 3,9 Sekunden, *Cockpit → Jahr* im Browser gut zehn.
+⚠ **Und es wuchs mit:** Jeder neue Monat legte rund eine Zehntelsekunde drauf —
+etwa **eine Sekunde pro Jahr**, dauerhaft.
+
+**Was jetzt:** Dieselben Zahlen, ein Bruchteil der Arbeit. eedc fragt die
+Stundenwerte einmal statt 117 Mal, liest von ihnen nur noch die Spalten, die es
+wirklich braucht, und holt die Tarife aller Monate in einem Zug. Im Nachbau
+derselben Anlage: *Auswertungen → Tabelle* von 1,2 Sekunden auf **unter eine
+Zehntelsekunde**, der ROI von 1,3 auf **0,13**.
+
+⛔ **An deinen Zahlen ändert sich nichts.** Das ist nicht nur die Absicht,
+sondern nachgewiesen: 25 Antworten wurden vor und nach dem Umbau Zeichen für
+Zeichen verglichen, auf drei verschiedenen Datenbeständen.
+
+---
+
 ## v4.0.45 — 15. September 2026
 
 **Wohin ist der Strom deiner Wärmepumpe gegangen — und was hat er gekostet?**

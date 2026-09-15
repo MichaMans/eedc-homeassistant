@@ -228,6 +228,36 @@ Als neue **ADR-002/P10** eintragen, mit „gesichert durch"-Spalte.
    Ladezeit vor/nach vergleichen.
    **Abbruchkriterium:** wird Cockpit/Übersicht messbar langsamer, wird Schritt 4
    zurückgestellt.
+
+   ⭐ **Eingetreten, gemessen und behoben (15.09.2026).** Das Risiko hat sich
+   verwirklicht, nur an einer anderen Stelle als erwartet: nicht in der Faltung
+   (die kostet ~3 ms je Monat), sondern in der **Beschaffung**. Drei Aufrufer
+   der Preis-Kaskade × 39 Monate = **117 Abfragen** über `tages_energie_profil`
+   je `GET /monatsdaten/aggregiert`, jede über die **ganze** Historie der
+   Anlage, weil `extract("year"/"month", datum)` den Index
+   `ix_tep_anlage_datum` für die Monatseingrenzung ausschaltet; dazu ein
+   Entity-Load derselben Tabelle (17.366 ORM-Objekte, 35.861 `json.loads`) für
+   sechs Float-Summen, der den Event-Loop ~0,7 s anhielt. An der produktiven
+   Anlage: 2,4 s für die Tabelle, 3,9 s für den ROI, **10,1 s** für Cockpit →
+   Jahr im Browser (fünf parallele Abrufe, zusammen langsamer als nacheinander
+   — 6,6 s). Der Aufwand wuchs **linear mit der Zahl der Monate**: rund 90 ms je
+   neuem Monat, also ~1 s pro Jahr.
+
+   **Gebaut (C1–C3):** eine gruppierte Preismessung je Anfrage statt 117
+   Einzelabfragen, Bereichsbedingung statt Funktion über der Spalte,
+   Spalten-Select statt Entity-Load und nur für die Monate mit Rückfall-Bedarf,
+   Tarife aller Stichtage in einer Abfrage, Tagesmittel-Temperatur gruppiert,
+   ROI baut die Fakten einmal. Ergebnis im Nachbau: Tabelle **1162 → 74 ms**
+   (209 → 16 Statements), ROI **1289 → 132 ms**, CO₂ **632 → 52 ms**.
+
+   ⭐ **Der Wächter statt der Erinnerung:**
+   `backend/tests/test_query_budget_monats_fakten.py` misst das
+   **Zugriffsmuster** — kein `STRFTIME` im Filter gegen die Stundentabelle,
+   kein Vollobjekt-Load, und die Zahl der Abfragen ist bei 12 und 24 Monaten
+   **gleich**. Er wäre beim ersten Bau rot gewesen; eine Probe über Zahlen hätte
+   nichts gesehen. **Die Lehre gehört zum Risiko:** „Ladezeit vor/nach
+   vergleichen" ist eine Absicht, die niemand einlöst — messbar wird sie erst
+   als Gate.
 3. **Cross-Repo.** Schritt 6 berührt das Community-Datenmodell — beide Repos
    synchron oder gar nicht.
 4. **Umfang.** Sechs Schritte, jeder mit Gates. Das ist keine Runde, das sind

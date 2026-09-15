@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Cockpit → Monat, Jahr, Komponenten, Auswertungen und der Investitions-ROI öffnen sich deutlich schneller — und werden nicht mehr jedes Jahr langsamer.** Beim ersten Aufruf einer dieser Sichten rechnete eedc die **komplette Historie** neu durch, und zwar Monat für Monat: An einer Anlage mit 39 gepflegten Monaten waren das **117 Abfragen** über die Stundentabelle für ein und dieselbe Frage („welchen Strompreis hatte dieser Monat?"), dazu ein Ladevorgang, der **alle** Stundenzeilen der Anlage als vollständige Objekte in den Speicher holte — 17.366 Zeilen, nur damit sechs Zahlen summiert werden. Gemessen an einer echten Anlage: *Auswertungen → Tabelle* 2,4 s, *Investitions-ROI* 3,9 s, und *Cockpit → Jahr* im Browser **10,1 s**, weil die Sicht mehrere solcher Abrufe gleichzeitig startet und diese sich gegenseitig ausbremsten. ⭐ **Der Aufwand hing an der Zahl deiner Monate** — jeder neue Monat kostete rund 90 ms mehr, also etwa **eine Sekunde pro Jahr**, dauerhaft und in jeder dieser Sichten. Jetzt fragt eedc **einmal statt 117 Mal**, liest von der Stundenebene nur die sechs gebrauchten Spalten und auch nur für die Monate, die sie überhaupt brauchen, lädt die Tarife aller Monate in einer Abfrage statt in 39, holt die Tagesmittel der Temperatur gruppiert statt Zeile für Zeile und baut die Monatswerte im ROI einmal statt zweimal. Im Nachbau derselben Anlage: *Auswertungen → Tabelle* **1162 → 74 ms**, *ROI* **1289 → 132 ms**, *CO₂-Bilanz* **632 → 52 ms**. ⛔ **Keine einzige Zahl ändert sich** — belegt mit 25 Antwortvergleichen über drei Datenbestände (darunter einer eigens mit Zähler-, Speicher- und Tagesspur-Lücken) gegen den Stand davor, bit für bit. ⭐ **Damit es so bleibt**, prüft ein neuer Wächter bei jedem Testlauf die *Zugriffsform* statt der Zahlen: Die Zahl der Abfragen über die Stundentabelle muss bei 12 und bei 24 Monaten **gleich** sein.
+
+---
+
 ## [4.0.45] - 2026-09-15 — Wärme und Klima zeigen, was deine Daten hergeben: wohin der Strom ging, wann und was er gekostet hat — und der Strom der Wärmepumpe wird voll gerechnet
 
 ### Added
