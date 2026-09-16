@@ -36,6 +36,28 @@ Zeichen verglichen, auf drei verschiedenen Datenbeständen.
 
 ---
 
+**Der Daten-Checker schreibt Zahlen jetzt so, wie der Rest von eedc sie schreibt**
+
+**Betrifft dich das?** Ja, wenn du den **Daten-Checker** benutzt — die
+Schreibweise ändert sich in allen sieben Prüfbereichen.
+
+**Was war:** Der Checker nannte dieselbe Anlage anders als die Oberfläche und
+die vier PDF-Berichte: „6.0 kWp" statt „6,0 kWp", „12000 kWh" statt
+„12.000 kWh". Betroffen waren beide Hälften der deutschen Schreibweise — das
+**Dezimalkomma** und der **Tausenderpunkt**, der auch bei ganzen Zahlen fehlte
+(„1260 W" statt „1.260 W").
+
+**Was jetzt:** 85 Meldungstexte lesen sich wie der Rest der App. Damit es so
+bleibt, hängt die Regel nicht mehr an der Aufmerksamkeit: Die Schreibweise
+entsteht an einem einzigen Ort, und ein Prüfer meldet bei jedem Testlauf rot,
+sobald im Daten-Checker wieder eine Zahl von Hand formatiert wird.
+
+⛔ **An deinen Daten ändert sich nichts.** Es geht allein darum, wie die
+Meldungen aussehen; eedc liest Zahlen unverändert ein, auch aus importierten
+Dateien.
+
+---
+
 ## v4.0.45 — 15. September 2026
 
 **Wohin ist der Strom deiner Wärmepumpe gegangen — und was hat er gekostet?**
