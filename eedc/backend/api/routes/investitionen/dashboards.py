@@ -1636,9 +1636,30 @@ async def get_speicher_dashboard(
             _gemessener_ladepreis if _gemessener_ladepreis is not None
             else (arbitrage_avg_preis if arbitrage_count > 0 else None)
         )
+        # ── Die Nutzenseite (SOLL Flex-Tarife P-5, 17.09.2026) ──
+        #
+        # Was eine Entladung wert ist, ist der Bezug, den sie **in ihrer
+        # Stunde** vermeidet. Bewertet wurde sie bis hierher mit dem
+        # Lebensdauer-Ø des Bezugs — bei einem Flex-Tarif systematisch zu
+        # niedrig, denn entladen wird abends, wenn der Strom teuer ist.
+        #
+        # ⭐ **Der Wert gilt BEIDE Anteile** (Entscheid Gernot, 17.09.2026):
+        # PV-Anteil (Entladung gegen Einspeisevergütung) und Netz-Anteil
+        # (Arbitrage) teilen sich dieselbe Nutzenseite. Nur den Netz-Anteil
+        # umzustellen hieße, zwei Auflösungen in eine Kachel zu schreiben —
+        # genau der Widerspruch, gegen den P-5 steht.
+        #
+        # Ohne Stundenpreise liefert der Helper `None`, und es bleibt beim
+        # bisherigen Lebensdauer-Ø: Für Festpreis-Anlagen bewegt sich damit
+        # keine Zahl (SOLL §10, Prüfstein 2).
+        _entladewert = (
+            eff_ladepreis.entladewert_cent if eff_ladepreis is not None else None
+        )
         _sp = berechne_speicher_ersparnis(
             entladung_kwh=gesamt_entladung,
-            bezug_preis_cent=eff_strompreis_cent,
+            bezug_preis_cent=(
+                _entladewert if _entladewert is not None else eff_strompreis_cent
+            ),
             einspeise_verg_cent=eff_einspeise_cent,
             ladung_netz_kwh=gesamt_arbitrage_kwh,
             # Nur ein ERMITTELTER η darf die Netz-/PV-Aufteilung steuern; ohne
