@@ -1504,13 +1504,28 @@ async def get_speicher_dashboard(
             netzladung = get_speicher_netzladung_kwh(d)
             if netzladung > 0:
                 gesamt_arbitrage_kwh += netzladung
-                preis = d.get('speicher_ladepreis_cent', 0) or 0
-                # Fallback: Monatsdaten Ø-Preis für dynamische Tarife
-                if preis <= 0:
-                    anlage_md = anlage_md_dict.get((md.jahr, md.monat))
-                    if anlage_md and anlage_md.netzbezug_durchschnittspreis_cent is not None:
-                        preis = anlage_md.netzbezug_durchschnittspreis_cent
-                if preis > 0:
+                # ⛔ **Der Rückfall auf `netzbezug_durchschnittspreis_cent` ist
+                # am 17.09.2026 entfallen, und er war schlimmer als eine Null.**
+                # Er setzte den LADEpreis auf den Monats-Ø des BEZUGS — die
+                # Gegenseite derselben Rechnung ist aber `eff_strompreis_cent`,
+                # ebenfalls ein Mittel derselben Monatszahlen, nur anders
+                # gewichtet (Netzladung gegen Netzbezug). Der „Arbitrage-Gewinn"
+                # war damit die Differenz zweier Gewichtungen **einer** Zahl:
+                # Rauschen, durch `max(0, …)` im Layer einseitig auf die
+                # positive Seite geklemmt und kommentarlos als Gewinn
+                # ausgewiesen. Ohne ihn ist das Ergebnis exakt 0 — die
+                # dokumentierte Semantik „kostenneutrale Durchleitung".
+                #
+                # SOLL Flex-Tarife **P-1**: Eine Abrechnung gilt für die Größe,
+                # für die sie ausgestellt ist. Eine Bezugsabrechnung sagt nichts
+                # über den Preis einer Speicherladung.
+                #
+                # ⚠ **`is not None`, nicht `> 0`** (**P-8**): Bei dynamischen
+                # Tarifen wird auch zu 0 ct oder negativ geladen — genau dann
+                # ist die Arbitrage am größten. Die alte Prüfung warf diese
+                # Monate aus der Gewichtung.
+                preis = d.get('speicher_ladepreis_cent')
+                if preis is not None:
                     arbitrage_preis_sum += preis * netzladung
                     arbitrage_count += netzladung
 
@@ -1597,7 +1612,30 @@ async def get_speicher_dashboard(
         # hätte nie eingespeist werden können) und einmal mit ihrem echten
         # Arbitrage-Vorteil. Der Layer trennt beides sauber; die zwei Posten
         # unten sind seither disjunkt und summieren sich auf `ersparnis`.
+        # ── Die Ladepreis-Kaskade des Speichers (SOLL Flex-Tarife, [A-2]) ──
+        #
+        # **Messung schlägt gepflegt** — Entscheid Gernot 17.09.2026, und zwar
+        # umgekehrt zum Netzbezug: Dort ist der gepflegte Wert die *Abrechnung*
+        # und damit die externe Wahrheit. **Ein Ladepreis steht auf keiner
+        # Rechnung**; der gepflegte Wert ist entweder der übernommene Vorschlag
+        # (also dieselbe Messung) oder eine Schätzung. Er bleibt als bewusste
+        # Korrektur erhalten, verdrängt die slot-scharfe Messung aber nicht mehr.
+        #
+        # ⚠ Nur belastbare Quellen: `dyn-tarif` (gemessener Endpreis) und
+        # `boersenpreis` (Stundenform bei ausdrücklich dynamischem Tarif). Die
+        # Diagnose-Quellen (`kein-dyn-tarif`, `keine-netzladung`, …) tragen
+        # keinen verwendbaren Preis — dort gilt der gepflegte Wert, sonst keiner.
+        _gemessener_ladepreis = (
+            eff_ladepreis.effektiver_ladepreis_cent
+            if eff_ladepreis is not None
+            and eff_ladepreis.quelle in ("dyn-tarif", "boersenpreis")
+            else None
+        )
         arbitrage_avg_preis = (arbitrage_preis_sum / arbitrage_count) if arbitrage_count > 0 else 0
+        ladepreis_fuer_gewinn = (
+            _gemessener_ladepreis if _gemessener_ladepreis is not None
+            else (arbitrage_avg_preis if arbitrage_count > 0 else None)
+        )
         _sp = berechne_speicher_ersparnis(
             entladung_kwh=gesamt_entladung,
             bezug_preis_cent=eff_strompreis_cent,
@@ -1607,7 +1645,9 @@ async def get_speicher_dashboard(
             # ihn greift der dokumentierte Default (95 %). Vorher konnte hier
             # ein Wert über 100 % einlaufen und den Netz-Anteil aufblähen.
             **({"wirkungsgrad_prozent": effizienz} if effizienz else {}),
-            lade_preis_cent=arbitrage_avg_preis if arbitrage_avg_preis > 0 else None,
+            # `is not None`, nicht `> 0` (P-8): Ein Ladepreis von 0 ct ist ein
+            # Wert — und der Fall mit dem GRÖSSTEN Arbitrage-Gewinn.
+            lade_preis_cent=ladepreis_fuer_gewinn,
         )
         ersparnis = _sp.ersparnis_euro
         arbitrage_gewinn = _sp.netz_anteil_euro
