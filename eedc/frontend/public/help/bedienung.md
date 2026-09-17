@@ -933,6 +933,8 @@ Der Community-Bereich hat **sechs Reiter**: **Übersicht · PV-Ertrag · Kompone
 
 **PV-Ertrag** — dein spezifischer Ertrag (kWh/kWp) vs. Community-Durchschnitt, monatlicher Vergleich und ein Histogramm deiner Einordnung in der Verteilung.
 
+> **Woraus der Jahreswert entsteht.** Aus deinen **zwölf lückenlosen** jüngsten abgeschlossenen Monaten. Hat deine Anlage weniger, rechnet der Community-Server **saisonal** hoch — mit der PVGIS-Ertragserwartung deines Standorts als Maßstab, nicht mit dem Faktor zwölf — und eedc schreibt *„hochgerechnet aus 5 von 12 Monaten"* unter die Zahl. Ein Frühling zählt so als Frühling. Ohne aktive **Solarprognose** (Einstellungen → Solarprognose) fehlt dieser Maßstab, und unter zwölf Monaten gibt es dann keinen Jahreswert und keinen Rang; eedc sagt es dir an dieser Stelle. Die **monatlichen** Vergleiche gelten unabhängig davon. Ein Monat ohne Community-Mittel bekommt keinen Vergleichsbalken — vorher stand dort ein Zwölftel des Jahreswerts, das im Winter jede Anlage rot und im Sommer jede grün färbte.
+
 **Komponenten** — Benchmarks je Komponente:
 
 | Komponente | Kennzahlen |

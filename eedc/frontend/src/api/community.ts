@@ -85,12 +85,18 @@ export interface PreviewResponse {
 /**
  * Vergleichsdaten der eigenen Anlage.
  *
- * ⚠ Die Ertragsfelder duerfen `null` sein (Community-Server seit eedc #387):
- * Ein spezifischer Jahresertrag entsteht nur aus **zwoelf lueckenlosen
- * Kalendermonaten**. Vorher rechnete der Server Teiljahre auf zwoelf hoch und
- * stellte sie neben echte Jahreswerte — eine Anlage mit sechs Sommermonaten
- * stand damit vor Anlagen mit vollem Jahr. Wer das Fenster nicht hat, bekommt
- * jetzt **keinen Wert und keinen Rang**; `basis_monate` sagt, wie weit er ist.
+ * ⚠ Die Ertragsfelder duerfen `null` sein (Community-Server seit eedc #387,
+ * Server-Haelfte gebaut 17.09.2026). Der Jahreswert entsteht aus **zwoelf
+ * lueckenlosen Kalendermonaten**; hat die Anlage weniger, rechnet der Server
+ * **saisonal** hoch — mit der PVGIS-Erwartung des eigenen Standorts als
+ * Massstab, nicht mit dem Faktor zwoelf — und `basis_monate` sagt, worauf der
+ * Wert beruht. Keinen Wert und keinen Rang gibt es nur mit Grund: veraltete
+ * Daten (`basis_veraltet`) oder kein Massstab (`basis_grund`).
+ *
+ * Die Anzeige-Regel steht in `lib/communityFenster.ts` — sie ist der SoT, nicht
+ * dieser Kommentar. (Hier stand bis zum 17.09.2026 die am 19.08. abgelehnte
+ * Fassung „wer die zwoelf Monate nicht hat, bekommt keinen Wert und keinen
+ * Rang" — ein Kommentar, den beim Aendern niemand angefasst hat.)
  */
 export interface BenchmarkData {
   spez_ertrag_anlage: number | null
@@ -109,6 +115,11 @@ export interface BenchmarkData {
   basis_bis_monat?: number | null
   /** Juengster Monat liegt mehr als ein Jahr zurueck. */
   basis_veraltet?: boolean
+  /**
+   * Warum es keinen Jahreswert gibt (`veraltet` · `kein_massstab` ·
+   * `keine_monate` · `kein_kwp`), sonst `null`. Server seit 17.09.2026.
+   */
+  basis_grund?: string | null
 }
 
 export interface ShareResponse {
@@ -360,6 +371,8 @@ export interface RankingEintrag {
   wert: number
   region: string
   kwp: number
+  /** Nur `spez_ertrag`: Monate hinter dem Wert — unter 12 ist er saisonal hochgerechnet (#387). */
+  basis_monate?: number | null
 }
 
 export interface Ranking {
