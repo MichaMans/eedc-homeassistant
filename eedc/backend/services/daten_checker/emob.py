@@ -589,20 +589,21 @@ class EmobChecks:
         Monat davor wäre eine wahre Warnung ohne Weg — die kennen wir aus #389.
         """
         from backend.models.monatsdaten import Monatsdaten
+        from backend.services.kraftstoff_preis_service import kraftstoffpreis_ab_monat
 
         kat = CheckKategorie.VERGLEICHSPREIS_FEHLT.value
 
-        eautos = [i for i in anlage.investitionen if i.typ == "e-auto"]
-        if not eautos:
+        # ⭐ Geteilter SoT mit der SCHREIB-Seite (``backfill_*_kraftstoffpreise``).
+        # Bis 17.09.2026 stand die Bedingung nur hier, und der wöchentliche
+        # Backfill-Job füllte ungefragt jede Anlage — ein Melder ohne E-Auto
+        # bekam dadurch einen Quellen-Konflikt auf ``kraftstoffpreis_euro``
+        # gemeldet (Forum simon42 T89667, PN rapahl). Versprechen und Schreiben
+        # benutzen jetzt dieselbe Funktion, wie ``erwartete_komponenten_keys``
+        # es für die Komponenten-Menge tut.
+        ab = kraftstoffpreis_ab_monat(anlage.investitionen)
+        if ab is None:
             return []
-
-        anschaffungen = [
-            i.anschaffungsdatum for i in eautos if i.anschaffungsdatum is not None
-        ]
-        if not anschaffungen:
-            return []
-        aeltestes = min(anschaffungen)
-        ab_jahr, ab_monat = max((aeltestes.year, aeltestes.month), (2005, 1))
+        ab_jahr, ab_monat = ab
 
         rows = (await self.db.execute(
             select(Monatsdaten).where(
