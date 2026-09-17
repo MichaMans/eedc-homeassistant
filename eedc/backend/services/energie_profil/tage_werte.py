@@ -355,6 +355,14 @@ async def baue_tage_werte(
             neg_preis_kwh=neg_preis_kwh,
             # Speicher/V2H/BKW = 0: Netto-Flüsse bilden Speicher schon ab.
             monatsdaten=md_pro_monat.get((tag.year, tag.month)),
+            # A-2: Die Ersparnis bewertet VERMIEDENEN Bezug — sie wird deshalb
+            # mit dem Preis der Slots gewichtet, in denen er vermieden wurde,
+            # nicht mit dem des tatsächlichen Bezugs. Ohne Slot-Daten bleibt es
+            # beim Bezugspreis (der Helper liefert dann `None`).
+            ev_preis_cent=(
+                slot_kosten_je_tag[tag].ev_mittel_cent
+                if tag in slot_kosten_je_tag else None
+            ),
         )
         finanz_zeile = await baue_finanz_zeile(
             db, anlage_id, eingabe, tarif_cache=tarif_cache

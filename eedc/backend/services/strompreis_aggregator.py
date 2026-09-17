@@ -269,6 +269,21 @@ class SlotKosten:
     menge_gemessen_kwh: float
     #: Menge, die mit dem **abgerechneten Monats-Ø** bewertet wurde.
     menge_abgerechnet_kwh: float = 0.0
+    #: Der mit dem **Eigenverbrauch** gewichtete Ø-Preis desselben Tages.
+    #:
+    #: SOLL Flex-Tarife **A-2**: *Gewichtet wird mit der Menge, die bewertet
+    #: wird.* Die Eigenverbrauchs-Ersparnis bewertet **vermiedenen** Bezug —
+    #: und der fällt zu anderen Zeiten an als der tatsächliche Bezug.
+    #: Eigenverbrauch entsteht mittags (PV), Netzbezug abends und nachts. Ein
+    #: mit dem Bezug gewichteter Ø bewertet die vermiedene Menge deshalb
+    #: systematisch **zu hoch**; in den Slots, in denen der Bezug vermieden
+    #: wurde, gibt es gar keine gemessene Bezugsmenge.
+    ev_mittel_cent: Optional[float] = None
+    #: Die Menge, die ``ev_mittel_cent`` gewichtet hat (PV − Einspeisung je
+    #: Slot, auf 0 geklemmt) — **Gewicht, nicht Kennzahl**: Die ausgewiesene
+    #: Eigenverbrauchs-Menge bildet weiterhin
+    #: ``berechne_verbrauchs_kennzahlen`` (mit Speicher, V2H und Abgabe).
+    ev_menge_kwh: float = 0.0
 
     @property
     def abdeckung_menge(self) -> Optional[float]:
@@ -365,6 +380,10 @@ async def lade_slot_kosten_je_tag(
             TagesEnergieProfil.stunde,
             TagesEnergieProfil.netzbezug_kw,
             TagesEnergieProfil.strompreis_cent,
+            # Fuer die EV-Gewichtung (A-2) — dieselbe Abfrage, damit beide
+            # Seiten der Tagesbilanz aus derselben Quelle stammen (P-5).
+            TagesEnergieProfil.pv_kw,
+            TagesEnergieProfil.einspeisung_kw,
         )
         .where(
             TagesEnergieProfil.anlage_id == anlage_id,
@@ -375,12 +394,14 @@ async def lade_slot_kosten_je_tag(
     )
 
     roh: dict[date, list[float]] = {}
-    for datum, stunde, netzbezug_kw, preis_cent in result.all():
+    for datum, stunde, netzbezug_kw, preis_cent, pv_kw, einspeisung_kw in result.all():
         # Negative Mengen klemmen (Zähler-Glitch) — dieselbe Behandlung wie im
         # Monats-Aggregat oben, damit beide Ebenen dieselbe Menge sehen.
         menge = max(0.0, float(netzbezug_kw or 0.0))
-        eintrag = roh.setdefault(datum, [0.0, 0.0, 0.0, 0.0, 0.0])
+        eintrag = roh.setdefault(datum, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         eintrag[4] += menge  # Gesamtmenge — unabhängig davon, ob ein Preis existiert
+        # Vermiedener Bezug dieses Slots: erzeugt und NICHT eingespeist.
+        ev_menge = max(0.0, float(pv_kw or 0.0) - float(einspeisung_kw or 0.0))
 
         # Die Kaskade der Slot-Ebene, in dieser Reihenfolge und nur hier.
         preis: Optional[float] = None
@@ -400,6 +421,9 @@ async def lade_slot_kosten_je_tag(
 
         if preis is None:
             continue
+        # Derselbe Slot-Preis, andere Gewichtungsmenge (A-2).
+        eintrag[5] += preis * ev_menge / 100.0
+        eintrag[6] += ev_menge
         eintrag[0] += preis * menge / 100.0  # Kosten in €
         eintrag[1] += menge                  # bewertete Menge
         if gemessen:
@@ -408,7 +432,10 @@ async def lade_slot_kosten_je_tag(
             eintrag[3] += menge              # davon aus der Abrechnung verteilt
 
     je_tag: dict[date, SlotKosten] = {}
-    for datum, (kosten, bewertet, gemessen_menge, abgerechnet_menge, gesamt) in roh.items():
+    for datum, (
+        kosten, bewertet, gemessen_menge, abgerechnet_menge, gesamt,
+        ev_kosten, ev_menge_sum,
+    ) in roh.items():
         # ⛔ **Die Rundung hier ist eine Glättung, keine Anzeige-Rundung — beide
         # Grenzen sind gemessen.** Zwei Proben haben sie eingerahmt:
         #
@@ -434,6 +461,10 @@ async def lade_slot_kosten_je_tag(
             menge_gesamt_kwh=gesamt,
             menge_gemessen_kwh=gemessen_menge,
             menge_abgerechnet_kwh=abgerechnet_menge,
+            ev_mittel_cent=(
+                round(ev_kosten, 6) * 100.0 / ev_menge_sum if ev_menge_sum > 0 else None
+            ),
+            ev_menge_kwh=ev_menge_sum,
         )
     return je_tag
 

@@ -64,6 +64,12 @@ class FinanzZeileEingabe:
     bkw_eigenverbrauch_kwh: float = 0.0
     neg_preis_kwh: Optional[float] = None
     monatsdaten: Any = None
+    #: Der **EV-gewichtete** Slot-Preis dieses Zeitraums, wenn der Caller ihn
+    #: kennt (Tagesebene seit 17.09.2026). ``None`` ⇒ die Ersparnis wird mit
+    #: dem Bezugspreis bewertet, wie bisher. Begründung: SOLL Flex-Tarife
+    #: **A-2** — gewichtet wird mit der Menge, die bewertet wird, und der
+    #: vermiedene Bezug fällt zu anderen Zeiten an als der tatsächliche.
+    ev_preis_cent: Optional[float] = None
 
 
 async def baue_finanz_zeile(
@@ -122,6 +128,7 @@ async def baue_finanz_zeile(
         abgabe_dritte_kwh=eingabe.abgabe_dritte_kwh or 0,
         bkw_eigenverbrauch_kwh=eingabe.bkw_eigenverbrauch_kwh or 0,
         netzbezug_preis_cent=preis.cent,
+        ev_preis_cent=eingabe.ev_preis_cent,
         netzbezug_preis_herkunft=preis.herkunft,
         einspeiseverguetung_cent=verg_cent,
         neg_preis_kwh=eingabe.neg_preis_kwh,
