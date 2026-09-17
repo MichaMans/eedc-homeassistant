@@ -41,7 +41,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-import httpx
+from backend.services.community_client import community_client
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -184,7 +184,7 @@ async def fuehre_nachsende_lauf_aus(db: AsyncSession) -> dict:
             daten = await prepare_community_data(db, anlage.id)
             if not daten or not daten.get("monatswerte"):
                 continue
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with community_client(timeout=20.0) as client:
                 antwort = await client.post(
                     f"{COMMUNITY_SERVER_URL}/api/submit", json=daten
                 )

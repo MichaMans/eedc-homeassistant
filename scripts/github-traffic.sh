@@ -77,3 +77,12 @@ for slug, eintrag in sorted(daten.items()):
     && echo "[${heute}] ha-analytics: OK" \
     || echo "[${heute}] ha-analytics: FEHLER (Abruf oder Auswertung)" >&2
 fi
+
+# ---------------------------------------------------------------------------
+# Community-Server: Installationen je Tag und Variante aus dem Proxy-Log
+# (seit dem User-Agent `eedc-homeassistant/<v>` bzw. `eedc/<v>`, 17.09.2026).
+# Liest per ssh nur, schreibt community-zugriffe.csv. Der Proxy rotiert alle
+# ~4 Tage — der taegliche Lauf reicht. Details: scripts/community-zugriffe.py
+# ---------------------------------------------------------------------------
+python3 "$(dirname "$0")/community-zugriffe.py" \
+  || echo "[${heute}] community-zugriffe: FEHLER (ssh, docker oder Auswertung)" >&2

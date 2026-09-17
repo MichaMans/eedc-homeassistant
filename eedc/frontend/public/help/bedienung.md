@@ -956,6 +956,7 @@ Der Community-Bereich hat **sechs Reiter**: **Übersicht · PV-Ertrag · Kompone
 - Nur aggregierte Statistiken werden angezeigt; kein Rückschluss auf einzelne Anlagen.
 - Daten sind jederzeit — auch rückwirkend — wieder löschbar.
 - Server: https://energy.raunet.eu (Open Source).
+- Bei jedem Aufruf des Community-Servers nennt eedc **Produktvariante und Version** (`eedc-homeassistant/4.0.47` oder `eedc/4.0.47`), so wie ein Browser seinen Namen mitschickt. Damit lässt sich im Zugriffsprotokoll des Servers zählen, wie viele Installationen aktiv sind und welche Versionen laufen. Es geht keine Kennung deiner Installation mit, und es entsteht kein zusätzlicher Kontakt: Die Angabe steckt nur in Aufrufen, die es vorher schon gab.
 
 ---
 
