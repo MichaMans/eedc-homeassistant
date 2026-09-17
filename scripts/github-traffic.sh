@@ -44,3 +44,36 @@ for repo in "${REPOS[@]}"; do
 
   echo "[$(date +%Y-%m-%d)] ${repo_name}: OK"
 done
+
+# ---------------------------------------------------------------------------
+# HA-Analytics: wie viele (opt-in) Home-Assistant-Installationen unser Add-on
+# melden, je Version. Quelle: https://analytics.home-assistant.io/addons.json —
+# nur der aktuelle Stand, KEIN Verlauf (gemessen 17.09.2026: `data.json`
+# fuehrt Add-ons nicht in `history`). Deshalb hier taeglich wegschreiben.
+#
+# Slugs: `bc122c22_eedc` = sha1 der Repo-URL (klein), `3ffcb5f8_eedc` = dieselbe
+# URL mit `.git` — beide sind wir. Zaehlt nur Installationen mit eingeschalteter
+# Nutzungs-Statistik (am 17.09.2026: 413.940 von 683.700 aktiven Installationen
+# melden Add-ons, rund 60 %); der Rest ist unsichtbar.
+# ---------------------------------------------------------------------------
+csv_ha="${DATA_DIR}/ha-analytics-eedc.csv"
+[[ -f "$csv_ha" ]] || echo "date,slug,total,versions" > "$csv_ha"
+heute="$(date +%Y-%m-%d)"
+if grep -q "^${heute}," "$csv_ha" 2>/dev/null; then
+  echo "[${heute}] ha-analytics: schon erfasst"
+else
+  curl -fsS --max-time 30 "https://analytics.home-assistant.io/addons.json" \
+    | python3 -c '
+import json, sys
+daten = json.load(sys.stdin)
+heute = sys.argv[1]
+for slug, eintrag in sorted(daten.items()):
+    if not slug.endswith("_eedc"):
+        continue
+    versionen = ";".join(f"{v}={n}" for v, n in sorted(eintrag["versions"].items(), key=lambda kv: -kv[1]))
+    total = eintrag["total"]
+    print(f"{heute},{slug},{total},{versionen}")
+' "$heute" >> "$csv_ha" \
+    && echo "[${heute}] ha-analytics: OK" \
+    || echo "[${heute}] ha-analytics: FEHLER (Abruf oder Auswertung)" >&2
+fi
