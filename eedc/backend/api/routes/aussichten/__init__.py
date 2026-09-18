@@ -8,7 +8,9 @@ Prognosen und Vorhersagen für PV-Erträge:
 
 Seit 18.09.2026 ein Paket (Vorlage 7 des Refactorings grosser Dateien, reiner Umzug): ``schemas`` · ``basis`` ·
 ``prognose`` (kurzfristig, langfristig) · ``trend`` · ``wetter`` · ``finanzen`` — in dieser Reihenfolge eingehaengt, damit
-/api/openapi.json die Routen wie bisher ordnet. Diese Fassade exportiert die bisherigen Namen weiter (main.py, Tests).
+/api/openapi.json die Routen wie bisher ordnet. Seit Vorlage 7b (18.09.2026) ist ``finanzen`` ein Orchestrator; seine zehn
+Phasen liegen ohne eigene Router in ``finanz_eingaenge`` · ``finanz_rueckblick`` · ``finanz_prognose`` · ``finanz_zerlegung``.
+Diese Fassade exportiert die bisherigen Namen weiter (main.py, Tests).
 """
 
 from fastapi import APIRouter

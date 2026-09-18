@@ -407,7 +407,7 @@ def pv_systeme_zeilen(
     # Amortisation 2,24 statt 2,77 Jahre.
     #
     # Der Weg ist **Zerlegung statt Addition** — dieselbe Doktrin, die
-    # `aussichten/finanzen.py` seit 2026-08-10 anwendet („niemand rechnet eine
+    # `aussichten/finanz_zerlegung.py::roi_und_fortschritt` seit 2026-08-10 anwendet („niemand rechnet eine
     # Komponenten-Ersparnis ein zweites Mal"). Solange die eine Sicht addiert
     # und die andere zerlegt, nennen zwei Sichten derselben Anlage verschiedene
     # Zahlen — die Drift-Klasse hinter P9/P10.

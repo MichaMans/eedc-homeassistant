@@ -153,7 +153,7 @@ async def get_waermepumpe_dashboard(
                 stunden_by_inv[inv_id].append(float(hours))
 
     # Anlage-Monatsdaten für den Monats-Gaspreis (Vorrang vor dem
-    # WP-Parameter-Default, wie in `aussichten/finanzen.py` und im HA-Export).
+    # WP-Parameter-Default, wie in `aussichten/finanz_eingaenge.py` und im HA-Export).
     wp_anlage_md_result = await db.execute(
         select(Monatsdaten).where(Monatsdaten.anlage_id == anlage_id)
     )
@@ -252,7 +252,7 @@ async def get_waermepumpe_dashboard(
         # Helper ist linear und kennt keine Jahres-Fixkosten, die Summe der
         # Monate ist also identisch, solange der Preis konstant ist. Nebenbei
         # erledigt das den TODO „monatlicher Gaspreis-Override": er wird jetzt
-        # wie in `aussichten/finanzen.py` je Monat gezogen.
+        # wie in `aussichten/finanz_rueckblick.py` je Monat gezogen.
         wp_kosten = 0.0
         alte_heizung_kosten = 0.0
         # F-42: Die Ersparnis kommt aus dem Layer-SoT (ADR-001), statt hier als

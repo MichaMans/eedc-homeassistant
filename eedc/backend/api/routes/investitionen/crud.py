@@ -28,13 +28,13 @@ from backend.models.investition import (
 from backend.utils.investition_filter import aktiv_jetzt, sort_investitionen_nach_typ
 from backend.models.anlage import Anlage
 from backend.core.investition_parameter import lade_innengeraete
-from backend.api.routes.investitionen.schemas import (  # noqa: F401 — Re-Export (dashboards.py, aussichten/finanzen.py, finanzbericht.py, Tests)
+from backend.api.routes.investitionen.schemas import (  # noqa: F401 — Re-Export (dashboards.py, aussichten/finanz_zerlegung.py, finanzbericht.py, Tests)
     InvestitionBase,
     InvestitionCreate,
     InvestitionUpdate,
     InvestitionResponse,
 )
-from backend.api.routes.investitionen.roi import (  # noqa: F401 — Re-Export (dashboards.py, aussichten/finanzen.py, finanzbericht.py, Tests)
+from backend.api.routes.investitionen.roi import (  # noqa: F401 — Re-Export (dashboards.py, aussichten/finanz_zerlegung.py, finanzbericht.py, Tests)
     _gruppiere_investitionen,
     ROIKomponente,
     ROIBerechnung,

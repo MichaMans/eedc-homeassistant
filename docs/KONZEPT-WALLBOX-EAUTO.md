@@ -410,7 +410,7 @@ Schema-Erweiterung für die Messung**, und keine Schätzung — das ist die Zusa
 was es ist.**
 Neuer Parameter **`eigener_verbrauch_l_100km`**. Das bestehende Feld beschreibt einen **fiktiven
 Vergleichs-Benziner** („was hätte ein gleichwertiges Verbrenner-Fahrzeug gebraucht", Default 7,5)
-und hat **sieben** Produktions-Leser (`aussichten/finanzen.py` ×2 · `ha_export.py` ×2 ·
+und hat **sieben** Produktions-Leser (`aussichten/finanz_eingaenge.py` · `finanz_prognose.py` · `ha_export.py` ×2 ·
 `cockpit/nachhaltigkeit.py` · `investitionen/roi.py` · `eauto_wirtschaftlichkeit.py`). Es beim
 PHEV umzudeuten würde Zahlen bei allen Nicht-PHEV-Nutzern bewegen und wäre dieselbe Doppelbelegung,
 die bei `verbrauch_kwh` als **Schwäche A** dokumentiert ist und dort einen Daten-Checker-Fehlalarm
@@ -609,7 +609,7 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 >   → Komponenten* (`cockpit/komponenten.py`). Der **Hub** selbst (`investitionen/dashboard_wallbox.py`, `dashboard_eauto.py`)
 >   liest `InvestitionMonatsdaten` direkt und blieb bei 0 %.
 > - **„Die E-Auto-Ersparnis steigt"** traf **keine** Sicht. Alle drei Ersparnis-Rechner
->   (`cockpit/uebersicht.py`, `investitionen/dashboard_eauto.py` und `dashboard_wallbox.py`, `aussichten/finanzen.py`) poolen die Rohzeilen
+>   (`cockpit/uebersicht.py`, `investitionen/dashboard_eauto.py` und `dashboard_wallbox.py`, `aussichten/finanz_eingaenge.py`) poolen die Rohzeilen
 >   neu; keiner las `EmobFakten.ladung_netz_kwh`.
 > - **„Die E-Mob-Netzladung in der CO₂-Bilanz sinkt"** war die einzige zutreffende Aussage.
 >
@@ -632,7 +632,7 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 > `investitionen/roi.py` nimmt den IST-Anteil aus den Monats-Fakten
 > (`monats_fakten.ist_pv_ladeanteil_prozent`), wenn kein `pv_ladeanteil_prozent` gepflegt ist —
 > Default 60 % nur noch, wenn auch das IST schweigt. Die **zweite**, im ursprünglichen Text nicht
-> genannte Prognose-Quelle (`aussichten/finanzen.py`, leitet die Quote aus der Historie ab) zieht über
+> genannte Prognose-Quelle (`aussichten/finanz_prognose.py`, leitet die Quote aus der Historie ab) zieht über
 > dieselbe Anreicherung mit.
 >
 > ⚑ **Wertänderung an einem ausgelieferten HA-Sensor:** `e_auto_pv_anteil_prozent` springt bei

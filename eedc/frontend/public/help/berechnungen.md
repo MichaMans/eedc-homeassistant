@@ -70,7 +70,7 @@ und zum Verständnis der Datenflüsse.
 | `services/monats_fakten.py` | `lade_monats_fakten()`, `finanz_zeile_eingabe()`, `kennzahlen_aus_fakten()` | **Eingabe-Aufbereitung, keine Formel** (ADR-002/P10): löst die Monatszeile einmal auf und ruft die SoT-Helfer. Vorschaltet jeder aggregierenden Lese-Sicht |
 | `core/calculations.py` | `berechne_monatskennzahlen()`, `berechne_speicher_einsparung()`, `berechne_eauto_einsparung()`, `berechne_waermepumpe_einsparung()`, `berechne_roi()`, `berechne_ust_eigenverbrauch()` | Reine Berechnungsfunktionen ohne DB-Zugriff |
 | `api/routes/cockpit.py` | 6 Endpoints | Aggregation aller Daten für Dashboard |
-| `api/routes/aussichten/` | 5 Endpunkte (Paket seit 18.09.2026) | Prognosen (`prognose.py`, `trend.py`, `wetter.py`) und Finanz-Prognose (`finanzen.py`) |
+| `api/routes/aussichten/` | 5 Endpunkte (Paket seit 18.09.2026) | Prognosen (`prognose.py`, `trend.py`, `wetter.py`) und Finanz-Prognose (`finanzen.py` als Orchestrator; seine Phasen seit 18.09.2026 in `finanz_eingaenge.py` · `finanz_rueckblick.py` · `finanz_prognose.py` · `finanz_zerlegung.py`) |
 | `api/routes/investitionen.py` | ROI-Dashboard | PV-System-Gruppierung und ROI pro Komponente |
 | `api/routes/strompreise.py` | `lade_tarife_fuer_anlage()` | Multi-Tarif-Lookup mit Fallback |
 | `utils/sonstige_positionen.py` | `berechne_sonstige_summen()` | Strukturierte Erträge/Ausgaben |
@@ -197,7 +197,7 @@ CO2-Einsparung (kg)      = PV_Erzeugung * 0.38               (VERALTET — s. Ka
 > `Investition.einsparung_prognose_jahr` („Ertrag/Jahr") gepflegt, weil eedc seinen Brennstoff nicht
 > kennt. **Geändert am 2026-09-03** (Maintainer-Entscheid, löst v3.45.4 ab); bis dahin nahm die
 > Finanz-Zeile die PV-Achse, und Menge und Betrag zählten verschiedene Erzeuger.
-> („Ertrag/Jahr"). Beide Größen liegen in **derselben** Summe (`aussichten/finanzen.py::jahres_netto_ertrag`)
+> („Ertrag/Jahr"). Beide Größen liegen in **derselben** Summe (`jahres_netto_ertrag` in `aussichten/finanz_prognose.py::jahres_alternativkosten`)
 > — würde die Menge zusätzlich monetarisiert, stünde derselbe Nutzen zweimal darin.
 >
 > ⭐ **Ausnahme seit 2026-09-06 — die Kategorie *Abgabe an Dritte* (§9.2 Geldseite).** Dort ist der
@@ -920,7 +920,7 @@ im IST gemessen, ein Hybrid lädt ohnehin weniger.
 
 #### Dynamischer Kraftstoffpreis (ab v3.17.0)
 
-In der **Finanz-Prognose** ([Auswertungen → Finanzen](HANDBUCH_BEDIENUNG.md#41-finanzen), Backend `aussichten/finanzen.py`) wird die E-Auto-Ersparnis **pro Monat** mit dem echten Kraftstoffpreis berechnet:
+In der **Finanz-Prognose** ([Auswertungen → Finanzen](HANDBUCH_BEDIENUNG.md#41-finanzen), Backend `aussichten/finanz_rueckblick.py`) wird die E-Auto-Ersparnis **pro Monat** mit dem echten Kraftstoffpreis berechnet:
 
 ```
 Für jeden historischen Monat:
@@ -988,7 +988,7 @@ holen dieselbe Anreicherung über `reichere_monatszeilen_an`.
 gepflegte `pv_ladeanteil_prozent`, nimmt die ROI-Prognose den IST-Anteil über
 `monats_fakten.ist_pv_ladeanteil_prozent` (Σ PV ÷ Σ Ladung, ladungsgewichtet) statt des früheren
 Vorgabewerts von 60 %. Der Default greift nur noch, wenn auch das IST keine Heimladung kennt. Die
-zweite Prognose-Quelle (`aussichten/finanzen.py`, leitet ihre Quote aus der Historie ab) zieht über dieselbe
+zweite Prognose-Quelle (`aussichten/finanz_prognose.py`, leitet ihre Quote aus der Historie ab) zieht über dieselbe
 Anreicherung mit.
 
 **Herkunft:** `EmobFakten.ladung_anteil_abgeleitet` sagt, ob die Aufteilung gerechnet ist; auf der
@@ -1108,7 +1108,7 @@ Anwenders.
 > Wärmemenge auswertet, bekommt sie von dort — Monats-Fakten, Komponenten-Hub, HA-Export,
 > Community-Payload, der Tag, die anlagenweiten Alternativkosten
 > (`core/berechnungen/alternativkosten.py` ⇒ Aussichten · ROI · Jahres-Ersparnis des HA-Exports),
-> die thermische Gewichtung der WP-Prognose (`api/routes/aussichten/finanzen.py`), die Komponenten-Zeile
+> die thermische Gewichtung der WP-Prognose (`api/routes/aussichten/finanz_prognose.py`), die Komponenten-Zeile
 > „Ersparnis vs. Alternative“ in *Cockpit → Monat* und die Nicht-DB-Quellen des laufenden Monats
 > (MQTT · Connector · HA-Statistik).
 >
@@ -1203,7 +1203,7 @@ CO2-Einsparung        = CO2_alt - CO2_WP
 > Monats-Layer (`services/wp_wirtschaftlichkeit.py` — Komponenten-Hub, *Cockpit → Monat/
 > Jahr*, HA-Sensor je Gerät), anlagenweite Alternativkosten
 > (`core/berechnungen/alternativkosten.py`), die Jahresformel der Prognose
-> (`api/routes/aussichten/finanzen.py`) und diese Planungsformel hier. Die CO₂-Zeile trifft sich
+> (`api/routes/aussichten/finanz_prognose.py`) und diese Planungsformel hier. Die CO₂-Zeile trifft sich
 > dabei mit dem gemessenen Pfad `co2_wp_ersparnis_kg`, der schon immer den vollen Strom
 > belastete (ADR-001/DI-1).
 

@@ -58,7 +58,7 @@ BEWUSST_ROH = {
     # Prognose- und Potenzialpfade klemmen selbst (min(...)) und brauchen
     # einen Wert, keine fehlende Aussage.
     "services/speicher_potential_service.py",
-    "api/routes/aussichten/finanzen.py",   # Vorlage 7 (18.09.2026): aussichten.py → Paket
+    "api/routes/aussichten/finanz_eingaenge.py",   # Vorlage 7 (18.09.2026): aussichten.py → Paket; 7b: Quoten-Phase
     # Die Heimat der Regel selbst.
     "core/berechnungen/speicher_wirkungsgrad.py",
     # `speicher.py::speicher_effizienz_prozent` ist der **Diagnose**-Helper:

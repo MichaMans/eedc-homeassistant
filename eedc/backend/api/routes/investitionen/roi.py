@@ -4,7 +4,7 @@ GET /api/investitionen/roi/{anlage_id} — Wirtschaftlichkeit aller aktiven Inve
 aggregiert, Standalone je Geraet, Orphan-Module), Amortisation als Kalender-Treppe (N-525).
 
 Dazu die Kennwert-Aufloeser Param-Fallback ↔ IST (Etappe C, #264), die strukturelle Gruppierung
-`_gruppiere_investitionen` (auch `aussichten/finanzen.py` liest sie) und die ROI-Schemas.
+`_gruppiere_investitionen` (auch `aussichten/finanz_zerlegung.py` liest sie) und die ROI-Schemas.
 """
 # Reiner Umzug aus `api/routes/investitionen/crud.py` (18.09.2026, Vorlage 5 des Refactorings grosser
 # Dateien): Code 1:1 uebernommen, kein Verhaltenswechsel. `crud.py` haengt den Router NACH seinen eigenen

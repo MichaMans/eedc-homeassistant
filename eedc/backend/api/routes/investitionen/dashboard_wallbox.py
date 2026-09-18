@@ -240,7 +240,7 @@ async def get_wallbox_dashboard(
         # In die Kapitalrechnung der ANLAGE gehoert sie nicht: dort steckt die
         # Heimladung bereits in der E-Auto-Zeile, deren Formel
         # `Benzinkosten − E-Auto-Netzstromkosten` rechnet und damit schon
-        # unterstellt, dass zuhause geladen wurde (`aussichten/finanzen.py`,
+        # unterstellt, dass zuhause geladen wurde (`aussichten/finanz_prognose.py`,
         # `jahres_eauto_km_ersparnis`; Kommentar dort: „PV-Ladung ist in
         # EV-Ersparnis"). Beides zu addieren rechnete dieselbe Kilowattstunde
         # gegen ZWEI einander ausschliessende Alternativen — in der

@@ -1421,7 +1421,7 @@ P7_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # Dito — die Erzeugungs-Gewichte der Ertrags-Zerlegung (§8/5): der
     # Einspeise-Erlös wird nach GEMESSENER Erzeugung je ROI-Zeile verteilt,
     # und genau dafür ist `pv_je_modul` die vorgeschriebene Quelle.
-    "backend/api/routes/aussichten/finanzen.py::_wert",   # Vorlage 7 (18.09.2026): aussichten.py → aussichten/finanzen.py
+    "backend/api/routes/aussichten/finanz_zerlegung.py::_wert",   # Vorlage 7b (18.09.2026): finanzen.py → finanz_zerlegung.py (Fortschritt je Investition)
     # Import-/Connector-/Parser-DTOs auf dem Weg IN die Datenbank. Sie tragen
     # den Wert, bevor es eine Monatsdaten-Zeile gibt — eine Auflösung wäre dort
     # gegenstandslos.
@@ -2091,7 +2091,7 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # `inv → verbrauch_daten` für die Financial-Zeile JE Investition.
     # Vorlage 2 (18.09.2026): die IMD-Ladung des T-Kontos zog aus dem Endpunkt nach finanzen.py.
     "backend/api/routes/aktueller_monat/finanzen.py::t_konto_je_investition",
-    "backend/api/routes/aussichten/finanzen.py::get_finanz_prognose",   # Vorlage 7 (18.09.2026): aussichten.py → aussichten/finanzen.py
+    "backend/api/routes/aussichten/finanz_eingaenge.py::lade_finanz_eingaenge",   # Vorlage 7b (18.09.2026): finanzen.py::get_finanz_prognose → finanz_eingaenge.py
     "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
     "backend/api/routes/ha_export.py::calculate_anlage_sensors",
     "backend/api/routes/ha_export.py::calculate_investition_sensors",
@@ -2451,6 +2451,13 @@ P11_AUSNAHMEN: frozenset[str] = frozenset({
     # wer heute seine kWp trägt. Den Selektor hier anzuwenden würde den
     # erwarteten Monatsbereich verkürzen (die Klasse aus ARCHITEKTUR §4: zwei
     # Datums-Ebenen, zwei Fragen).
+
+    # Vorlage 7b (18.09.2026): bis dahin im Funktionskörper von `get_finanz_prognose`
+    # und dort über den Selektor-Aufruf des Lade-Abschnitts unsichtbar. Die Liste
+    # `PV_RELEVANTE_TYPEN` bildet KOSTEN-Töpfe (Mehrkosten je Typ für die Response),
+    # keine Erzeuger-Menge: ein abtretendes BKW hat trotzdem Geld gekostet und
+    # gehört in den PV-System-Topf — der Selektor würde es dort streichen.
+    "backend/api/routes/aussichten/finanz_eingaenge.py::investitionen_und_parameter",
 
     # ── 3. Schreib-, Import-, Migrations- und Checker-Pfade ────────────────
     "backend/services/energie_profil/aggregator.py::aggregate_day",

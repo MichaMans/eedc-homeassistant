@@ -435,7 +435,8 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── aussichten/              # Prognose-Aussichten — Paket seit 18.09.2026 (Vorlage 7)
     │   │   │   ├── __init__.py          # Fassade: Router-Bündel + Re-Export
     │   │   │   ├── prognose.py · trend.py · wetter.py   # kurzfristig/langfristig · Trend · Wettervorhersage
-    │   │   │   ├── finanzen.py          # Finanz-Prognose (Auswertungen → Finanzen)
+    │   │   │   ├── finanzen.py          # Finanz-Prognose (Auswertungen → Finanzen) — Orchestrator seit 18.09.2026 (Vorlage 7b)
+    │   │   │   ├── finanz_eingaenge.py · finanz_rueckblick.py · finanz_prognose.py · finanz_zerlegung.py   # seine zehn Phasen
     │   │   │   └── schemas.py · basis.py   # Antwortmodelle · Konstanten, Anlagen-Lader
     │   │   ├── prognosen.py             # Prognose-Vergleich, Genauigkeits-Tracking
     │   │   ├── cockpit.py + cockpit/    # Übersicht · Komponenten · Nachhaltigkeit · Jahr
