@@ -27,83 +27,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from backend.core.exceptions import not_found
 from backend.api.deps import get_db
-from backend.services.waermepumpe_kennzahlen_je_geraet import lade_kennzahlen_je_geraet
-from backend.services.waerme_klima_block import (
-    achsen_der_anlage,
-    funktions_eingaenge_der_anlage,
-    geraete_zeilen,
-    schranken_eingang,
-    traegt_menge,
-    was_noch_moeglich,
-)
 from backend.models.anlage import Anlage
-from backend.models.investition import Investition, InvestitionMonatsdaten
-from backend.models.monatsdaten import Monatsdaten
+from backend.models.investition import Investition
 from backend.core.berechnungen.zeittarif import hat_zeitfenster
-from backend.services.strompreis_aggregator import aufgeloester_monatspreis
-from backend.api.routes.strompreise import lade_tarife_fuer_anlage, resolve_einspeise_preis_cent
 from backend.api.routes.connector import _calc_month_delta
-from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
-from backend.core.berechnungen.waermepumpe_kennzahl import (
-    ARBEITSZAHL_FUNKTIONEN,
-    abgrenzung_je_funktion,
-    als_arbeitszahl,
-    hub_hilft,
-    abgrenzungs_grund,
-    arbeitszahl_je_funktion,
-    arbeitszahl_kuehlen,
-    heizwaerme_kwh,
-    systemarbeitszahl,
-    waerme_gesamt_kwh,
-)
+from backend.core.berechnungen.waermepumpe_kennzahl import hub_hilft
 from backend.core.berechnungen import (
-    sonstiges_richtung,
-    auslastung_prozent,
-    auslastungs_basis_kwh,
-    autarkie_prozent,
     berechne_grundlast,
     monatsfenster,
-    berechne_netzbezug_kosten,
-    berechne_netzladung_kosten,
-    eauto_effizienz_100km,
-    eigenverbrauchsquote_prozent,
-    einspeise_erloes_euro,
-    erzeugung_hinter_zaehler_kwh,
     merge_datenquellen,
-    spezifischer_ertrag_kwh_kwp,
-    speicher_wirkungsgrad as berechne_speicher_wirkungsgrad,
     teilzeitraum_felder,
-    vollzyklen as berechne_vollzyklen,
 )
 from backend.core.monatswert_grund import monatswert_grund, monatswert_grund_text
-from backend.services.einspeise_erloes_service import get_neg_preis_einspeisung_monat
-from backend.services.wp_wirtschaftlichkeit import berechne_wp_ersparnis, wp_ersparnis_berechnung
-from backend.services.eauto_wirtschaftlichkeit import compute_emob_pool_attribution
-from backend.services.emob_ladeanteil import reichere_monatszeilen_an
-from backend.services.monats_fakten import (
-    MonatsFakt,
-    SonstigesFakten,
-    lade_monats_fakten,
-    pv_unvollstaendig_hinweis,
-)
-from backend.core.wirtschaftlichkeit_defaults import (
-    EINSPEISEVERGUETUNG_DEFAULT_CENT,
-    NETZBEZUG_DEFAULT_CENT,
-)
-from backend.core.betriebsmodus import (
-    BETRIEBSART_NUTZENERGIE_FELD,
-    BETRIEBSART_STROM_FELD,
-    HEIZEN as BM_HEIZEN,
-    MESSBARE_MODI,
-)
-from backend.core.field_definitions import (
-    FEINE_STROM_FELDER,
-    basis_feld_key,
-    get_wp_strom_kwh,
-    wp_strom_aufteilung,
-)
-from backend.core.investition_kennwerte import get_speicher_kapazitaet_kwh
-from backend.core.investition_parameter import ist_dienstlich
+from backend.services.monats_fakten import MonatsFakt, lade_monats_fakten
 from backend.api.routes.aktueller_monat.schemas import (  # noqa: F401 — Re-Export fuer Tests und Aufrufer
     AktuellerMonatResponse,
     DatenquelleInfo,
