@@ -2093,7 +2093,7 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     "backend/api/routes/aktueller_monat/finanzen.py::t_konto_je_investition",
     "backend/api/routes/aussichten/finanz_eingaenge.py::lade_finanz_eingaenge",   # Vorlage 7b (18.09.2026): finanzen.py::get_finanz_prognose → finanz_eingaenge.py
     "backend/api/routes/ha_export/emob.py::_load_emob_pool_ctx",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
-    "backend/api/routes/ha_export/anlage_sensoren.py::calculate_anlage_sensors",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
+    "backend/api/routes/ha_export/anlage_komponenten.py::historische_komponenten",   # Vorlage 8b (18.09.2026): Phase des Anlagen-Rechners (IMD-Lader)
     "backend/api/routes/ha_export/investition_sensoren.py::calculate_investition_sensors",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
     # Vorlage 5b (18.09.2026): die IMD-Ladungen des ROI-Dashboards zogen aus dem Endpunkt in zwei Phasen —
     # sonstige Positionen je Investition (Kopf) und Speicher-IST-Aggregate (PV-Seite).

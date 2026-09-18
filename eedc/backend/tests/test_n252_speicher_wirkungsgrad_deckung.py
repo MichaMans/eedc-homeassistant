@@ -36,7 +36,7 @@ BRAUCHT_DEN_SOT = [
     "api/routes/cockpit/komponenten.py",
     # Vorlage 6 (18.09.2026): das Speicher-Dashboard zog nach dashboard_speicher.py.
     "api/routes/investitionen/dashboard_speicher.py",
-    "api/routes/ha_export/anlage_sensoren.py",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
+    "api/routes/ha_export/anlage_komponenten.py",   # Vorlage 8b (18.09.2026): Phase des Anlagen-Rechners (Speicher-KPIs)
     # Vorlage 2 (18.09.2026): der Speicher-Block des Endpunkts sitzt in komponenten.py.
     "api/routes/aktueller_monat/komponenten.py",
     "core/berechnungen/speicher.py",

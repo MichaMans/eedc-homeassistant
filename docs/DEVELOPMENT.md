@@ -466,7 +466,8 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── ha_integration.py · ha_statistics.py · ha_remote.py
     │   │   ├── ha_export/               # HA-Sensor-Export — Paket seit 18.09.2026 (Vorlage 8)
     │   │   │   ├── __init__.py          # Fassade: Router (Präfix /ha/export) + Re-Export
-    │   │   │   ├── anlage_sensoren.py · investition_sensoren.py   # die zwei Rechenkerne
+    │   │   │   ├── anlage_sensoren.py · investition_sensoren.py   # die zwei Rechenkerne (Anlage: Orchestrator seit 18.09.2026, Vorlage 8b)
+    │   │   │   ├── anlage_energie.py · anlage_komponenten.py · anlage_sensorwerte.py   # seine neun Phasen
     │   │   │   └── schemas.py · emob.py · konfig.py · sensoren.py · mqtt.py   # Modelle · E-Mob-Pool · Routen
     │   │   ├── connector.py             # Geräte-Connectors (lokales Netz)
     │   │   ├── cloud_import.py          # Cloud-API-Import

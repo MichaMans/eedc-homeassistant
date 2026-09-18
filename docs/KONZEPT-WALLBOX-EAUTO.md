@@ -410,7 +410,7 @@ Schema-Erweiterung für die Messung**, und keine Schätzung — das ist die Zusa
 was es ist.**
 Neuer Parameter **`eigener_verbrauch_l_100km`**. Das bestehende Feld beschreibt einen **fiktiven
 Vergleichs-Benziner** („was hätte ein gleichwertiges Verbrenner-Fahrzeug gebraucht", Default 7,5)
-und hat **sieben** Produktions-Leser (`aussichten/finanz_eingaenge.py` · `finanz_prognose.py` · `ha_export/anlage_sensoren.py` · `investition_sensoren.py` ·
+und hat **sieben** Produktions-Leser (`aussichten/finanz_eingaenge.py` · `finanz_prognose.py` · `ha_export/anlage_komponenten.py` · `investition_sensoren.py` ·
 `cockpit/nachhaltigkeit.py` · `investitionen/roi.py` · `eauto_wirtschaftlichkeit.py`). Es beim
 PHEV umzudeuten würde Zahlen bei allen Nicht-PHEV-Nutzern bewegen und wäre dieselbe Doppelbelegung,
 die bei `verbrauch_kwh` als **Schwäche A** dokumentiert ist und dort einen Daten-Checker-Fehlalarm
