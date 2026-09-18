@@ -1294,6 +1294,12 @@ Summe der Tage den Monat trifft. Der Wert springt dabei beim Abschluss wie
 bisher, nur weniger weit: Vorher stand dort schon ein gemessener statt eines
 geschätzten Preises.
 
+> ⛔ **Aufgehoben mit v4.0.46 (17. September 2026):** Seitdem gilt *„Tage sind
+> Messung, Monate sind Abrechnung"* — ein später eingetragener Monats-Ø ändert
+> den Monatsbetrag, deine Tage bleiben, wie sie gemessen wurden. Die Summe der
+> Tage kann deshalb vom Monat abweichen; das ist gewollt. Siehe den Abschnitt zu
+> v4.0.46 weiter oben.
+
 **Betrifft dich das?** Jeden mit dynamischem Strompreis-Sensor.
 **Was du tun musst:** nichts.
 **Was du merken wirst:** Kosten, Ersparnis und Netto-Ertrag für noch nicht
