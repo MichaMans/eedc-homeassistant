@@ -336,7 +336,7 @@ def heiz_effizienz_gepflegt(parameter: Optional[dict]) -> Optional[float]:
 
     ⚑ Es gibt im Baum vier weitere Stellen, die dieselbe Fallunterscheidung von
     Hand machen (``vorschlag_service``, ``daten_checker/stammdaten``,
-    ``investitionen/crud``, ``core/calculations``). Sie hier mit umzustellen
+    ``investitionen/roi``, ``core/calculations``). Sie hier mit umzustellen
     wäre eine Auftragsausweitung — der Befund ist als Nebenfund notiert.
     """
     params = parameter or {}

@@ -137,7 +137,7 @@ export const typLabels: Record<InvestitionTyp, string> = {
  * (Konzept §8/1, `einsparung_prognose_jahr`).
  *
  * Die Liste spiegelt den `else`-Zweig der ROI-Typkette in
- * `backend/api/routes/investitionen/crud.py` — nur dort wird das Feld gelesen.
+ * `backend/api/routes/investitionen/roi.py` — nur dort wird das Feld gelesen (bis 18.09.2026 crud.py).
  * Für alle anderen Typen rechnet eedc die Jahres-Einsparung selbst (PV,
  * Speicher, WP, E-Auto, BKW); ein Eingabefeld wäre dort ohne Wirkung.
  */

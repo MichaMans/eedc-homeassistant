@@ -1435,7 +1435,7 @@ async def ist_pv_ladeanteil_prozent(
 
     ⚠ **Woher die Obergrenze kommt — sie steht NICHT in dieser Funktion.**
     Der Wert ist ein Rechen-**Eingang**: fehlt am Fahrzeug der gepflegte
-    Handwert, zieht ``investitionen/crud.py`` ihn als ``pv_anteil_prozent`` in
+    Handwert, zieht ``investitionen/roi.py`` ihn als ``pv_anteil_prozent`` in
     die E-Auto-Wirtschaftlichkeit, und ``core/calculations.py`` bildet daraus
     ``netz_anteil = 1 − pv_anteil/100``. Über 100 % würde dieser Faktor negativ
     und das Laden *verdiente* Geld. Dass das nicht passieren kann, ist eine
@@ -1868,7 +1868,7 @@ class _RohMonat:
             # zwei Balkonkraftwerke da sind. Rein additiv; `pv_je_modul` und
             # `pv_module_kwh` bleiben unberührt, weil `pv_module_kwh` in die
             # ROI-Rechnung geht, wo das BKW bewusst eine eigene Zeile hat
-            # (`investitionen/crud.py::get_pv_erzeugung`) und sonst doppelt zählte.
+            # (`investitionen/roi.py::get_roi_dashboard`, innere `get_pv_erzeugung`) und sonst doppelt zählte.
             #
             # N-266: ein abtretendes BKW steht hier NICHT. Beide Leser dieses
             # Felds addieren es neben `pv_je_modul` — der String-Vergleich des

@@ -356,7 +356,7 @@ erledigt — hier stand bis 2026-08-28 „noch nicht gebaut".
 >
 > ⚠ **Zwei Etappen-Angaben trugen nicht** (am Code geprüft, statt sie abzuarbeiten): Etappe 1
 > nennt „Response-Model" und `core/field_definitions.py`. Das Response-Model führt `parameter` als
-> freies `dict[str, Any]` (`investitionen/crud.py`), es strippt nichts; und `field_definitions.py`
+> freies `dict[str, Any]` (`investitionen/schemas.py`), es strippt nichts; und `field_definitions.py`
 > ist die Registry der **Monatsdaten-** und Live-Felder, nicht der Investitions-Parameter — ein
 > Eintrag dort wäre am falschen Ort. Die tatsächlichen Pflicht-Stellen für einen
 > `parameter`-Schlüssel sind `core/investition_parameter.py` **und** sein Frontend-Spiegel
@@ -379,7 +379,7 @@ von beiden wirkt, erzeugt genau die Drift-Klasse, die dieses Projekt wiederholt 
 | Achse | Ort | Rechnet mit | Wer liest sie |
 | --- | --- | --- | --- |
 | **IST** (Vergangenheit) | `services/eauto_wirtschaftlichkeit.py` | **gemessenen** `km_gefahren` + **tatsächlicher** Ladung + `vergleich_verbrauch_l_100km` | Komponenten-Hub, Cockpit, Monatsbericht, HA-Export, Aussichten-Historie, CO₂ |
-| **Prognose/ROI** (Zukunft) | `core/calculations.py:310-364` (`berechne_eauto_einsparung`) | **geplanter** `jahresfahrleistung_km` × `verbrauch_kwh_100km` × `pv_ladeanteil_prozent` | ausschließlich `api/routes/investitionen/crud.py:1508` (ROI-Tabelle) |
+| **Prognose/ROI** (Zukunft) | `core/calculations.py:310-364` (`berechne_eauto_einsparung`) | **geplanter** `jahresfahrleistung_km` × `verbrauch_kwh_100km` × `pv_ladeanteil_prozent` | ausschließlich `api/routes/investitionen/roi.py::get_roi_dashboard` (ROI-Tabelle) |
 
 Beide müssen den Anteil kennen — **aber sie bestimmen ihn verschieden**, weil die Zukunft keine
 Messung hat. Das ist kein Sonderfall, sondern die schon bestehende Trennung des Systems.
@@ -411,7 +411,7 @@ was es ist.**
 Neuer Parameter **`eigener_verbrauch_l_100km`**. Das bestehende Feld beschreibt einen **fiktiven
 Vergleichs-Benziner** („was hätte ein gleichwertiges Verbrenner-Fahrzeug gebraucht", Default 7,5)
 und hat **sieben** Produktions-Leser (`aussichten.py` ×2 · `ha_export.py` ×2 ·
-`cockpit/nachhaltigkeit.py` · `investitionen/crud.py` · `eauto_wirtschaftlichkeit.py`). Es beim
+`cockpit/nachhaltigkeit.py` · `investitionen/roi.py` · `eauto_wirtschaftlichkeit.py`). Es beim
 PHEV umzudeuten würde Zahlen bei allen Nicht-PHEV-Nutzern bewegen und wäre dieselbe Doppelbelegung,
 die bei `verbrauch_kwh` als **Schwäche A** dokumentiert ist und dort einen Daten-Checker-Fehlalarm
 erzeugt hat. **Zwei Bedeutungen brauchen zwei Felder.**
@@ -629,7 +629,7 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 > gepflegte 0.
 >
 > ⚑ **Rahmenbedingung 7 (N-188) ist damit erledigt.** Die Prognose rät den Anteil nicht mehr:
-> `investitionen/crud.py` nimmt den IST-Anteil aus den Monats-Fakten
+> `investitionen/roi.py` nimmt den IST-Anteil aus den Monats-Fakten
 > (`monats_fakten.ist_pv_ladeanteil_prozent`), wenn kein `pv_ladeanteil_prozent` gepflegt ist —
 > Default 60 % nur noch, wenn auch das IST schweigt. Die **zweite**, im ursprünglichen Text nicht
 > genannte Prognose-Quelle (`aussichten.py`, leitet die Quote aus der Historie ab) zieht über

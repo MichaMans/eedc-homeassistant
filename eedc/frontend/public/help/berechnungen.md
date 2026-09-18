@@ -2021,7 +2021,7 @@ Flug-km        = CO2_gesamt / 0.25     (kg/km)
 > Wert aus `ErzeugungFakten.pv_je_modul` (P7-Auflösung); ein `balkonkraftwerk` steht dort
 > **nicht**, sondern in `BkwFakten.erzeugung_je_investition`. Grund: die Σ von `pv_je_modul` ist
 > `pv_module_kwh`, und die geht in die **ROI-Rechnung**, wo das Balkonkraftwerk eine **eigene**
-> Zeile hat (`investitionen/crud.py::get_pv_erzeugung`) — läge es in beiden, zählte seine
+> Zeile hat (`investitionen/roi.py::get_roi_dashboard`, innere `get_pv_erzeugung`) — läge es in beiden, zählte seine
 > Erzeugung dort doppelt. Wer die Sicht erweitert, erweitert deshalb **nicht** `pv_je_modul`.
 > Gewächtert in `tests/test_bkw_erzeuger_sichten_f10.py`.
 >

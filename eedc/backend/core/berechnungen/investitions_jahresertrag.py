@@ -6,7 +6,7 @@
 Stellen unabhängig summiert, und zwar mit **verschiedenen** Filtern:
 
 ===========================================  ==========================================
-`investitionen/crud.py` (ROI-Dashboard)      je Investition
+`investitionen/roi.py` (ROI-Dashboard)       je Investition
 `aussichten.py` (`ertrag_jahr_ges`)          Σ, **mit** ``ist_aktiv_an(heute)``
 `ha_export.py` (`jahres_ertraege_ges`)       Σ, **ohne** Aktiv-Filter
 ===========================================  ==========================================

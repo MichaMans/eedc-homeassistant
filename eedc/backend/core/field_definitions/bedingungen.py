@@ -529,7 +529,7 @@ def wp_waerme_achsen(parameter: Optional[dict]) -> frozenset:
 
     ⚠ **`feld_urteil(...) == URTEIL_GILT` und NICHT
     {@link groesse_gibt_es_am_geraet}** — dieselbe Trennlinie wie in
-    ``investitionen/crud.py::_achse_gilt`` (WK-15c) und
+    ``investitionen/roi.py::_achse_gilt`` (WK-15c) und
     ``daten_checker/stammdaten.py`` (WK-15b). Jene Funktion prüft
     ``!= URTEIL_NEIN`` und liefert an der Brauchwasser-WP für die Heiz-Achse
     ``True``, weil die Bedingung dort **weich** ist („untypisch, nicht

@@ -594,7 +594,8 @@ P3A_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # ihn bei Erzeugern über `get_erzeuger_kwp` zu heilen und bei allen anderen
     # Typen (Mehrzweckfeld N-G: Speicher = kWh, WR = kW AC) unverändert
     # durchzureichen. Ein Helper-Aufruf statt des Rohzugriffs wäre hier zirkulär.
-    "backend/api/routes/investitionen/crud.py::self",
+    # Vorlage 5 (18.09.2026): die Response-Klasse zog aus crud.py nach schemas.py.
+    "backend/api/routes/investitionen/schemas.py::self",
     # Der SoT selbst — er IST der Spalten-Fallback und liest sie per `getattr`.
     # Als einziger Eintrag ganzes Modul statt `Modul::Empfänger`.
     P3A_SOT_MODUL,
@@ -1598,7 +1599,7 @@ def test_p7_baseline_ausnahmen_sind_noch_belegt():
 #                             — Spaltenstruktur von Vorlage und Export nach
 #                               heutiger Vertragsart. Der Zahlenwert je Zeile
 #                               kommt aus den Monatsdaten, nicht von hier.
-#   investitionen/crud.py     — ROI-/Wirtschaftlichkeits-Prognose NACH VORN:
+#   investitionen/roi.py      — ROI-/Wirtschaftlichkeits-Prognose NACH VORN (bis 18.09.2026 crud.py):
 #                               die Route liefert einen Ø-JAHRESWERT für die
 #                               Amortisationsrechnung, und `AuswertungenRoiV4`
 #                               übergibt kein `jahr` (nachgemessen 03.08.).
@@ -1651,8 +1652,8 @@ P8_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # Spaltenstruktur von Vorlage und Export nach heutiger Vertragsart.
     "backend/api/routes/import_export/csv_operations.py::get_csv_template_info",
     "backend/api/routes/import_export/csv_operations.py::export_csv",
-    # ROI-/Wirtschaftlichkeits-Prognose NACH VORN (Ø-Jahreswert).
-    "backend/api/routes/investitionen/crud.py::get_roi_dashboard",
+    # ROI-/Wirtschaftlichkeits-Prognose NACH VORN (Ø-Jahreswert). Vorlage 5 (18.09.2026): crud.py → roi.py.
+    "backend/api/routes/investitionen/roi.py::get_roi_dashboard",
     # Query-Param-Default + Fallback der `_gewichtete_monatspreise`-Mittelung.
     "backend/api/routes/investitionen/dashboards.py::get_eauto_dashboard",
     "backend/api/routes/investitionen/dashboards.py::get_sonstiges_dashboard",
@@ -2093,7 +2094,7 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
     "backend/api/routes/ha_export.py::calculate_anlage_sensors",
     "backend/api/routes/ha_export.py::calculate_investition_sensors",
-    "backend/api/routes/investitionen/crud.py::get_roi_dashboard",
+    "backend/api/routes/investitionen/roi.py::get_roi_dashboard",   # Vorlage 5 (18.09.2026): crud.py → roi.py
     "backend/api/routes/investitionen/dashboards.py::get_eauto_dashboard",
     "backend/api/routes/investitionen/dashboards.py::get_waermepumpe_dashboard",
     "backend/api/routes/investitionen/dashboards.py::get_speicher_dashboard",
@@ -2482,7 +2483,7 @@ P11_AUSNAHMEN: frozenset[str] = frozenset({
     # ── 4. Per-Investition-Sichten: keine Anlagensumme ─────────────────────
     # Hier ist die Ableitung im kWp-SoT zuständig (`get_bkw_kwp` liest die
     # geladenen Modul-Kinder, E5), nicht ein Mengen-Selektor.
-    "backend/api/routes/investitionen/crud.py::leistung_kwp_effektiv",
+    "backend/api/routes/investitionen/schemas.py::leistung_kwp_effektiv",   # Vorlage 5 (18.09.2026): crud.py → schemas.py
     "backend/api/routes/pvgis.py::get_pvgis_modul_prognose",
     "backend/services/pdf/builders/anlagendokumentation.py::_build_investition_tech_grid",
 
@@ -2913,7 +2914,7 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
 
     # ── 2. Vorschlag: Vorbelegung · Beschriftung · weiche Herabstufung ────────
     "backend/core/field_definitions/bedingungen.py::get_feld_bedarf",  # Pflicht → optional, nie weg (N-86)
-    # ⛔ `crud.py::_wp_nicht_bewertbar` stand hier bis WK-15c (14.09.2026) — die
+    # ⛔ `crud.py::_wp_nicht_bewertbar` (heute `roi.py`) stand hier bis WK-15c (14.09.2026) — die
     # Vorbelegungs-Sperre fragte `ist_luft_luft_waermepumpe`. Sie fragt jetzt die
     # **Achsen** (`feld_urteil`) und liest die Bauart nicht mehr; der Eintrag wäre
     # tot und die Liste ist damit um einen Leser kürzer.

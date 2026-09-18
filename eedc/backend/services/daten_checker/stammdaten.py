@@ -1273,7 +1273,7 @@ class StammdatenChecks:
                     # und beide zu Recht:
                     #   • `lade_durchschnittspreis_cent` — Stammdaten-Annahme,
                     #     aus der Prognose und ROI rechnen (`aussichten.py`,
-                    #     `investitionen/crud.py`). DAS prüft diese Zeile.
+                    #     `investitionen/roi.py`). DAS prüft diese Zeile.
                     #   • `speicher_ladepreis_cent` — der gemessene Monatswert,
                     #     im Monatsabschluss erfassbar und per Sensor füllbar
                     #     (`monats_fakten.py`).
@@ -1645,7 +1645,7 @@ class StammdatenChecks:
                     # Ohne Heiz-Achse **fällt die Frage nicht weg, sie wechselt
                     # die Achse.** Dieselbe Schätzung läuft für ein solches Gerät
                     # über den Warmwasserbedarf: `_wp_nicht_bewertbar`
-                    # (`investitionen/crud.py`) lässt die ROI-Zeile nur mit
+                    # (`investitionen/roi.py`) lässt die ROI-Zeile nur mit
                     # **einem** gepflegten Bedarf überhaupt rechnen und schreibt
                     # sonst „Nicht bewertet: kein Wärmebedarf gepflegt" — ohne
                     # diesen Zweig stünde der Anwender vor genau dieser Zeile,

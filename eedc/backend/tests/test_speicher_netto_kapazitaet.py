@@ -318,7 +318,7 @@ def test_prognose_rechnet_netto_durch_den_speicher():
 
 
 async def test_roi_prognose_nimmt_die_nutzbare_kapazitaet(db):
-    """Pfad (b) durch die echte Route (`crud.py`, AC-Pfad ohne Hybrid-WR).
+    """Pfad (b) durch die echte Route (`roi.py`, AC-Pfad ohne Hybrid-WR).
 
     Umfang: **nur** Speicher ohne IST-Aggregat. Wo Lade-/Entladewerte erfasst
     sind, läuft die Rechnung über den Spread-Service und liest die Kapazität

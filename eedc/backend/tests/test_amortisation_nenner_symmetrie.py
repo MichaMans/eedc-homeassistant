@@ -14,7 +14,7 @@ Anlage relevant gekostet?":
   `inv.parameter["alternativ_kosten_euro"]` kamen — einem Schlüssel, der
   baumweit **keinen Schreiber** hat (N-134) und deshalb immer auf die
   Festannahmen 8.000 € / 35.000 € zurückfiel;
-- `investitionen/crud.py` (ROI-Sicht): `Σ (gesamt − alternativ)` aus der
+- `investitionen/roi.py` (ROI-Sicht): `Σ (gesamt − alternativ)` aus der
   gepflegten **Spalte** `anschaffungskosten_alternativ`, ohne Klemmung je
   Position;
 - die USt-Bemessung: `Σ max(0, gesamt − alternativ)` (seit N-129/N-130).
