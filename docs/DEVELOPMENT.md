@@ -439,7 +439,8 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── monatsabschluss/         # Monatsabschluss-Formular + Datenquellen-Status
     │   │   ├── investitionen/           # Komponenten, ROI, Stilllegung, Kennwerte
     │   │   │   ├── crud.py              # CRUD-Routen, Parent-Regel; hängt roi.py ein, re-exportiert (seit 18.09.2026, Vorlage 5)
-    │   │   │   ├── schemas.py · roi.py  # Investitions-Schemas · ROI-Dashboard, Gruppierung, Kennwert-Auflöser
+    │   │   │   ├── schemas.py · roi.py  # Investitions-Schemas · ROI-Dashboard (Orchestrator), Gruppierung, Kennwert-Auflöser
+    │   │   │   ├── roi_eingaenge.py · roi_pv.py · roi_standalone.py   # die Phasen des ROI-Dashboards (Vorlage 5b, 18.09.2026)
     │   │   │   ├── dashboards.py        # Dashboards je Typ + Monatsdaten-Abfrage
     │   │   │   └── speicher_potential.py · speicher_sizing.py
     │   │   ├── strompreise.py           # Tarife, Spezialtarife, Gültigkeitsfenster

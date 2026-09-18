@@ -1652,8 +1652,9 @@ P8_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # Spaltenstruktur von Vorlage und Export nach heutiger Vertragsart.
     "backend/api/routes/import_export/csv_operations.py::get_csv_template_info",
     "backend/api/routes/import_export/csv_operations.py::export_csv",
-    # ROI-/Wirtschaftlichkeits-Prognose NACH VORN (Ø-Jahreswert). Vorlage 5 (18.09.2026): crud.py → roi.py.
-    "backend/api/routes/investitionen/roi.py::get_roi_dashboard",
+    # ROI-/Wirtschaftlichkeits-Prognose NACH VORN (Ø-Jahreswert). Vorlage 5 (18.09.2026): crud.py → roi.py;
+    # Vorlage 5b (18.09.2026): die Tarif-Ladung zog mit dem Kopf des Endpunkts nach roi_eingaenge.py.
+    "backend/api/routes/investitionen/roi_eingaenge.py::lade_roi_eingaenge",
     # Query-Param-Default + Fallback der `_gewichtete_monatspreise`-Mittelung.
     "backend/api/routes/investitionen/dashboards.py::get_eauto_dashboard",
     "backend/api/routes/investitionen/dashboards.py::get_sonstiges_dashboard",
@@ -2094,7 +2095,10 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
     "backend/api/routes/ha_export.py::calculate_anlage_sensors",
     "backend/api/routes/ha_export.py::calculate_investition_sensors",
-    "backend/api/routes/investitionen/roi.py::get_roi_dashboard",   # Vorlage 5 (18.09.2026): crud.py → roi.py
+    # Vorlage 5b (18.09.2026): die IMD-Ladungen des ROI-Dashboards zogen aus dem Endpunkt in zwei Phasen —
+    # sonstige Positionen je Investition (Kopf) und Speicher-IST-Aggregate (PV-Seite).
+    "backend/api/routes/investitionen/roi_eingaenge.py::lade_roi_eingaenge",
+    "backend/api/routes/investitionen/roi_pv.py::pv_einsparung_und_speicher_ist",
     "backend/api/routes/investitionen/dashboards.py::get_eauto_dashboard",
     "backend/api/routes/investitionen/dashboards.py::get_waermepumpe_dashboard",
     "backend/api/routes/investitionen/dashboards.py::get_speicher_dashboard",
