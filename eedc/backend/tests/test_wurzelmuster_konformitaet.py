@@ -2876,9 +2876,12 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     "backend/core/investition_parameter.py::<modul>",             # Default luft_wasser
     "backend/core/investition_parameter.py::ist_luft_luft_waermepumpe",
     "backend/core/investition_parameter.py::ist_brauchwasser_waermepumpe",
-    "backend/core/field_definitions.py::<modul>",                 # `bedingung`-Literale (N-304, B5)
-    "backend/core/field_definitions.py::_bedingungs_werte",       # der EINE Auswerter
-    "backend/core/field_definitions.py::_betriebsart_felder",     # weiche Bedingung je Innengerät
+    # Vorlage 3 (18.09.2026): `core/field_definitions.py` ist ein Paket — die Literale stehen in
+    # der Registry und im Bedingungs-Modul, der Auswerter im Bedingungs-Modul.
+    "backend/core/field_definitions/registry.py::<modul>",        # `bedingung`-Literale (N-304, B5)
+    "backend/core/field_definitions/bedingungen.py::<modul>",     # `bedingung`-Literale (N-304, B5)
+    "backend/core/field_definitions/bedingungen.py::_bedingungs_werte",  # der EINE Auswerter
+    "backend/core/field_definitions/registry.py::_betriebsart_felder",   # weiche Bedingung je Innengerät
     "backend/core/betriebsmodus.py::<modul>",                     # Modus-Wort „brauchwasser" → Funktion Warmwasser
 
     # ── 1. Kennzahl-Abgrenzung (E1 · §5 · R2): zwei Bauarten, keine gemeinsame Zahl ─
@@ -2909,7 +2912,7 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     "backend/core/berechnungen/waermepumpe_kennzahl.py::abgrenzung_je_funktion",
 
     # ── 2. Vorschlag: Vorbelegung · Beschriftung · weiche Herabstufung ────────
-    "backend/core/field_definitions.py::get_feld_bedarf",         # Pflicht → optional, nie weg (N-86)
+    "backend/core/field_definitions/bedingungen.py::get_feld_bedarf",  # Pflicht → optional, nie weg (N-86)
     # ⛔ `crud.py::_wp_nicht_bewertbar` stand hier bis WK-15c (14.09.2026) — die
     # Vorbelegungs-Sperre fragte `ist_luft_luft_waermepumpe`. Sie fragt jetzt die
     # **Achsen** (`feld_urteil`) und liest die Bauart nicht mehr; der Eintrag wäre

@@ -476,7 +476,7 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   │   ├── datenquellen.py · invarianten.py
     │   │   ├── investition_kennwerte.py # SoT für kWp/kWh je Typ (ADR-002/P3-a)
     │   │   ├── investition_parameter.py # gemeinsame Parameter-Keys mit dem Frontend
-    │   │   ├── monats_luecken.py · source_priority.py · field_definitions.py
+    │   │   ├── monats_luecken.py · source_priority.py · field_definitions/ (Paket seit 18.09.2026: keys · registry · bedingungen · karten · auswahl · reader · wp_strom, Fassade __init__)
     │   │   ├── wirtschaftlichkeit_defaults.py · ha_integrations_wissen.py
     │   │   ├── exceptions.py · log_buffer.py · calculations.py
     │   │

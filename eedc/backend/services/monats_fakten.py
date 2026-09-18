@@ -566,7 +566,7 @@ class WpFakten:
         Der Zähler kippt genauso, und zwar in die teurere Richtung:
 
         * ``heizenergie_kwh`` trägt nur ``!brauchwasser``
-          (``field_definitions.py:452-458``) — eine Split-Klimaanlage **darf**
+          (``field_definitions/registry.py::INVESTITION_FELDER``) — eine Split-Klimaanlage **darf**
           Heizwärme melden. Tut sie es ohne Heizstrom, wäre die Heiz-Arbeitszahl
           zu **hoch**: an der A8-Bauform 4,25 statt 3,75.
         * ``strom_warmwasser_kwh`` wird **ungefiltert** gelesen
@@ -1741,7 +1741,7 @@ class _RohMonat:
         # ⭐ **Beidseitig, und das ist der Kern.** Eine einseitige Regel
         # („jedes Geraet mit Strom liefert auch Waerme") faengt nur den Nenner.
         # Der Zaehler kippt genauso: `heizenergie_kwh` traegt NUR
-        # `!brauchwasser` (field_definitions.py:452-458), eine Split-Klima darf
+        # `!brauchwasser` (field_definitions/registry.py::INVESTITION_FELDER), eine Split-Klima darf
         # also Heizwaerme melden. Meldet sie welche, ohne Heizstrom
         # beizusteuern, waere die Heiz-Arbeitszahl zu HOCH — gemessen an der
         # A8-Bauform 4,25 statt 3,75.

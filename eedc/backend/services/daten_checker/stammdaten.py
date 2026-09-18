@@ -1493,7 +1493,7 @@ class StammdatenChecks:
                 # deshalb fragen diese beiden INFO ab jetzt `ersetzt_keine_heizung`,
                 # während `daten_checker/energieprofil.py:419`,
                 # `daten_checker/monatsdaten.py:848` und
-                # `core/field_definitions.py:722` bewusst an der Bauart bleiben:
+                # `core/field_definitions/registry.py::INVESTITION_FELDER` bewusst an der Bauart bleiben:
                 # Sie fragen nach einem **Wärmemengenzähler**, den ein
                 # Splitgerät physisch nicht hat. Konzept: `docs/KONZEPT-263-klima-split.md` §7 E-C.
                 ersetzt_nichts = ersetzt_keine_heizung(

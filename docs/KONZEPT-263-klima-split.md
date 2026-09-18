@@ -180,7 +180,7 @@ gibt es **einen** Zähler (D4) ⇒ er gehört zur Regel.
 kommt baumweit **0-mal** vor. `strom_heizen_kwh` existiert und wird von **12 Read-Sites** bereits
 angezeigt — es wird wiederverwendet, weil seine Bedeutung identisch ist: *Strom, der ins Heizen ging.*
 
-**Die Summenbildung bleibt an genau einer Stelle** (`core/field_definitions.py::get_wp_strom_kwh`)
+**Die Summenbildung bleibt an genau einer Stelle** (`core/field_definitions/wp_strom.py::get_wp_strom_kwh`)
 und bekommt eine reine Ergänzung, keinen Eingriff:
 
 ```
@@ -421,7 +421,7 @@ Die beiden Achsen berühren sich nirgends.
 > Antwort). Der Checker benutzt dasselbe Prädikat.
 >
 > ⚠ **Zwei `ist_luft_luft`-Stellen bleiben bewusst unverändert** (`daten_checker/energieprofil.py:419`,
-> `daten_checker/monatsdaten.py:848`) und ebenso `field_definitions.py:722`: sie fragen nach einem
+> `daten_checker/monatsdaten.py:848`) und ebenso `field_definitions/registry.py::INVESTITION_FELDER (Klimaanlage, bis 18.09.2026 `field_definitions.py:722`)`: sie fragen nach einem
 > **Wärmemengenzähler**, den ein Splitgerät physisch nicht hat — **Messbarkeit → Bauart,
 > Bewertbarkeit → Pflege.**
 
@@ -595,7 +595,7 @@ Stromkosten des *Kühlens* gegen die vermiedenen Gaskosten des *Heizens*.
 | --- | --- | --- | --- |
 | **K-0** | Subtyp `wp_art = luft_luft` · SCOP-Modus · Stromsensor genügt · Daten-Checker verlangt keine Heizwärme | ✅ **gegen den Code geprüft (2026-08-18)** | alle vier belegt: `WP_ART_OPTIONEN`, `effizienz_modus == "scop"`, `KLIMA_OHNE_WAERMEMENGE`, `energieprofil.py:419`, `monatsdaten.py:848` |
 | **K-0b** | Klimaanlage als Verbraucher statt halbe Wärmepumpe | ✅ ersetzt durch K-0c | — |
-| **K-0c** | Die Bewertung hängt an der **Pflege**, nicht an der Bauart (`alter_energietraeger = "nichts"`) | ✅ **durchgezogen — Rechnung (7 Stellen) UND Daten-Checker (S5, 2026-08-18)** | Der Satz „Typ-Sonderweg entfällt" gilt weiterhin **nicht** uneingeschränkt: er bleibt in `crud.py:969` als **Altbestandsschutz** (begründet). An den drei **Messbarkeits**-Stellen (`field_definitions.py:722` · `energieprofil.py:419` · `monatsdaten.py:848`) bleibt die Bauart bewusst maßgeblich. Gemessen an einer Instanz mit zwei Varianten: vorher Klima 0 / Neubau-WP 3 Meldungen, nachher **beide nur die WARNING** (auflösbar) |
+| **K-0c** | Die Bewertung hängt an der **Pflege**, nicht an der Bauart (`alter_energietraeger = "nichts"`) | ✅ **durchgezogen — Rechnung (7 Stellen) UND Daten-Checker (S5, 2026-08-18)** | Der Satz „Typ-Sonderweg entfällt" gilt weiterhin **nicht** uneingeschränkt: er bleibt in `crud.py:969` als **Altbestandsschutz** (begründet). An den drei **Messbarkeits**-Stellen (`field_definitions/registry.py::INVESTITION_FELDER (Klimaanlage, bis 18.09.2026 `field_definitions.py:722`)` · `energieprofil.py:419` · `monatsdaten.py:848`) bleibt die Bauart bewusst maßgeblich. Gemessen an einer Instanz mit zwei Varianten: vorher Klima 0 / Neubau-WP 3 Meldungen, nachher **beide nur die WARNING** (auflösbar) |
 | **F-41** | Die drei Daten-Checker-Hinweise dreiteilen (§7 E-C) | ✅ **gebaut (S5, 2026-08-18)** | Zwei INFO an `ersetzt_keine_heizung`, WARNING von beiden Achsen gelöst + Text nennt 0 als Antwort, Formular-Hint nachgezogen. Wächter `test_f41_f42_klima_bewertbarkeit.py` (12 Proben zu F-41, DB-Weg statt Stub) |
 | **F-42** | Die vier erfundenen Nullen im Komponenten-Hub (§7 E-D) | ✅ **gebaut (S6, 2026-08-18)** | Gelöst **im Backend** statt im Client: `WPErsparnisErgebnis.bewertbar` + `None` statt `0` in der Dashboard-Zusammenfassung. Der Auftrag nannte einen Frontend-Guard — gemessen waren **drei** Konsumenten derselben Null (Hub · *Cockpit → Aussicht* · Kostenvergleich), ein Client-Guard hätte einen davon geheilt. `wp_kosten_euro` wird echt (gemessen 1.340,50 €) |
 | **K-1** | **Kühl-Effizienz** (hieß hier „SEER") | ✅ **erledigt 2026-08-26 — unter einem BEWUSST anderen Namen** | ⛔ **„SEER" kommt nicht, und das ist keine offene Aufgabe, sondern ein Entscheid** (Empfehlung 26.08., von Gernot angenommen). Gebaut ist `arbeitszahl_kuehlen` → Kachel **„JAZ Kühlen"**: Kältemenge ÷ Kühlstrom, ein *gemessener* Quotient über einen Zeitraum. SEER ist eine **genormte Prüfstandsgröße**; den eigenen Wert so zu nennen behauptete eine Vergleichbarkeit, die er nicht hat — dieselbe Trennung wie COP/JAZ. ⚠ **Der frühere „Negativbeweis" (`seer` kommt baumweit 0-mal vor) taugte nie als Statusmessung:** Er misst den *Namen*, nicht die *Größe*. Genau daran wurde die Maßnahme mehrfach fälschlich als offen gelesen |
