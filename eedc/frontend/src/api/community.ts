@@ -165,6 +165,8 @@ export interface PVBenchmark {
 export interface SpeicherBenchmark {
   kapazitaet?: KPIVergleich | null
   zyklen_jahr?: KPIVergleich | null
+  /** N-524: Monate mit Speicherwert im Fenster — unter 12 ist Zyklen/Jahr hochgerechnet (×12/n). */
+  basis_monate?: number | null
   wirkungsgrad?: KPIVergleich | null
   netz_anteil?: KPIVergleich | null
 }
