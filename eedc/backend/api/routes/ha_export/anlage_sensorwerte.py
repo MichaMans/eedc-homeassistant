@@ -297,7 +297,7 @@ async def sensorwerte_erstellen(
     return {k: _loc[k] for k in ("sensor_values",) if k in _loc}
 
 
-async def prognose_und_preis_sensoren(*, anlage, db, sensor_values):
+async def prognose_und_preis_sensoren(*, anlage, db, sensor_values, skip_jitter):
     """Die eedc-Prognose-Sensoren (#150 A, `berechne_prognose_export`) und die Börsenpreis-Sensoren (#150 B) an die Liste
     anhängen.
 
@@ -306,7 +306,8 @@ async def prognose_und_preis_sensoren(*, anlage, db, sensor_values):
     # #150 A: eedc-eigene PV-Prognose (OpenMeteo × Lernfaktor) — anlage-weit,
     # koordinaten-/PV-gated, netzwerk-tolerant (None → Sensoren entfallen).
     # Stundenprofil reist als Attribut mit (kein eigenes Topic).
-    prognose = await berechne_prognose_export(db, anlage)
+    # N-531: On-Demand-Wege überspringen den Open-Meteo-Jitter (bis 30 s je Aufruf), der Cron-Job nicht.
+    prognose = await berechne_prognose_export(db, anlage, skip_jitter=skip_jitter)
     if prognose:
         for sensor in PROGNOSE_SENSOREN:
             value = None

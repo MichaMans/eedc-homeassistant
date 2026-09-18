@@ -108,7 +108,9 @@ from backend.api.routes.ha_export.anlage_sensorwerte import grundlast_sensorwert
 
 async def calculate_anlage_sensors(
     db: AsyncSession,
-    anlage: Anlage
+    anlage: Anlage,
+    *,
+    skip_jitter: bool = False,
 ) -> list[SensorValue]:
     """
     Berechnet alle Sensor-Werte für eine Anlage.
@@ -116,6 +118,9 @@ async def calculate_anlage_sensors(
     WICHTIG: PV-Erzeugung kommt aus InvestitionMonatsdaten (pro PV-Modul),
     NICHT aus Monatsdaten.pv_erzeugung_kwh (Legacy-Feld!).
     Einspeisung/Netzbezug kommen aus Monatsdaten (Zählerwerte).
+
+    ``skip_jitter`` (N-531): ``True`` auf den On-Demand-Wegen (REST-Sichten, Publish-Knopf) — der
+    Prognose-Kanon würfelt sonst vor jedem Open-Meteo-Abruf bis zu 30 s Wartezeit (s. `berechne_prognose_export`).
     """
     # Monatsdaten laden (für Zählerwerte: einspeisung, netzbezug)
     result = await db.execute(
@@ -307,5 +312,5 @@ async def calculate_anlage_sensors(
     )
     if "sensor_values" in _out: sensor_values = _out["sensor_values"]
     # ── prognose_und_preis_sensoren (Vorlage 8b: Phase in anlage_sensorwerte.py, Schnittstelle 3 ein / 0 aus) ──
-    _out = await prognose_und_preis_sensoren(anlage=anlage, db=db, sensor_values=sensor_values)
+    _out = await prognose_und_preis_sensoren(anlage=anlage, db=db, sensor_values=sensor_values, skip_jitter=skip_jitter)
     return sensor_values

@@ -76,8 +76,9 @@ async def publish_sensors_mqtt(
         config.password if config else None,
     )
 
-    # Zentraler Outbound-Pfad — identisch zum Auto-Publish (#655).
-    pub = await publish_anlage_sensors(db, anlage, mqtt_config)
+    # Zentraler Outbound-Pfad — identisch zum Auto-Publish (#655); ohne Open-Meteo-Jitter, der
+    # Anwender wartet auf diese Antwort (N-531).
+    pub = await publish_anlage_sensors(db, anlage, mqtt_config, skip_jitter=True)
 
     if not pub["available"]:
         raise HTTPException(

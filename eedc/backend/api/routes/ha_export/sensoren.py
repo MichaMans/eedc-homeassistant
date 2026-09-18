@@ -42,8 +42,9 @@ async def get_all_sensors(db: AsyncSession = Depends(get_db)):
     total_sensors = 0
 
     for anlage in anlagen:
-        # Anlage-Sensoren berechnen
-        sensor_values = await calculate_anlage_sensors(db, anlage)
+        # Anlage-Sensoren berechnen — ohne Open-Meteo-Jitter (N-531): HA fragt diese Sicht per REST mit
+        # 10 s Timeout ab; bis zu 30 s Wartezeit bei kaltem Cache hiessen einmal je Stunde „nicht verfügbar".
+        sensor_values = await calculate_anlage_sensors(db, anlage, skip_jitter=True)
 
         sensors = [
             SensorExportItem(
@@ -149,7 +150,7 @@ async def get_anlage_sensors(
     if not anlage:
         raise not_found("Anlage")
 
-    sensor_values = await calculate_anlage_sensors(db, anlage)
+    sensor_values = await calculate_anlage_sensors(db, anlage, skip_jitter=True)   # N-531: On-Demand ohne Jitter
 
     sensors = [
         SensorExportItem(
@@ -196,7 +197,7 @@ async def get_ha_yaml_snippet(
     if not anlage:
         raise not_found("Anlage")
 
-    sensor_values = await calculate_anlage_sensors(db, anlage)
+    sensor_values = await calculate_anlage_sensors(db, anlage, skip_jitter=True)   # N-531: On-Demand ohne Jitter
 
     # Erreichbaren Host bestimmen: expliziter ?host=-Override → Request-Host
     # (direkter Aufruf, z. B. 192.168.1.10:8099) → Platzhalter. Hinter
