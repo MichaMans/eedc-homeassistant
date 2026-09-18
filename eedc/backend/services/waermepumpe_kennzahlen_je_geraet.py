@@ -1,6 +1,6 @@
 """Die Wärme/Klima-Kennzahlen **eines Geräts** — EINE Stelle (WK-16a).
 
-Der Komponenten-Hub rechnet sie seit jeher (``investitionen/dashboards.py::
+Der Komponenten-Hub rechnet sie seit jeher (``investitionen/dashboard_waermepumpe.py::
 get_waermepumpe_dashboard``): Strom, Wärme, Arbeitszahl gesamt, je Funktion und
 Kühlen — je Gerät, über dessen Monatszeilen gefaltet. Das **Cockpit** hatte sie
 nicht; der Block *Wärme/Klima* zeigte anlagenweite Summen und verwies für die

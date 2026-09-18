@@ -70,7 +70,7 @@ Vierter Fall, und er kehrt den dritten um: Hier war die Definition **von Anfang 
 | --- | --- | --- |
 | ROI-Sicht, Aussichten | `berechne_speicher_ersparnis` (Layer) | — (Referenz) |
 | `aktueller_monat.py` T-Konto | `Entladung × Netzbezugspreis` | **+36 %** bei 30/8 ct |
-| `dashboards.py` (2×) | Spread **inline**, auf der *gesamten* Entladung | Netzladung doppelt (s. u.) |
+| `dashboard_speicher.py` (2×, bis 18.09.2026 `dashboards.py`) | Spread **inline**, auf der *gesamten* Entladung | Netzladung doppelt (s. u.) |
 
 Die dritte Zeile ist die interessante: die Inline-Kopie rechnete die *richtige* Formel — aber ohne die Verfeinerung, die der Layer seit Etappe B (#264) trägt (PV-/Netz-Split). Netzgeladene Energie bekam dort den PV-Spread, und der Komponenten-Hub addierte den Arbitrage-Gewinn **zusätzlich**: dieselbe Kilowattstunde zweimal gutgeschrieben. Eine Kopie altert eben nicht mit ihrem Original.
 

@@ -3,7 +3,7 @@
 
 Single Source of Truth für die drei Quoten-/Ertrags-Primitive, vorher über die
 Codebase verstreut inline dupliziert (calculations, verbrauch, aussichten,
-investitionen/dashboards, cockpit/social (2026-07-31 zurückgebaut),
+investitionen/dashboard_* (bis 18.09.2026 dashboards.py), cockpit/social (2026-07-31 zurückgebaut),
 cockpit/nachhaltigkeit, pdf-builder).
 Reine Arithmetik, DB-/Service-frei (ADR-001).
 

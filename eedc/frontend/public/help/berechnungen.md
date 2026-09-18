@@ -592,7 +592,7 @@ Vollzyklen = Entladung_kWh ÷ Kapazität_brutto_kWh
 ```
 
 **SoT:** `core/berechnungen/speicher.py::vollzyklen`. Alle Sichten rufen ihn auf —
-Komponenten-Hub (`investitionen/dashboards.py`), Cockpit Tag (`energie_profil/tage_werte.py`),
+Komponenten-Hub (`investitionen/dashboard_*.py`), Cockpit Tag (`energie_profil/tage_werte.py`),
 Monat/Jahr (`aktueller_monat.py`) und **Cockpit-Übersicht (`cockpit/uebersicht.py`)**,
 PDF-Jahresbericht, HA-Sensor `speicher_zyklen`.
 Gewächtert von `backend/tests/test_speicher_zyklen_kapazitaets_basis.py` (inkl. Drei-Pfad-Symmetrie),
@@ -652,7 +652,7 @@ Ersparnis = PV-Anteil   × (Netzbezug − Einspeisevergütung) / 100
 
 **SoT:** `core/berechnungen/speicher_wirtschaftlichkeit.py::berechne_speicher_ersparnis`.
 Aufrufer: T-Konto (`aktueller_monat/tkonto.py::_baue_investition_financial`), Speicher-Dashboard und
-Sonstiges-Speicher (`investitionen/dashboards.py`), Aussichten. Gewächtert von
+Sonstiges-Speicher (`investitionen/dashboard_sonstiges.py`), Aussichten. Gewächtert von
 `test_speicher_kanon_symmetrie.py` (drei Achsen, mit **absoluten** Erwartungen — Symmetrie allein
 ließe auch drei gleich falsche Zahlen durch, Lehre aus N-130).
 
@@ -665,7 +665,7 @@ gilt für sie nicht. Ihr Vorteil ist `Netzbezug − Ladepreis`; ohne gepflegten 
 kostenneutrale Durchleitung (z. B. Backup-Vorhaltung).
 
 > ⚠ **Zwei Fundstellen wichen bis zum 2026-08-04 ab** — beide sichtbar: `aktueller_monat.py`
-> rechnete `Entladung × Netzbezug` (bei 30/8 ct **36 % zu hoch**), `dashboards.py` den Spread
+> rechnete `Entladung × Netzbezug` (bei 30/8 ct **36 % zu hoch**), `dashboard_speicher.py` (damals `dashboards.py`) den Spread
 > **inline** auf der gesamten Entladung *und* wies den Arbitrage-Gewinn zusätzlich aus — der
 > Komponenten-Hub addiert beide Posten, netzgeladene Energie zählte damit doppelt. Die Formel im
 > Layer zu haben genügt nicht; sie ist erst durchgesetzt, wenn keine Inline-Kopie mehr danebensteht

@@ -1608,7 +1608,7 @@ def test_p7_baseline_ausnahmen_sind_noch_belegt():
 #                               EINZELNES Altjahr mit dem heutigen Tarif —
 #                               dann gehört die Stelle auf den Stichtag und
 #                               nicht mehr hierher.
-#   investitionen/dashboards.py
+#   investitionen/dashboards.py (seit Vorlage 6, 18.09.2026: dashboard_<typ>.py je Dashboard)
 #                             — Query-Param-Default + Fallback der
 #                               `_gewichtete_monatspreise`-Mittelung; die
 #                               historischen Beträge laufen über den Helper.
@@ -1656,11 +1656,11 @@ P8_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # Vorlage 5b (18.09.2026): die Tarif-Ladung zog mit dem Kopf des Endpunkts nach roi_eingaenge.py.
     "backend/api/routes/investitionen/roi_eingaenge.py::lade_roi_eingaenge",
     # Query-Param-Default + Fallback der `_gewichtete_monatspreise`-Mittelung.
-    "backend/api/routes/investitionen/dashboards.py::get_eauto_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_sonstiges_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_speicher_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_waermepumpe_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_wallbox_dashboard",
+    "backend/api/routes/investitionen/dashboard_eauto.py::get_eauto_dashboard",
+    "backend/api/routes/investitionen/dashboard_sonstiges.py::get_sonstiges_dashboard",
+    "backend/api/routes/investitionen/dashboard_speicher.py::get_speicher_dashboard",
+    "backend/api/routes/investitionen/dashboard_waermepumpe.py::get_waermepumpe_dashboard",
+    "backend/api/routes/investitionen/dashboard_wallbox.py::get_wallbox_dashboard",
     # Heutiger Tarif als Fallback des Perioden-Mappings und für die nach vorn
     # gerichteten Sensor-Werte. Die Historien-Summen daneben lösen je Monat auf
     # (`wp_preis_by_periode` / `wallbox_preis_by_periode`, beide mit Stichtag).
@@ -2099,12 +2099,12 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # sonstige Positionen je Investition (Kopf) und Speicher-IST-Aggregate (PV-Seite).
     "backend/api/routes/investitionen/roi_eingaenge.py::lade_roi_eingaenge",
     "backend/api/routes/investitionen/roi_pv.py::pv_einsparung_und_speicher_ist",
-    "backend/api/routes/investitionen/dashboards.py::get_eauto_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_waermepumpe_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_speicher_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_wallbox_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_balkonkraftwerk_dashboard",
-    "backend/api/routes/investitionen/dashboards.py::get_sonstiges_dashboard",
+    "backend/api/routes/investitionen/dashboard_eauto.py::get_eauto_dashboard",
+    "backend/api/routes/investitionen/dashboard_waermepumpe.py::get_waermepumpe_dashboard",
+    "backend/api/routes/investitionen/dashboard_speicher.py::get_speicher_dashboard",
+    "backend/api/routes/investitionen/dashboard_wallbox.py::get_wallbox_dashboard",
+    "backend/api/routes/investitionen/dashboard_balkonkraftwerk.py::get_balkonkraftwerk_dashboard",
+    "backend/api/routes/investitionen/dashboard_sonstiges.py::get_sonstiges_dashboard",
     # N-247 (2026-08-14): der Leer-Grund des Komponenten-Hubs. Diese Funktion
     # bildet **keine Monatsgröße** — sie beantwortet „hat dieses eine Gerät
     # überhaupt eine Zeile?" und zählt dafür die Rohzeilen **einer** Investition

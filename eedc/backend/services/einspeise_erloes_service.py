@@ -3,7 +3,7 @@
 Brückenmodul zwischen `TagesZusammenfassung.einspeisung_neg_preis_kwh`
 (Tages-Aggregat) und den Erlös-Read-Sites (Monatsdaten-basiert, in
 aussichten.py, cockpit/uebersicht.py, ha_export.py, aktueller_monat.py,
-cockpit/komponenten.py, investitionen/dashboards.py).
+cockpit/komponenten.py, investitionen/dashboard_*.py).
 
 Liefert die §51-Aggregate pro Anlage × Monat bzw. × Jahr. Der reine
 Berechnungs-Schritt (Erlös-Reduzierung × Vergütung) lebt im

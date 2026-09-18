@@ -271,7 +271,7 @@ Sie hat nichts mit der Bauart zu tun — sie trennt **teilen von multiplizieren*
 
 | | darf abgeleitete Wärme verwenden? | Stellen |
 | --- | --- | --- |
-| **teilt** Wärme durch Strom → JAZ/COP | **nein** — sonst kommt exakt die gepflegte JAZ heraus, eine Zahl, die nichts misst | `dashboards.py:824` · `:967` · `:970` · `cockpit/komponenten.py:203` · `cockpit/uebersicht.py:451` · `ha_export.py:1449` · `pdf/jahresbericht.py:470` |
+| **teilt** Wärme durch Strom → JAZ/COP | **nein** — sonst kommt exakt die gepflegte JAZ heraus, eine Zahl, die nichts misst | `dashboard_waermepumpe.py::get_waermepumpe_dashboard` (drei Stellen, bis 18.09.2026 `dashboards.py:824/:967/:970`) · `cockpit/komponenten.py:203` · `cockpit/uebersicht.py:451` · `ha_export.py:1449` · `pdf/jahresbericht.py:470` |
 | **multipliziert** Wärme mit Preis / η / CO₂-Faktor | **ja**, mit Kennzeichnung | `gas_kosten_altanlage` · `co2_wp_ersparnis_kg` · `alternativkosten.py` · `aussichten.py` |
 
 Eine Luft-Wasser-WP **ohne** Wärmemengenzähler fällt unter dieselbe Regel; eine Luft-Luft-WP **mit**
@@ -496,7 +496,7 @@ derselben Stelle zweimal hintereinander aufzureißen, hat noch nie gut funktioni
 > Bedeutung ist identisch"). Am Code gemessen hält die Begründung nicht: Die zwölf Read-Sites
 > zeigen das Feld nicht als *Teilmenge*, sondern als **Summand unter getrennter Strommessung** —
 > und **drei** Stellen leiten aus seiner bloßen *Anwesenheit* ein Verhalten ab.
-> `investitionen/dashboards.py` (`if 'strom_heizen_kwh' in d`) setzt daraufhin
+> `investitionen/dashboard_waermepumpe.py` (`if 'strom_heizen_kwh' in d`) setzt daraufhin
 > `hat_getrennte_strom` und liefert `cop_heizen`; daran hängt `WaermepumpeHubBloecke.tsx`
 > (`hatGetrennteStrom`). Mit abgeleiteter Wärme (§3.4) stünde dort als „JAZ" **exakt die
 > gepflegte JAZ** — der §3.5-Verstoß, gegen den S3 gebaut ist.

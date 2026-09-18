@@ -34,7 +34,8 @@ BACKEND = Path(__file__).resolve().parents[1]
 BRAUCHT_DEN_SOT = [
     "api/routes/cockpit/uebersicht.py",
     "api/routes/cockpit/komponenten.py",
-    "api/routes/investitionen/dashboards.py",
+    # Vorlage 6 (18.09.2026): das Speicher-Dashboard zog nach dashboard_speicher.py.
+    "api/routes/investitionen/dashboard_speicher.py",
     "api/routes/ha_export.py",
     # Vorlage 2 (18.09.2026): der Speicher-Block des Endpunkts sitzt in komponenten.py.
     "api/routes/aktueller_monat/komponenten.py",

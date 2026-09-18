@@ -849,7 +849,7 @@ class StammdatenChecks:
         # ihn irgendeine Eingabe hätte abstellen können. Was ein Anwender
         # wirklich hinterlegen kann und was gelesen wird, ist der Wallbox-Tarif
         # — beide Dashboards ziehen ihn („E-Auto lädt über Wallbox",
-        # investitionen/dashboards.py). Wallbox ohne E-Auto zählt genauso: der
+        # investitionen/dashboard_eauto.py, dashboard_wallbox.py). Wallbox ohne E-Auto zählt genauso: der
         # Ladetarif hängt am Ladepunkt.
         hat_wallbox = any(i.typ == "wallbox" and i.ist_aktiv_an(heute) for i in anlage.investitionen)
         if (hat_eauto or hat_wallbox) and "wallbox" not in verwendungen:
@@ -1707,7 +1707,7 @@ class StammdatenChecks:
             # Gernot).** Die Begründung dieser INFO lautet „Werden für
             # ROI-Berechnung benötigt" — und für einen Gas-, Wasser- oder
             # Ölzähler stimmt sie nicht: Er wird **erfasst, nicht bewertet**
-            # (#377). `investitionen/dashboards.py` schließt ihn ausdrücklich
+            # (#377). `investitionen/dashboard_sonstiges.py` schließt ihn ausdrücklich
             # aus der Wirtschaftlichkeit aus, mit genau diesem Satz; Gas- und
             # Wasserkosten sind Haushaltskosten und gehören nicht in die
             # Bewertung der PV-Anlage.

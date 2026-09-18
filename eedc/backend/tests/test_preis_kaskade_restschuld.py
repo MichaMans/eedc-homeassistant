@@ -40,7 +40,8 @@ KASKADE_NOCH_NICHT: dict[str, str] = {
     "backend/api/routes/monatsdaten.py": "Rohwert-Route, eigene Bedeutung",
     # Speicher-Spread über die Lebensdauer; die Netzladung hat mit
     # `berechne_effektiver_ladepreis` bereits einen eigenen gemessenen Preis.
-    "backend/api/routes/investitionen/dashboards.py": "Spread über die Lebensdauer, eigener Ladepreis-Pfad",
+    # Vorlage 6 (18.09.2026): das Speicher-Dashboard zog aus dashboards.py nach dashboard_speicher.py.
+    "backend/api/routes/investitionen/dashboard_speicher.py": "Spread über die Lebensdauer, eigener Ladepreis-Pfad",
 }
 
 

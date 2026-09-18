@@ -441,7 +441,9 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   │   ├── crud.py              # CRUD-Routen, Parent-Regel; hängt roi.py ein, re-exportiert (seit 18.09.2026, Vorlage 5)
     │   │   │   ├── schemas.py · roi.py  # Investitions-Schemas · ROI-Dashboard (Orchestrator), Gruppierung, Kennwert-Auflöser
     │   │   │   ├── roi_eingaenge.py · roi_pv.py · roi_standalone.py   # die Phasen des ROI-Dashboards (Vorlage 5b, 18.09.2026)
-    │   │   │   ├── dashboards.py        # Dashboards je Typ + Monatsdaten-Abfrage
+    │   │   │   ├── dashboards.py        # Fassade: Monatsdaten je Monat, CO2-Amortisation, Hub-Leer-Grund; hängt die Typ-Dashboards ein
+    │   │   │   ├── dashboard_<typ>.py   # eauto · waermepumpe · speicher · wallbox · balkonkraftwerk · sonstiges (Vorlage 6, 18.09.2026)
+    │   │   │   ├── dashboard_basis.py   # Preis-Mittelung, Monatsdaten-Response
     │   │   │   └── speicher_potential.py · speicher_sizing.py
     │   │   ├── strompreise.py           # Tarife, Spezialtarife, Gültigkeitsfenster
     │   │   ├── energie_profil/          # Tages-/Stundenprofile, Reaggregation

@@ -28,7 +28,7 @@
 >
 > ⚠ **Sprachliche Altlast:** Wo unten „Wallbox-Dashboard" steht, ist die Wallbox-Fläche des
 > **Komponenten-Hubs** gemeint (`frontend/src/v4/WallboxHubBloecke.tsx`); die Backend-Route heißt
-> weiterhin `api/routes/investitionen/dashboards.py`.
+> weiterhin `api/routes/investitionen/dashboard_wallbox.py` und `dashboard_eauto.py` (bis 18.09.2026 `dashboards.py`).
 
 ---
 
@@ -116,7 +116,7 @@ evcc/loadpoints/1/pvCharged → 732 kWh   evcc/vehicles/BMW/pvCharged   → 520 
 > ⚠ **2026-08-08: Die Sichten heißen seit v4.0.0 anders.** „Wallbox-Dashboard" ist heute die
 > **Wallbox-Fläche des Komponenten-Hubs** (`frontend/src/v4/WallboxHubBloecke.tsx`),
 > „E-Auto-Dashboard" die **E-Auto-Fläche** (`v4/EAutoHubBloecke.tsx`). Die Backend-Route heißt
-> weiterhin `api/routes/investitionen/dashboards.py`. Die Skizzen darunter beschreiben den
+> weiterhin `api/routes/investitionen/dashboard_wallbox.py` und `dashboard_eauto.py`. Die Skizzen darunter beschreiben den
 > **Inhalt**, nicht das heutige Layout — wer sie umsetzt, tut das im Hub und nach Regel 0a.
 
 ### Wallbox-Dashboard
@@ -606,10 +606,10 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 > `EmobFakten.ladung_pv_kwh`/`ladung_netz_kwh`. Von **achtzehn** Lesestellen sahen sie **vier**:
 >
 > - **„Der Komponenten-Hub zeigt statt 0 % einen Wert"** traf eine **andere** Sicht — *Auswertungen
->   → Komponenten* (`cockpit/komponenten.py`). Der **Hub** selbst (`investitionen/dashboards.py`)
+>   → Komponenten* (`cockpit/komponenten.py`). Der **Hub** selbst (`investitionen/dashboard_wallbox.py`, `dashboard_eauto.py`)
 >   liest `InvestitionMonatsdaten` direkt und blieb bei 0 %.
 > - **„Die E-Auto-Ersparnis steigt"** traf **keine** Sicht. Alle drei Ersparnis-Rechner
->   (`cockpit/uebersicht.py`, `investitionen/dashboards.py`, `aussichten.py`) poolen die Rohzeilen
+>   (`cockpit/uebersicht.py`, `investitionen/dashboard_eauto.py` und `dashboard_wallbox.py`, `aussichten.py`) poolen die Rohzeilen
 >   neu; keiner las `EmobFakten.ladung_netz_kwh`.
 > - **„Die E-Mob-Netzladung in der CO₂-Bilanz sinkt"** war die einzige zutreffende Aussage.
 >
