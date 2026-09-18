@@ -360,6 +360,16 @@ db.commit()
 # RICHTIG: if val is not None:
 ```
 
+### Schreibrouten committen vor der Antwort (N-530)
+
+```python
+@router.post("/")
+async def create_x(data: XCreate, db: AsyncSession = Depends(get_db, scope="function")):  # RICHTIG
+async def create_x(data: XCreate, db: AsyncSession = Depends(get_db)):                    # FALSCH bei POST/PUT/PATCH/DELETE
+```
+
+`get_db` committet im Teardown der Dependency. Mit dem FastAPI-Default `scope="request"` läuft der erst, **nachdem** die Antwort gesendet ist — ein sofortiger Folgeaufruf sah die eben angelegte Zeile in 0,4 % der Fälle nicht (gemessen 18.09.2026, N-530: 4 und 5 von 600 Runden POST → GET ohne Pause; der Setup-Wizard kettet genau so). `scope="function"` zieht den Teardown vor das Senden. Leserouten bleiben beim Default (streamende Exporte lesen ihre Session während des Sendens). Wächter: `test_n530_schreibrouten_commit_vor_antwort.py` (baumweit, Baseline 0, prüft auch die Gegenrichtung).
+
 ### Investitions-Kennwerte nur über den SoT-Helper (ADR-002/P3-a)
 
 SoT ist `eedc/backend/core/investition_kennwerte.py`:

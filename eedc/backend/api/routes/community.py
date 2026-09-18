@@ -79,7 +79,7 @@ async def get_share_preview(
 @router.post("/share/{anlage_id}", response_model=ShareResponse)
 async def share_to_community(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Überträgt anonymisierte Anlagendaten an den Community-Server.
@@ -259,7 +259,7 @@ async def get_nachsende_status(db: AsyncSession = Depends(get_db)):
 @router.delete("/delete/{anlage_id}", response_model=DeleteResponse)
 async def delete_from_community(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Löscht die geteilten Daten vom Community-Server.

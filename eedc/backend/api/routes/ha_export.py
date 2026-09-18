@@ -2012,7 +2012,7 @@ async def get_mqtt_config(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/mqtt/auto-publish")
-async def set_auto_publish(payload: AutoPublishRequest, db: AsyncSession = Depends(get_db)):
+async def set_auto_publish(payload: AutoPublishRequest, db: AsyncSession = Depends(get_db, scope="function")):
     """Schaltet den automatischen Export (Auto-Publish) ein/aus — B7-5b.
 
     Schreibt den DB-Settings-Key ``mqtt_export``; ENV bleibt reiner Fallback für
@@ -2063,7 +2063,7 @@ async def get_sensor_abwahl(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/mqtt/abwahl")
-async def set_sensor_abwahl(payload: AbwahlRequest, db: AsyncSession = Depends(get_db)):
+async def set_sensor_abwahl(payload: AbwahlRequest, db: AsyncSession = Depends(get_db, scope="function")):
     """Speichert die Abwahl und nimmt die neu abgewaehlten Topics zurueck.
 
     **Der Entscheid dahinter (Gernot, 28.08.):** Alle Sensoren bleiben per Default
@@ -2409,7 +2409,7 @@ async def get_sensor_definitions():
 @router.post("/mqtt/test")
 async def test_mqtt_connection(
     config: Optional[MQTTConfigRequest] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Testet die MQTT-Verbindung zum Broker (gemeinsamer Broker, B7-5)."""
     mqtt_config = await resolve_broker_config(
@@ -2430,7 +2430,7 @@ async def test_mqtt_connection(
 async def publish_sensors_mqtt(
     anlage_id: int,
     config: Optional[MQTTConfigRequest] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Publiziert alle Sensoren einer Anlage via MQTT Discovery.
@@ -2496,7 +2496,7 @@ async def publish_sensors_mqtt(
 async def remove_sensors_mqtt(
     anlage_id: int,
     config: Optional[MQTTConfigRequest] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Entfernt alle EEDC-Sensoren einer Anlage aus Home Assistant.

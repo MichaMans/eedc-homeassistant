@@ -227,7 +227,7 @@ async def save_monatsabschluss(
     monat: int,
     daten: MonatsabschlussInput,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Speichert Monatsdaten.

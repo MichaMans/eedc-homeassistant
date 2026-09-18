@@ -511,7 +511,7 @@ async def _export_anlage_full_impl(anlage_id: int, db: AsyncSession):
 async def import_json(
     file: UploadFile = File(...),
     ueberschreiben: bool = Query(False, description="Existierende Anlage mit gleichem Namen überschreiben"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ) -> JSONImportResult:
     """
     Importiert eine Anlage aus einer JSON-Export-Datei.

@@ -848,7 +848,7 @@ async def get_pvgis_optimum(
 async def speichere_pvgis_prognose(
     anlage_id: int,
     system_losses: float = DEFAULT_LOSSES,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Ruft PVGIS Prognose ab und speichert sie in der Datenbank.
@@ -1052,7 +1052,7 @@ async def get_aktive_prognose(
 @router.put("/prognose/{prognose_id}/aktivieren")
 async def aktiviere_prognose(
     prognose_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Aktiviert eine gespeicherte Prognose.
@@ -1091,7 +1091,7 @@ async def aktiviere_prognose(
 @router.delete("/prognose/{prognose_id}")
 async def loesche_prognose(
     prognose_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Löscht eine gespeicherte Prognose.
@@ -1179,7 +1179,7 @@ async def get_horizont(
 async def upload_horizont_datei(
     anlage_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Lädt eine PVGIS Horizont-Datei hoch und speichert das Profil.
@@ -1209,7 +1209,7 @@ async def upload_horizont_datei(
 @router.post("/horizont/{anlage_id}/abrufen", response_model=HorizontStatusResponse)
 async def abrufe_horizont_von_pvgis(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Ruft das Horizontprofil vom PVGIS-Server ab (DEM-Geländedaten).
@@ -1258,7 +1258,7 @@ async def abrufe_horizont_von_pvgis(
 @router.delete("/horizont/{anlage_id}")
 async def loesche_horizont(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Löscht das benutzerdefinierte Horizont-Profil einer Anlage."""
     anlage = await db.get(Anlage, anlage_id)

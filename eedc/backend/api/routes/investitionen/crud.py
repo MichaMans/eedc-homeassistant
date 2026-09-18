@@ -182,7 +182,7 @@ async def get_investition(investition_id: int, db: AsyncSession = Depends(get_db
     return inv
 
 @router.post("/", response_model=InvestitionResponse, status_code=status.HTTP_201_CREATED)
-async def create_investition(data: InvestitionCreate, db: AsyncSession = Depends(get_db)):
+async def create_investition(data: InvestitionCreate, db: AsyncSession = Depends(get_db, scope="function")):
     """
     Erstellt eine neue Investition.
 
@@ -290,7 +290,7 @@ async def _validate_parent_child(
 async def update_investition(
     investition_id: int,
     data: InvestitionUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Aktualisiert eine Investition.
@@ -400,7 +400,7 @@ async def _raeume_innengeraete_zuordnungen(
         flag_modified(anlage, "sensor_mapping")
 
 @router.delete("/{investition_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_investition(investition_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_investition(investition_id: int, db: AsyncSession = Depends(get_db, scope="function")):
     """
     Löscht eine Investition.
 

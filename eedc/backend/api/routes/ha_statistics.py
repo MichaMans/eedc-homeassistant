@@ -854,7 +854,7 @@ async def get_import_vorschau(
 async def import_ha_statistics(
     anlage_id: int,
     request: ImportRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db, scope="function")
 ):
     """
     Importiert HA-Statistik-Daten in EEDC Monatsdaten.

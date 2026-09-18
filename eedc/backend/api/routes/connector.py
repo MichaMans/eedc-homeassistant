@@ -208,7 +208,7 @@ async def test_connection(req: ConnectorTestRequest):
 async def setup_connector(
     anlage_id: int,
     req: ConnectorSetupRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Connector für eine Anlage einrichten und initialen Snapshot speichern.
@@ -311,7 +311,7 @@ async def get_connector_status(
 async def set_connector_mapping(
     anlage_id: int,
     req: ConnectorMappingRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Ordnet die Mess-Kategorien des Connectors Investitionen zu.
 
@@ -397,7 +397,7 @@ async def _reload_bridge(db: AsyncSession) -> None:
 @router.post("/fetch/{anlage_id}")
 async def fetch_meters(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Zählerstand manuell vom Gerät ablesen.
@@ -423,7 +423,7 @@ async def fetch_meters(
 @router.delete("/{anlage_id}")
 async def remove_connector(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Geräte-Connector einer Anlage entfernen.
 
