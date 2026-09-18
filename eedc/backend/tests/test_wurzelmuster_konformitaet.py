@@ -2087,7 +2087,8 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # WP, E-Mob, BKW und die sechs Sonstiges-Mengen kommen aus
     # `lade_monats_fakten`. Selbst geladen wird nur noch die Zuordnung
     # `inv → verbrauch_daten` für die Financial-Zeile JE Investition.
-    "backend/api/routes/aktueller_monat/__init__.py::get_aktueller_monat",
+    # Vorlage 2 (18.09.2026): die IMD-Ladung des T-Kontos zog aus dem Endpunkt nach finanzen.py.
+    "backend/api/routes/aktueller_monat/finanzen.py::t_konto_je_investition",
     "backend/api/routes/aussichten.py::get_finanz_prognose",
     "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
     "backend/api/routes/ha_export.py::calculate_anlage_sensors",

@@ -211,7 +211,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ),
     (TYP_ANLAGE, "gaspreis_cent_kwh"): (
         _a(KOMP_WP, "services/wp_wirtschaftlichkeit.py", "berechne_wp_ersparnis"),
-        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
+        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/finanzen.py", "finanzen_des_monats"),
     ),
     (TYP_ANLAGE, "strompreis"): (
         # Der dynamische Börsenpreis — Live-Kachel und die stündliche Mitschrift,
