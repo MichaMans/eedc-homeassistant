@@ -390,8 +390,9 @@ erfasst — ohne das Gerät als Wechselrichter umdeklarieren zu müssen. So geht
 | Deine Anlage | Erfassen als | Warum |
 |---|---|---|
 | Stecker-Solargerät, alle Module gleich ausgerichtet | **Balkonkraftwerk** allein | Ein Gerät, ein Datensatz. Der Mikro-Wechselrichter braucht keine eigene Investition. |
-| Stecker-Solargerät, Module je zur Hälfte Ost und West | **Balkonkraftwerk** allein, Ausrichtung „Ost-West (gemischt)" | Der 50/50-Split trifft genau diesen Fall — der kürzeste Weg. |
-| Stecker-Solargerät, Module in **mehreren** Richtungen oder **ungleich** verteilt (Balkon + Terrasse) | **Balkonkraftwerk + zugeordnete PV-Module** | Jede Richtung bekommt ihre eigene Prognose, das Gerät bleibt in eedc ein Balkonkraftwerk. |
+| Stecker-Solargerät, Module in verschiedenen Richtungen, der Wechselrichter liefert **nur einen Gesamtwert** | **Balkonkraftwerk** allein, Ausrichtung „Ost-West (gemischt)" | Aus einem Gesamtwert lässt sich nur der 50/50-Split machen. Getrennte Module brächten hier nur eine geschätzte Verteilung. |
+| Stecker-Solargerät, der Wechselrichter liefert **die Strings getrennt** (je ein Sensor in Home Assistant, bei Standalone per MQTT) | **Balkonkraftwerk + zugeordnete PV-Module**, je String Ausrichtung und Neigung | Jeder String bekommt sein eigenes SOLL in PVGIS und Wetterprognose und seinen eigenen IST-Wert. Der Vergleich zeigt dann den schwachen String, nicht nur die Summe. **Sobald die Messung das hergibt, ist das der bessere Weg.** |
+| Stecker-Solargerät, Module **ungleich** verteilt (Balkon + Terrasse) | **Balkonkraftwerk + zugeordnete PV-Module** | Jede Richtung bekommt ihre eigene Prognose, das Gerät bleibt in eedc ein Balkonkraftwerk. |
 | Dachanlage, mehrere Strings | **Wechselrichter + PV-Module** | Der Regelfall. |
 
 **Was das Balkonkraftwerk abgibt, sobald Module zugeordnet sind:** **Nennleistung, Ausrichtung und

@@ -306,15 +306,17 @@ class StammdatenChecks:
         pv_module = [i for i in anlage.investitionen if i.typ == "pv-module" and i.ist_aktiv_an(heute)]
         hat_bkw = any(i.typ == "balkonkraftwerk" and i.ist_aktiv_an(heute) for i in anlage.investitionen)
         if not pv_module:
-            if hat_bkw:
-                # BKW-only Setup: kein Fehler, nur Hinweis
-                ergebnisse.append(CheckErgebnis(
-                    kategorie=kat, schwere=CheckSeverity.INFO,
-                    meldung="Nur Balkonkraftwerk, keine PV-Module angelegt",
-                    details="PVGIS-Prognose und String-Vergleich sind ohne PV-Module nicht verfügbar",
-                    link="/einstellungen/investitionen",
-                ))
-            else:
+            # N-526 (Kai2, T89667 #345): hier stand seit #37 (22.03.) ein
+            # INFO-Hinweis "Nur Balkonkraftwerk, keine PV-Module angelegt -
+            # PVGIS-Prognose und String-Vergleich sind ohne PV-Module nicht
+            # verfuegbar". Beides ist seit #367 (v4.0.9) bzw. F-10 (07.08.)
+            # falsch: ein Balkonkraftwerk bekommt sein eigenes PVGIS-SOLL und
+            # ist im Vergleich eine Zeile wie ein String. Ein Anwender las den
+            # Satz als "deine Module fehlen". Es fehlt nichts, also keine
+            # Meldung - kein Ersatztext, eedc ist nicht die PV-Polizei
+            # (Gernot, 18.09.2026). Der ERROR darunter bleibt fuer Anlagen ohne
+            # jeden Erzeuger.
+            if not hat_bkw:
                 ergebnisse.append(CheckErgebnis(
                     kategorie=kat, schwere=CheckSeverity.ERROR,
                     meldung="Keine PV-Module als Investition angelegt",

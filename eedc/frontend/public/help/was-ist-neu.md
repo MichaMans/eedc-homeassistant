@@ -11,6 +11,28 @@
 
 ## v4.0.48 — 19. September 2026
 
+**Balkonkraftwerk: Das Formular zeigt die Wechselrichter-Leistung wieder, und der Daten-Checker verlangt keine PV-Module mehr**
+
+**Betrifft dich das?** Ja, wenn du ein Balkonkraftwerk als Komponente führst
+oder einen Verbrauchszähler (Gas, Wasser, Heizöl) unter „Sonstiges" angelegt hast.
+
+**Was war:** Die Wechselrichter-Leistung des Balkonkraftwerks war gespeichert
+und wirkte in der Prognose, aber das Bearbeiten-Formular zeigte das Feld beim
+erneuten Öffnen leer. Bei einem Verbrauchszähler standen beim Öffnen immer
+„Gas" und „m³", egal was du gewählt hattest. Und der Daten-Checker meldete
+bei einem Balkonkraftwerk ohne PV-Module, PVGIS-Prognose und String-Vergleich
+seien nicht verfügbar. Das stimmte seit v4.0.9 nicht mehr.
+
+**Was jetzt:** Beide Formulare zeigen die gespeicherten Werte. Die Meldung des
+Daten-Checkers ist weg: Ein Balkonkraftwerk trägt Nennleistung, Ausrichtung
+und Neigung selbst und bekommt sein eigenes Soll. Wann du die Module eines
+Balkonkraftwerks trotzdem einzeln erfassen solltest, sagt das Handbuch unter
+*Einstellungen → 3.5*: immer dann, wenn dein Wechselrichter die Strings
+getrennt liefert. Dann vergleicht eedc jeden String mit seinem eigenen Soll.
+**Du musst nichts tun.**
+
+---
+
 **Die Amortisationskurve zeigt gewachsene Anlagen als Treppe**
 
 **Betrifft dich das?** Ja, wenn du deine Anlage über mehrere Jahre erweitert
