@@ -7,7 +7,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
-## [Unreleased]
+## [4.0.48] - 2026-09-19 — Die Amortisationskurve zeigt gewachsene Anlagen als Treppe
 
 ### Fixed
 
