@@ -277,7 +277,7 @@ def resolve_system_losses(pvgis: Any) -> float:
     Hintergrund: diese Zeile stand als
     `pvgis.system_losses / 100 if pvgis and pvgis.system_losses else 0.14`
     an sechs Read-Sites parallel (prognose_service, prefetch_service,
-    prognosen, aussichten, solar_prognose, energie_profil/views) plus die
+    prognosen, aussichten, solar_prognose, energie_profil/prognose) plus die
     `0.14`-Konstante 5× definiert — bei Drift hätte ein Setup-Wert nur in
     manchen Sichten gewirkt (siehe `feedback_aggregations_drift`).
     """

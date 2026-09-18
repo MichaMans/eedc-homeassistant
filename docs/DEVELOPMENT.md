@@ -440,6 +440,12 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── investitionen/           # Komponenten, ROI, Stilllegung, Kennwerte
     │   │   ├── strompreise.py           # Tarife, Spezialtarife, Gültigkeitsfenster
     │   │   ├── energie_profil/          # Tages-/Stundenprofile, Reaggregation
+    │   │   │   ├── views.py             # Fassade: Router-Bündel + Re-Export (seit 18.09.2026, Vorlage 4)
+    │   │   │   ├── tage.py · serien.py  # Tagesreihen · Stunden-/Serienreihen
+    │   │   │   ├── tag.py · monat.py    # Tag-Detail/-Status · Monatsauswertung + ENERGIE_KATEGORIEN
+    │   │   │   ├── waerme.py · prognose.py · diagnose.py
+    │   │   │   ├── repair.py            # Reparatur-/Schreib-Endpunkte
+    │   │   │   └── _shared.py           # Antwortmodelle, SerieInfo-Auflösung
     │   │   ├── live_dashboard.py        # Live-Kern (Fluss, Tagesverlauf, Börsenpreise)
     │   │   ├── live_mqtt_inbound.py · live_wetter.py
     │   │   ├── mqtt_gateway.py · mqtt_presets.py   # beide unter /api/live eingehängt

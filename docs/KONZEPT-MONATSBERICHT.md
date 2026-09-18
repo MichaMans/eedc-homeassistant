@@ -73,7 +73,7 @@ Keine neue Datenschicht, kein neuer Ort, keine neue Navigation.
 > **Am Code widerlegt, und der Bau ist dem Satz gefolgt.** Negativbeweis über
 > `api/routes/aktueller_monat/__init__.py`: `typisches_tagesprofil` · `peak_netzbezug` ·
 > `peak_einspeisung` · `kategorien` → **je 0 Treffer**. Diese Größen liegen in
-> `energie_profil/views.py::get_monatsauswertung` (`:873`), die Tagesreihe des *Verlaufs* im
+> `energie_profil/monat.py::get_monatsauswertung` (bis 18.09.2026 in `views.py`), die Tagesreihe des *Verlaufs* im
 > Service `services/energie_profil/tage_werte.py::baue_tage_werte`. **Sechs der vierzehn
 > Anzeigen der Monatsfläche speisen sich also aus zwei anderen Quellen** (fünf aus der
 > Monatsauswertung, der Verlauf aus den Tageswerten) — der Bestand hat **eine** Quelle

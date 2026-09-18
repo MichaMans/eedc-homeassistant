@@ -2193,8 +2193,8 @@ _P10_ZEILE_ERLAUBT: frozenset[str] = frozenset({
     _P10_SCHICHT,
     # Der Builder selbst nimmt die Eingabe entgegen.
     "backend/services/finanz_zeilen.py",
-    # Tages-Pfad (§4).
-    "backend/api/routes/energie_profil/views.py",
+    # Tages-Pfad (§4). Vorlage 4 (18.09.2026): die Zeile entsteht in `get_tag_detail`, heute `tag.py`.
+    "backend/api/routes/energie_profil/tag.py",
     "backend/services/energie_profil/tage_werte.py",
 })
 
@@ -2513,7 +2513,7 @@ P11_AUSNAHMEN: frozenset[str] = frozenset({
     # Altbestands. `orientierungs_gruppen` trägt den Selektor.
     "backend/services/verbrauchsprognose_heute.py::verbrauchsprognose_heute",
     "backend/services/energie_profil/archiv_nachzug.py::wetter_nachziehen_bereich",
-    "backend/api/routes/energie_profil/views.py::get_tagesprognose",
+    "backend/api/routes/energie_profil/prognose.py::get_tagesprognose",
     "backend/services/prognose_kanon.py::pv_invs_im_horizont",
     # ⭐ N-386 (2026-09-04): dieselbe Kategorie, aber aus dem ZEITGRUND, den
     # die Fehlermeldung dieses Wächters selbst nennt („der Selektor läuft NACH
@@ -2890,7 +2890,7 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     # und wird an `abgrenzungs_grund` gereicht — P12 hält, dass daraus nie eine
     # rohe Division wird.
     "backend/services/monats_fakten.py::falte",                   # zählt luft_luft/luft_wasser je Block
-    "backend/api/routes/energie_profil/views.py::get_tag_detail", # dieselbe Frage je Tag
+    "backend/api/routes/energie_profil/tag.py::get_tag_detail",   # dieselbe Frage je Tag (Vorlage 4: views.py → tag.py)
     # Vorlage 2 (18.09.2026): die R2-/SOLL-3.2b-Abgrenzung zog aus dem Endpunkt nach waerme.py.
     "backend/api/routes/aktueller_monat/waerme.py::waerme_klima_monat",
     "backend/api/routes/cockpit/komponenten.py::get_komponenten_zeitreihe",

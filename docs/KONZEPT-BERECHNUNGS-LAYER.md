@@ -51,7 +51,8 @@ KONSUMENTEN (alle importieren aus core/berechnungen):
   services/daten_checker.py            (✓ migriert 2026-05-19)
   api/routes/prognosen.py              (✓ geprüft 2026-07-28)
   api/routes/energie_profil/repair.py  (✓ geprüft 2026-07-28)
-  api/routes/energie_profil/views.py   (✓ geprüft 2026-07-28)
+  api/routes/energie_profil/views.py   (✓ geprüft 2026-07-28; seit 18.09.2026 sieben Module
+                                        tage · waerme · tag · serien · monat · diagnose · prognose)
   api/routes/live_wetter.py            (✓ geprüft 2026-07-28)
   services/live_history_service.py     (✓ geprüft 2026-07-28)
   services/live_komponenten_builder.py (✓ geprüft 2026-07-28)

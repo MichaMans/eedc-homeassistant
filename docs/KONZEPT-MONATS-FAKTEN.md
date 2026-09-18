@@ -212,7 +212,7 @@ Als neue **ADR-002/P10** eintragen, mit „gesichert durch"-Spalte.
 >    Obergrenze ist damit eine Gleichheit geworden — die Liste bleibt leer,
 >    ein neuer Eintrag eröffnet die Schuld neu.
 >
-> Der **Tages-Pfad** (`energie_profil/views.py`, `energie_profil/tage_werte.py`)
+> Der **Tages-Pfad** (`api/routes/energie_profil/tag.py::get_tag_detail`, `services/energie_profil/tage_werte.py`)
 > baut eine `FinanzZeileEingabe` und ist trotzdem klassifizierte Ausnahme: seine
 > Mengen kommen aus `bilanz_aus_stundenrows`, `jahr`/`monat` trägt er nur für den
 > Tarif-Stichtag (P8) und §51. Ihn auf die Schicht zu ziehen wäre kein Fix,

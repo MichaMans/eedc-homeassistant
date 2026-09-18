@@ -176,10 +176,10 @@ gebildete Differenz.
 > **Abdeckung je Achse in Stunden** (`pv_stunden` · `verbrauch_stunden` ·
 > `einspeisung_stunden` · `netzbezug_stunden`) und dazu die beiden
 > Paar-Abdeckungen; `eigenverbrauch` und `autarkie` werden **unterdrückt**,
-> sobald die Grundlagen auseinanderlaufen. `energie_profil/views.py` trägt
-> dieselbe Regel (der frühere Befund `:590`, heute `:997`).
+> sobald die Grundlagen auseinanderlaufen. `energie_profil/monat.py::get_monatsauswertung`
+> trägt dieselbe Regel (der frühere Befund `views.py:590`; seit 18.09.2026 in `monat.py`).
 >
-> ⚠ Die zweite genannte Stelle (`views.py:1400`, heute `:1830`) gehört **nicht**
+> ⚠ Die zweite genannte Stelle (`views.py:1400`, heute `prognose.py::get_tagesprognose`) gehört **nicht**
 > zu dieser Klasse: sie summiert eine **Prognose**, kein Messfeld — dort gibt es
 > keine Abdeckungsfrage. Am 29.08. gemessen und abgegrenzt.
 

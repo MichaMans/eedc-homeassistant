@@ -59,7 +59,8 @@ def neg_preis_einspeisung_tageswert(
     zweite Rundreise für eine Auskunft, die schon vorliegt. Sie sollen deshalb
     **nicht** an diesem Service vorbeigehen: bis 2026-08-03 lasen
     ``services/energie_profil/tage_werte.py`` und
-    ``api/routes/energie_profil/views.py`` die Spalte roh, und der Tages-Erlös
+    ``api/routes/energie_profil/views.py`` (heute ``tage.py`` und ``monat.py``)
+    die Spalte roh, und der Tages-Erlös
     wurde dadurch auch bei Anlagen gekürzt, die dem §51 **nicht** unterliegen
     (Rainer-Meldung 2026-08-02: 45 kWh Einspeisung, 1,86 € statt ~3,7 €).
     Der Rohwert selbst wird bewusst **immer** geschrieben
