@@ -1873,7 +1873,7 @@ class _RohMonat:
             # N-266: ein abtretendes BKW steht hier NICHT. Beide Leser dieses
             # Felds addieren es neben `pv_je_modul` — der String-Vergleich des
             # PDF (dort ist das BKW seit E2 keine eigene Zeile mehr) und die
-            # ROI-Gewichtung in `aussichten.py` (`_erz_gewichte` + `_bkw_gewichte`).
+            # ROI-Gewichtung in `aussichten/finanzen.py` (`_erz_gewichte` + `_bkw_gewichte`).
             # Dort wäre es die Doppelzählung ein zweites Mal, auf der Geldachse.
             if not hat_abgetreten:
                 self.bkw_je_investition[inv.id] = (

@@ -1421,7 +1421,7 @@ P7_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # Dito — die Erzeugungs-Gewichte der Ertrags-Zerlegung (§8/5): der
     # Einspeise-Erlös wird nach GEMESSENER Erzeugung je ROI-Zeile verteilt,
     # und genau dafür ist `pv_je_modul` die vorgeschriebene Quelle.
-    "backend/api/routes/aussichten.py::_wert",
+    "backend/api/routes/aussichten/finanzen.py::_wert",   # Vorlage 7 (18.09.2026): aussichten.py → aussichten/finanzen.py
     # Import-/Connector-/Parser-DTOs auf dem Weg IN die Datenbank. Sie tragen
     # den Wert, bevor es eine Monatsdaten-Zeile gibt — eine Auflösung wäre dort
     # gegenstandslos.
@@ -1629,7 +1629,7 @@ def test_p7_baseline_ausnahmen_sind_noch_belegt():
 #                               Kennwerte; alle Monats-Summen laufen seit S4
 #                               über `fakt.tarif` bzw. `baue_finanz_zeile`,
 #                               beide mit dem Monats-Stichtag (ADR-002/P10).
-#   aussichten.py             — Hochrechnung + ausgewiesener Tarif der
+#   aussichten/finanzen.py    — Hochrechnung + ausgewiesener Tarif der
 #                               Response; die Historie läuft über
 #                               `_tarife_fuer_stichtag`.
 #   speicher_sizing_service.py — Der Sizing-Simulator (#358 Phase 3) bewertet
@@ -1678,7 +1678,7 @@ P8_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # Anzeige des aktuellen Tarifs + Komponenten-Kennwerte.
     "backend/api/routes/cockpit/uebersicht.py::get_cockpit_uebersicht",
     # Hochrechnung + ausgewiesener Tarif der Response.
-    "backend/api/routes/aussichten.py::get_finanz_prognose",
+    "backend/api/routes/aussichten/finanzen.py::get_finanz_prognose",   # Vorlage 7 (18.09.2026): aussichten.py → aussichten/finanzen.py
     # Sizing-Simulator (#358 Phase 3): bewertet einen ZUKAUF, keinen Altmonat.
     "backend/services/speicher_sizing_service.py::lade_sizing_auswertung",
 })
@@ -2091,7 +2091,7 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # `inv → verbrauch_daten` für die Financial-Zeile JE Investition.
     # Vorlage 2 (18.09.2026): die IMD-Ladung des T-Kontos zog aus dem Endpunkt nach finanzen.py.
     "backend/api/routes/aktueller_monat/finanzen.py::t_konto_je_investition",
-    "backend/api/routes/aussichten.py::get_finanz_prognose",
+    "backend/api/routes/aussichten/finanzen.py::get_finanz_prognose",   # Vorlage 7 (18.09.2026): aussichten.py → aussichten/finanzen.py
     "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
     "backend/api/routes/ha_export.py::calculate_anlage_sensors",
     "backend/api/routes/ha_export.py::calculate_investition_sensors",

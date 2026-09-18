@@ -332,7 +332,7 @@ async def t_konto_je_investition(*, _zt_cache, allgemein_tarif, anlage_id, db, e
             # **Vorjahres**-Aufruf desselben Helfers filtert seit jeher
             # (`_emob_aktiv`, weiter oben), und `komponenten_geraete` zwölf
             # Zeilen darüber nennt sich ausdrücklich „deckungsgleich mit der
-            # Aggregation (ist_aktiv_im_monat)". `aussichten.py` rechnet die
+            # Aggregation (ist_aktiv_im_monat)". `aussichten/finanzen.py` rechnet die
             # historischen Betriebskosten ebenfalls über die tatsächliche
             # Laufzeit — dort steht seit dem Bau „die vier Sichten waren
             # darüber uneins". Dies war die vierte.

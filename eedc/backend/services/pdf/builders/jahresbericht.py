@@ -438,7 +438,7 @@ async def build_jahresbericht_context(
     # klein, Rendite und Amortisation im PDF zu hoch, und die Zahl widersprach
     # denselben vier Sichten, die sie längst über den SoT bilden (Cockpit →
     # Übersicht `uebersicht.py:641` unter demselben Variablennamen, ROI
-    # `crud.py:1520`, Aussichten `aussichten.py:1242`, Wallbox-Hub).
+    # `crud.py:1520`, Aussichten `aussichten/finanzen.py:1242`, Wallbox-Hub).
     investition_mehrkosten = relevante_kosten_aus_investitionen(investitionen)
     betriebskosten_jahr = sum(i.betriebskosten_jahr or 0 for i in investitionen)
 

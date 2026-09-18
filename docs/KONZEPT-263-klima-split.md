@@ -272,7 +272,7 @@ Sie hat nichts mit der Bauart zu tun — sie trennt **teilen von multiplizieren*
 | | darf abgeleitete Wärme verwenden? | Stellen |
 | --- | --- | --- |
 | **teilt** Wärme durch Strom → JAZ/COP | **nein** — sonst kommt exakt die gepflegte JAZ heraus, eine Zahl, die nichts misst | `dashboard_waermepumpe.py::get_waermepumpe_dashboard` (drei Stellen, bis 18.09.2026 `dashboards.py:824/:967/:970`) · `cockpit/komponenten.py:203` · `cockpit/uebersicht.py:451` · `ha_export.py:1449` · `pdf/jahresbericht.py:470` |
-| **multipliziert** Wärme mit Preis / η / CO₂-Faktor | **ja**, mit Kennzeichnung | `gas_kosten_altanlage` · `co2_wp_ersparnis_kg` · `alternativkosten.py` · `aussichten.py` |
+| **multipliziert** Wärme mit Preis / η / CO₂-Faktor | **ja**, mit Kennzeichnung | `gas_kosten_altanlage` · `co2_wp_ersparnis_kg` · `alternativkosten.py` · `aussichten/finanzen.py` |
 
 Eine Luft-Wasser-WP **ohne** Wärmemengenzähler fällt unter dieselbe Regel; eine Luft-Luft-WP **mit**
 Zähler ist gemessen wie jede andere.

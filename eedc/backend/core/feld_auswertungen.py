@@ -182,11 +182,11 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
            "get_komponenten_tageskwh", "pv_gesamt"),
     ),
     (TYP_ANLAGE, "globalstrahlung_kwh_m2"): (
-        _a(COCKPIT_AUSSICHT, "api/routes/aussichten.py", "get_langfrist_prognose"),
+        _a(COCKPIT_AUSSICHT, "api/routes/aussichten/prognose.py", "get_langfrist_prognose"),
         _a(AUSW_TABELLE, "api/routes/monatsdaten.py", "MonatsdatenBase"),
     ),
     (TYP_ANLAGE, "sonnenstunden"): (
-        _a(COCKPIT_AUSSICHT, "api/routes/aussichten.py", "get_kurzfrist_prognose"),
+        _a(COCKPIT_AUSSICHT, "api/routes/aussichten/prognose.py", "get_kurzfrist_prognose"),
         _a(AUSW_TABELLE, "api/routes/monatsdaten.py", "MonatsdatenBase"),
     ),
     (TYP_ANLAGE, "durchschnittstemperatur"): (

@@ -33,6 +33,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 - **Intern — `api/routes/investitionen/dashboards.py` ist in Typ-Module geteilt (Vorlage 6).** Die 2.747-Zeilen-Datei der Komponenten-Dashboards ist Code 1:1 umgezogen: je ein Modul `dashboard_<typ>.py` für E-Auto, Wärmepumpe, Speicher, Wallbox, Balkonkraftwerk und Sonstiges, dazu `dashboard_basis.py` (Preis-Mittelung, Monatsdaten-Antwortmodell). `dashboards.py` behält die typunabhängigen Sichten (Monatsdaten je Monat, CO2-Amortisation, Hub-Leer-Grund), hängt die Typ-Router an ihrer bisherigen Stelle ein und exportiert die bisherigen Namen weiter. ⚠ **Keine Zahl und keine Anzeige ändern sich** — belegt mit dem Golden Master der Investitionen, der jetzt auch alle Dashboards mit Preis-Overrides, die Monatsdaten je Monat, CO2-Amortisation und Hub-Leer-Grund vergleicht, der vollen Suite und dem HAOS-Lab.
 
+- **Intern — `api/routes/aussichten.py` ist ein Paket (Vorlage 7).** Die 2.619-Zeilen-Datei ist in sechs Module geteilt, Code 1:1 umgezogen: `finanzen.py` (die Finanz-Prognose hinter *Auswertungen → Finanzen*), `prognose.py` (kurzfristig, langfristig), `trend.py`, `wetter.py`, `schemas.py` (die Antwortmodelle) und `basis.py` (Konstanten, Anlagen-Lader). Die Fassade exportiert jeden bisherigen Namen weiter, kein Aufrufer ändert sich. ⚠ **Keine Zahl und keine Anzeige ändern sich** — belegt mit einem neuen Golden Master über alle fünf Aussichten-Endpunkte (`plans/skript-golden-master-aussichten.py`, drei Bestände bitgleich), der vollen Suite und dem HAOS-Lab.
+
 ---
 
 ## [4.0.47] - 2026-09-18 — Der Monatsabschluss sendet wieder, der Community-Vergleich rechnet gleich auf beiden Seiten — und die Ersparnis kennt den Preis der vermiedenen Stunden

@@ -1272,7 +1272,7 @@ class StammdatenChecks:
                     # (rapahl, PN 91806). Es gibt zwei mit fast gleichem Namen,
                     # und beide zu Recht:
                     #   • `lade_durchschnittspreis_cent` — Stammdaten-Annahme,
-                    #     aus der Prognose und ROI rechnen (`aussichten.py`,
+                    #     aus der Prognose und ROI rechnen (`aussichten/finanzen.py`,
                     #     `investitionen/roi.py`). DAS prüft diese Zeile.
                     #   • `speicher_ladepreis_cent` — der gemessene Monatswert,
                     #     im Monatsabschluss erfassbar und per Sensor füllbar

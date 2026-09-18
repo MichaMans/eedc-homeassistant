@@ -34,7 +34,8 @@ KASKADE_NOCH_NICHT: dict[str, str] = {
     # Prognose nach vorn: bewertet künftige Monate, für die es weder einen
     # Abschluss noch Stundenpreise gibt. Die Messung hätte dort nichts zu
     # sagen — hier steht sie am ehesten zu Recht aus.
-    "backend/api/routes/aussichten.py": "Prognose nach vorn, keine Messdaten künftiger Monate",
+    # Vorlage 7 (18.09.2026): die Finanz-Prognose zog aus aussichten.py nach aussichten/finanzen.py.
+    "backend/api/routes/aussichten/finanzen.py": "Prognose nach vorn, keine Messdaten künftiger Monate",
     # Einzelne Monatszeile über `GET /monatsdaten/{id}` — liefert die Rohwerte
     # der Zeile, nicht die aufbereitete Sicht.
     "backend/api/routes/monatsdaten.py": "Rohwert-Route, eigene Bedeutung",

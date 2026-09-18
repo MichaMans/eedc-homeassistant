@@ -9,7 +9,7 @@ Sicht.
 Bis 04.08. taten sie das nicht. Es gab **drei** Antworten auf „was hat die
 Anlage relevant gekostet?":
 
-- `aussichten.py` und `cockpit/uebersicht.py`: eine **Hybrid-Summe**
+- `aussichten/finanzen.py` und `cockpit/uebersicht.py`: eine **Hybrid-Summe**
   `PV-System voll + WP-/eAuto-Mehrkosten + Sonstiges voll`, deren Mehrkosten aus
   `inv.parameter["alternativ_kosten_euro"]` kamen — einem Schlüssel, der
   baumweit **keinen Schreiber** hat (N-134) und deshalb immer auf die

@@ -15,7 +15,7 @@ kleinen Nenner und damit eine **zu hohe Rendite und Amortisation** im PDF.
 
 **Vier Sichten rechnen die Größe über den SoT** — Cockpit → Übersicht
 (``uebersicht.py:641``, dort sogar unter demselben Variablennamen), ROI
-(``investitionen/roi.py::get_roi_dashboard``), Aussichten (``aussichten.py:1242``) und der Wallbox-Hub.
+(``investitionen/roi.py::get_roi_dashboard``), Aussichten (``aussichten/finanzen.py:1242``) und der Wallbox-Hub.
 Der Jahresbericht war der fünfte Ort und der einzige mit einer eigenen Form.
 
 Die Zusicherung lautet deshalb nicht „die Zahl ist 20.000", sondern **„die Zahl

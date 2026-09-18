@@ -278,7 +278,7 @@ class AbwahlRequest(BaseModel):
 
 # F-17: Pool-Kontext + Monats-Share liegen seit 2026-08-08 im Layer-SoT
 # (`services/eauto_wirtschaftlichkeit`). Sie standen hier privat — und waren
-# damit für `aussichten.py` unerreichbar, das als einzige der fünf E-Mob-Sichten
+# damit für `aussichten/finanzen.py` unerreichbar, das als einzige der fünf E-Mob-Sichten
 # gar keine Pool-Attribution hatte. Die Namen bleiben lokal gebunden, damit die
 # Aufrufstellen unverändert lesbar sind.
 _EmobPoolCtx = EmobPoolCtx

@@ -432,7 +432,11 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   ├── api/routes/
     │   │   ├── aktueller_monat/         # Cockpit → Monat — Paket seit 18.09.2026: __init__ (Router, Sammler, Endpunkt als Orchestrator, Antwort) · schemas · vergleich · tkonto · aggregation · finanzen · waerme · komponenten
     │   │   ├── anlagen.py               # Anlagen-CRUD + Anlagenfoto
-    │   │   ├── aussichten.py            # Prognose-Aussichten (Kurz/Lang/Trend/Finanzen)
+    │   │   ├── aussichten/              # Prognose-Aussichten — Paket seit 18.09.2026 (Vorlage 7)
+    │   │   │   ├── __init__.py          # Fassade: Router-Bündel + Re-Export
+    │   │   │   ├── prognose.py · trend.py · wetter.py   # kurzfristig/langfristig · Trend · Wettervorhersage
+    │   │   │   ├── finanzen.py          # Finanz-Prognose (Auswertungen → Finanzen)
+    │   │   │   └── schemas.py · basis.py   # Antwortmodelle · Konstanten, Anlagen-Lader
     │   │   ├── prognosen.py             # Prognose-Vergleich, Genauigkeits-Tracking
     │   │   ├── cockpit.py + cockpit/    # Übersicht · Komponenten · Nachhaltigkeit · Jahr
     │   │   ├── monatsdaten.py           # Monatsdaten-CRUD + Aggregation
