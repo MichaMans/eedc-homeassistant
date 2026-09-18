@@ -13,7 +13,6 @@ from backend.core.berechnungen.kapitalrechnung import jahres_ersparnis_euro
 from backend.models.investition import ERTRAGSFELD_TYPEN
 from backend.api.routes.strompreise import (
     lade_tarife_fuer_anlage,
-    resolve_einspeise_preis_cent,
     resolve_netzbezug_preis_cent,
     resolve_strompreis_for_komponente,
 )
@@ -38,7 +37,6 @@ from backend.services.eauto_wirtschaftlichkeit import (
     emob_month_share,
 )
 from backend.core.wirtschaftlichkeit_defaults import (
-    EINSPEISEVERGUETUNG_DEFAULT_CENT,
     NETZBEZUG_DEFAULT_CENT,
 )
 from datetime import date
@@ -55,7 +53,11 @@ async def finanz_zeilen_und_tarife(
     monatsdaten,
 ):
     """Betriebskosten und Jahres-Ertrag der heute aktiven Investitionen (N-228, §8/2), die Finanz-Zeilen je Monat über
-    `baue_finanz_zeile` (P8/P10) und die Tarif-Closures für die rückblickenden Schleifen.
+    `baue_finanz_zeile` (P8/P10) und die Tarif-Closure `_tarife_fuer_stichtag` für die rückblickenden Schleifen.
+
+    18.09.2026 (Nebenfund aus Vorlage 7b): die zweite Closure `_monats_tarif` samt ihrem Lookup `_md_by_periode` ist
+    entfernt — sie hatte seit `766b73b8` (die E-Auto-Historie bewertet ihre Ladung über den Layer mit dem Preis ihres
+    Monats) keinen Aufrufer mehr; den #392-Vergütungs-Override der Altmonate trägt seither `baue_finanz_zeile`.
 
     Aus `get_finanz_prognose` Zeilen 536-655 (Stand vor dem Umzug) byte-identisch herausgeloest — Vorlage 7b.
     """
@@ -140,10 +142,6 @@ async def finanz_zeilen_und_tarife(
         finanz_zeilen.append(_zeile)
         finanz_zeilen_je_jahr[f.jahr].append(_zeile)
 
-    # #392: die Monatszeilen für den Vergütungs-Override in `_monats_tarif` —
-    # ein Lookup je Periode, dieselben Zeilen wie oben geladen.
-    _md_by_periode = {(md.jahr, md.monat): md for md in monatsdaten}
-
     async def _tarife_fuer_stichtag(jahr: int, monat: int) -> dict:
         """Kompletter Tarifsatz des Monats (allgemein + WP/Wallbox).
 
@@ -156,28 +154,6 @@ async def finanz_zeilen_und_tarife(
             )
         return _tarif_cache[stichtag]
 
-    async def _monats_tarif(jahr: int, monat: int) -> tuple[float, float]:
-        """(Arbeitspreis, Einspeisevergütung) des Monats in ct/kWh.
-
-        Für die RÜCKBLICKENDEN Schleifen unten. Die Modul-Variablen
-        `netzbezug_preis`/`einspeiseverguetung` tragen den HEUTE gültigen Tarif
-        — richtig für die Hochrechnung nach vorn, falsch für einen Altmonat:
-        eine Preiserhöhung hätte die gesamte E-Auto-Historie rückwirkend
-        umgerechnet, während die Finanz-Zeilen daneben korrekt je Monat rechnen
-        (dieselbe Klasse wie der Jahresbericht-Drift, Forum simon42 #89667/60).
-        Teilt sich `_tarif_cache` mit `baue_finanz_zeile` → keine Extra-Queries.
-        """
-        m_allgemein = (await _tarife_fuer_stichtag(jahr, monat)).get("allgemein")
-        return (
-            m_allgemein.netzbezug_arbeitspreis_cent_kwh if m_allgemein else NETZBEZUG_DEFAULT_CENT,
-            # #392: der gepflegte Monatssatz der variablen Vergütung schlägt
-            # den Stammwert des Monats-Tarifs (rückblickend; die Hochrechnung
-            # nach vorn nimmt weiter den heutigen Stammwert).
-            resolve_einspeise_preis_cent(
-                _md_by_periode.get((jahr, monat)),
-                m_allgemein.einspeiseverguetung_cent_kwh if m_allgemein else EINSPEISEVERGUETUNG_DEFAULT_CENT,
-            ),
-        )
     _loc = locals()  # nur gebundene Namen zurueckgeben — ein bedingt gesetzter Name bleibt sonst UnboundLocal
     return {k: _loc[k] for k in ("_tarife_fuer_stichtag", "betriebskosten_ges", "bisherige_eauto_ersparnis", "bisherige_ertraege", "ertrag_jahr_ges", "finanz_zeilen", "finanz_zeilen_je_jahr",) if k in _loc}
 
