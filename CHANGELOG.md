@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Die Break-Even-Kurve in *Auswertungen → ROI* zeichnet gewachsene Anlagen als Treppe** (gemeldet von **Radiocarbonat**, Forum). Bisher stand der gesamte Kapitaleinsatz ab der frühesten Anschaffung, und die heutige Jahres-Einsparung lief von dort linear — wer über Jahre erweitert hat, las ein zu frühes Jahr; die Fußzeile nannte es „eher optimistisch". Jetzt zählt jede Komponente ihre Mehrkosten und ihre Netto-Jahres-Einsparung ab ihrem eigenen Anschaffungsjahr, sonstige Ausgaben heben und sonstige Erträge senken die Linie im Jahr ihrer Buchung, und das Break-Even-Jahr in der Kachel „Amortisation" ist der Schnittpunkt genau dieser Reihe. Die Reihe rechnet das Backend (`kapitalrechnung.amortisations_verlauf`), der Client zeichnet nur noch. Die **Dauer in Jahren** bleibt wie bisher (Kapitaleinsatz ÷ heutige Jahres-Einsparung); HA-Sensoren, PDF und Aussichten sind unberührt. Benannte Grenze: ein PV-System hat eine gemeinsame Einsparung, ein später ergänztes Modulfeld stuft nur die Kosten (N-525).
+
+---
+
 ## [4.0.47] - 2026-09-18 — Der Monatsabschluss sendet wieder, der Community-Vergleich rechnet gleich auf beiden Seiten — und die Ersparnis kennt den Preis der vermiedenen Stunden
 
 ### Fixed

@@ -5,7 +5,6 @@ CRUD Endpoints für Investitionen (E-Auto, Wärmepumpe, Speicher, etc.).
 """
 
 from dataclasses import dataclass
-import math
 from typing import Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -778,6 +777,10 @@ class ROIBerechnung(BaseModel):
     # `relevante_kosten` behält seine Bedeutung (Mehrkosten = USt-Grundlage,
     # N-137). Default für Altbestand/Tests, die die Zeile direkt bauen.
     kapitaleinsatz: float = 0.0
+    # N-525: das Jahr, ab dem diese Zeile in der Kalender-Treppe zählt — bei
+    # einem PV-System die früheste Anschaffung seiner Komponenten. None ohne
+    # gepflegtes Datum (dann zählt die Zeile ab `basis_jahr` bzw. Index 0).
+    anschaffungsjahr: Optional[int] = None
     jahres_einsparung: float
     roi_prozent: Optional[float]
     amortisation_jahre: Optional[float]
@@ -963,6 +966,16 @@ def _bkw_pauschal_beitrag(
     )
 
 
+class AmortisationsVerlaufJahr(BaseModel):
+    """Ein Jahr der Break-Even-Kurve (N-525): Kapitaleinsatz als Treppe, Einsparung
+    kumuliert — beides aus `kapitalrechnung.amortisations_verlauf`, der Client
+    zeichnet nur. `jahr` ist ein Kalenderjahr, oder ein Index ab 0, wenn keine
+    Komponente ein Anschaffungsdatum trägt (`basis_jahr` None)."""
+    jahr: int
+    kapitaleinsatz_kumuliert_euro: float
+    einsparung_kumuliert_euro: float
+
+
 class ROIDashboardResponse(BaseModel):
     """Gesamte ROI-Übersicht für eine Anlage."""
     anlage_id: int
@@ -986,6 +999,12 @@ class ROIDashboardResponse(BaseModel):
     # Anschaffungsdatum gepflegt ist bzw. die Amortisation offen bleibt.
     basis_jahr: Optional[int] = None
     gesamt_amortisation_jahr: Optional[int] = None
+    # N-525: die Kurve selbst. Jede ROI-Zeile zählt Kosten und Einsparung ab
+    # ihrem Anschaffungsjahr, sonstige Ausgaben/Erträge im Jahr ihrer Buchung.
+    # `gesamt_amortisation_jahr` ist seither der Schnittpunkt DIESER Reihe
+    # (F-19: Kachel und Kurve nennen dasselbe Jahr), nicht mehr basis + ⌈Dauer⌉ —
+    # beides fällt nur bei einer Anlage zusammen, die auf einmal gebaut wurde.
+    amortisations_verlauf: list[AmortisationsVerlaufJahr] = []
     # Konzept §5/§8-6 — die Annahme hinter der Gesamt-Dauer, aus demselben
     # Layer-SoT wie die Zeilen. Sie gilt für Kachel, Break-Even-Kurve und
     # Summenzeile gemeinsam; ohne sie stünde in *Auswertungen → ROI* eine
@@ -1219,6 +1238,9 @@ async def get_roi_dashboard(
         berechne_ust_eigenverbrauch,
     )
     from backend.core.berechnungen.kapitalrechnung import (
+        ErsparnisZeile,
+        KapitalEreignis,
+        amortisations_verlauf,
         annahme_dauer_text,
         jahres_ersparnis_euro,
         kapitaleinsatz_euro,
@@ -1319,6 +1341,10 @@ async def get_roi_dashboard(
     # keine von beiden (SoT `core/berechnungen/kapitalrechnung.py`).
     sonstige_ertraege_by_inv: dict[int, float] = {}
     sonstige_ausgaben_by_inv: dict[int, float] = {}
+    # N-525: dieselben Beträge zusätzlich je (Investition, Jahr) — netto als
+    # Kapital (Ausgabe +, Ertrag −), damit die Kalender-Treppe sie im Jahr ihrer
+    # Buchung stuft statt am Anschaffungsjahr.
+    sonstige_netto_by_inv_jahr: dict[tuple[int, int], float] = {}
     if inv_ids_alle:
         smd_query = select(InvestitionMonatsdaten).where(
             InvestitionMonatsdaten.investition_id.in_(inv_ids_alle)
@@ -1338,6 +1364,10 @@ async def get_roi_dashboard(
                     sonstige_ausgaben_by_inv.get(imd.investition_id, 0.0)
                     + _s["ausgaben_euro"]
                 )
+            _netto = (_s["ausgaben_euro"] or 0.0) - (_s["ertraege_euro"] or 0.0)
+            if _netto:
+                _key = (imd.investition_id, imd.jahr)
+                sonstige_netto_by_inv_jahr[_key] = sonstige_netto_by_inv_jahr.get(_key, 0.0) + _netto
 
     def _sonstige_ertraege_kumuliert_fuer(inv_ids: list[int]) -> float:
         """Sonstige **Erträge** **kumuliert** — sie MINDERN den Nenner.
@@ -1403,6 +1433,51 @@ async def get_roi_dashboard(
     anlage_sonstige_ertraege = sum(
         f.sonstiges.anlage_ertraege_euro for f in _anlage_fakten
     )
+
+    # N-525 — die Kalender-Treppe: Kalender-Anker VOR den Zeilen, damit jede
+    # Zeile ihr Jahr kennt. `basis_jahr` = frühestes Anschaffungsjahr; ohne ein
+    # einziges Datum läuft die Reihe als Index ab 0 (die Achse bleibt Index-
+    # basiert, kein erfundenes Jahr — dieselbe Regel wie bisher).
+    _inst_jahre = [
+        inv.anschaffungsdatum.year for inv in investitionen
+        if inv.anschaffungsdatum is not None
+    ]
+    basis_jahr: Optional[int] = min(_inst_jahre) if _inst_jahre else None
+    kapital_ereignisse: list[KapitalEreignis] = []
+    ersparnis_zeilen: list[ErsparnisZeile] = []
+
+    def _treppen_jahr(*invs) -> int:
+        """Das Jahr einer Zeile: früheste Anschaffung ihrer Komponenten; ohne
+        Datum die Basis (bzw. 0 im Index-Modus)."""
+        if basis_jahr is None:
+            return 0
+        jahre = [i.anschaffungsdatum.year for i in invs if i.anschaffungsdatum is not None]
+        return min(jahre) if jahre else basis_jahr
+
+    def _treppe_zeile(*, invs, kosten_je_inv: dict[int, float], netto_einsparung: float) -> int:
+        """Trägt eine ROI-Zeile in die Treppe ein: relevante Kosten je Komponente
+        ab deren Jahr, sonstige Positionen im Jahr ihrer Buchung, die Netto-
+        Jahres-Einsparung der Zeile ab dem Zeilenjahr. Gibt das Zeilenjahr zurück."""
+        zeilen_jahr = _treppen_jahr(*invs)
+        for i in invs:
+            betrag = kosten_je_inv.get(i.id, 0.0)
+            if betrag:
+                kapital_ereignisse.append(KapitalEreignis(_treppen_jahr(i), betrag))
+        for (inv_id, pos_jahr), betrag in sonstige_netto_by_inv_jahr.items():
+            if betrag and any(inv_id == i.id for i in invs):
+                kapital_ereignisse.append(
+                    KapitalEreignis(pos_jahr if basis_jahr is not None else 0, betrag)
+                )
+        ersparnis_zeilen.append(ErsparnisZeile(zeilen_jahr, netto_einsparung))
+        return zeilen_jahr
+
+    # Anlagenweite Positionen (ohne Investition) im Jahr ihres Monats.
+    for f in _anlage_fakten:
+        _netto = (f.sonstiges.anlage_ausgaben_euro or 0.0) - (f.sonstiges.anlage_ertraege_euro or 0.0)
+        if _netto:
+            kapital_ereignisse.append(
+                KapitalEreignis(f.jahr if basis_jahr is not None else 0, _netto)
+            )
 
     # ==========================================================================
     # Phase 1: Gruppiere Investitionen nach PV-Systemen und Standalone
@@ -2009,6 +2084,18 @@ async def get_roi_dashboard(
         system_netto_einsparung = system_einsparung - system_betriebskosten
         roi_result = berechne_roi(system_kapitaleinsatz, system_einsparung, 0, system_betriebskosten)
         gesamt_betriebskosten += system_betriebskosten
+        # N-525: jede Komponente stuft ihre Mehrkosten ab ihrem Jahr; die
+        # Einsparung des Systems läuft ab seiner ersten Komponente (eine
+        # Jahres-Einsparung je System — ein später ergänztes Modulfeld stuft
+        # die Kosten, nicht die Einsparung; benannte Grenze).
+        system_zeilen_jahr = _treppe_zeile(
+            invs=system_invs,
+            kosten_je_inv={
+                k.investition_id: (k.kosten or 0.0) - (k.kosten_alternativ or 0.0)
+                for k in komponenten
+            },
+            netto_einsparung=system_netto_einsparung,
+        )
 
         # F-33: die Zeile trägt den Typ ihres KOPFES, nicht pauschal
         # "pv-system". Ein Balkonkraftwerk als „PV-System Toni" mit
@@ -2018,6 +2105,7 @@ async def get_roi_dashboard(
         # ein System ist, macht die Komponenten-Liste darunter sichtbar.
         berechnungen.append(ROIBerechnung(
             investition_id=wr.id,  # Kopf-ID als System-ID
+            anschaffungsjahr=system_zeilen_jahr if basis_jahr is not None else None,
             investition_bezeichnung=(
                 wr.bezeichnung if kopf_ist_bkw else f"PV-System {wr.bezeichnung}"
             ),
@@ -2093,10 +2181,15 @@ async def get_roi_dashboard(
         netto_einsparung = jahres_einsparung - betriebskosten
         roi_result = berechne_roi(orphan_kapitaleinsatz, jahres_einsparung, 0, betriebskosten)
         gesamt_betriebskosten += betriebskosten
+        orphan_zeilen_jahr = _treppe_zeile(
+            invs=[inv], kosten_je_inv={inv.id: kosten - alternativ},
+            netto_einsparung=netto_einsparung,
+        )
 
         berechnungen.append(ROIBerechnung(
             investition_id=inv.id,
             investition_bezeichnung=f"{inv.bezeichnung} (ohne WR)",
+            anschaffungsjahr=orphan_zeilen_jahr if basis_jahr is not None else None,
             investition_typ=inv.typ,
             anschaffungskosten=kosten,
             anschaffungskosten_alternativ=alternativ,
@@ -2572,11 +2665,16 @@ async def get_roi_dashboard(
         )
         roi_result = berechne_roi(inv_kapitaleinsatz, jahres_einsparung, 0, betriebskosten)
         gesamt_betriebskosten += betriebskosten
+        inv_zeilen_jahr = _treppe_zeile(
+            invs=[inv], kosten_je_inv={inv.id: kosten - alternativ},
+            netto_einsparung=netto_einsparung,
+        )
 
         berechnungen.append(ROIBerechnung(
             investition_id=inv.id,
             investition_bezeichnung=inv.bezeichnung,
             investition_typ=inv.typ,
+            anschaffungsjahr=inv_zeilen_jahr if basis_jahr is not None else None,
             anschaffungskosten=kosten,
             anschaffungskosten_alternativ=alternativ,
             relevante_kosten=relevante,
@@ -2654,20 +2752,25 @@ async def get_roi_dashboard(
     )
     gesamt_roi = berechne_roi(gesamt_kapitaleinsatz, gesamt_einsparung, 0)
 
-    # Kalender-Anker: Die Kurve modelliert ab „Jahr 0" = der Zeitpunkt, zu dem
-    # investiert wurde. Bei mehreren Investitionen mit verschiedenen Daten ist
-    # das früheste Anschaffungsjahr der einzig sinnvolle Anker — dieselbe
-    # Näherung, die die Kurve mit ihrer konstanten Jahres-Einsparung ohnehin macht.
-    inst_jahre = [
-        inv.anschaffungsdatum.year for inv in investitionen
-        if inv.anschaffungsdatum is not None
+    # N-525: Kalender-Treppe statt Anker + Dauer. Bis 2026-09-18 stand hier
+    # `basis_jahr + ⌈Dauer⌉` — „dieselbe Näherung, die die Kurve ohnehin macht".
+    # Jetzt macht die Kurve sie nicht mehr: der Layer stuft jede Zeile ab ihrem
+    # Jahr, und das Break-Even-Jahr ist der Schnittpunkt dieser Reihe. Für eine
+    # Anlage, die auf einmal gebaut wurde, ist das dieselbe Zahl (Probe im
+    # Layer-Test); für eine gewachsene liegt es später — und stimmt.
+    _verlauf = amortisations_verlauf(
+        kapital=kapital_ereignisse, ersparnis=ersparnis_zeilen,
+    )
+    amortisations_verlauf_zeilen = [
+        AmortisationsVerlaufJahr(
+            jahr=p.jahr,
+            kapitaleinsatz_kumuliert_euro=round(p.kapitaleinsatz_kumuliert_euro, 2),
+            einsparung_kumuliert_euro=round(p.einsparung_kumuliert_euro, 2),
+        )
+        for p in _verlauf.jahre
     ]
-    basis_jahr = min(inst_jahre) if inst_jahre else None
-    amort_jahre = gesamt_roi['amortisation_jahre']
     gesamt_amortisation_jahr = (
-        basis_jahr + math.ceil(amort_jahre)
-        if basis_jahr is not None and amort_jahre is not None
-        else None
+        _verlauf.break_even_jahr if basis_jahr is not None else None
     )
 
     return ROIDashboardResponse(
@@ -2683,6 +2786,7 @@ async def get_roi_dashboard(
         gesamt_amortisation_jahre=gesamt_roi['amortisation_jahre'],
         basis_jahr=basis_jahr,
         gesamt_amortisation_jahr=gesamt_amortisation_jahr,
+        amortisations_verlauf=amortisations_verlauf_zeilen,
         amortisation_annahme=annahme_dauer_text(
             betriebskosten_jahr_euro=gesamt_betriebskosten,
         ),

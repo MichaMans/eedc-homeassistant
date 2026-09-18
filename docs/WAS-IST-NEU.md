@@ -9,6 +9,31 @@
 
 ---
 
+## Unveröffentlicht — kommt mit der nächsten Version
+
+**Die Amortisationskurve zeigt gewachsene Anlagen als Treppe**
+
+**Betrifft dich das?** Ja, wenn du deine Anlage über mehrere Jahre erweitert
+hast — PV zuerst, später Speicher, Wärmepumpe oder Wallbox — und in
+*Auswertungen → ROI* die Break-Even-Kurve liest.
+
+**Was war:** Die Kurve nahm deinen gesamten Kapitaleinsatz ab der frühesten
+Anschaffung und rechnete die heutige Jahres-Einsparung von dort an durch. Sie
+zählte also Geld, das du damals noch nicht ausgegeben hattest, und Einsparung
+von Komponenten, die es damals noch nicht gab. Der Satz darunter nannte das
+Jahr deshalb „eher optimistisch".
+
+**Was jetzt:** Jede Komponente zählt ihre Kosten und ihre Einsparung erst ab
+ihrem eigenen Anschaffungsjahr. Die Investitionslinie steigt bei jeder
+Anschaffung eine Stufe; eine Reparatur hebt sie im Jahr der Buchung, eine
+Förderung senkt sie dort. Das Break-Even-Jahr in der Kachel „Amortisation" ist
+der Schnittpunkt dieser Treppe — bei einer gewachsenen Anlage später als bisher,
+und zwar das richtige Jahr. ⛔ **Die Dauer in Jahren daneben ändert sich nicht**,
+ebenso wenig HA-Sensoren, PDF-Berichte und die Aussichten. Wer alles auf einmal
+gebaut hat, sieht dieselbe Kurve wie zuvor.
+
+---
+
 ## v4.0.47 — 18. September 2026
 
 **Nach dem Monatsabschluss läuft wieder alles nach — und was liegen blieb, wird nachgesendet**

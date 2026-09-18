@@ -1817,9 +1817,21 @@ Wobei `Betriebskosten_Jahr` = `Investition.betriebskosten_jahr` (Wartung, Versic
 > „4.800 € von 12.000 € sind drin". Das ist gewollt und in beiden Tooltips ausgeschrieben; Bedingung
 > ist der **gemeinsame Nenner**, sonst ließen sich die Zahlen nicht ineinander überführen.
 
-> Verteilen sich die Anschaffungen über mehrere Jahre, ist das ausgewiesene Amortisationsjahr
-> **optimistisch** (der Anker ist die *erste* Anschaffung, die Kosten sind die Summe). Der
-> Break-Even-Text sagt das dazu.
+> **Die Break-Even-Kurve ist eine Kalender-Treppe (seit 2026-09-18, N-525).** Jede ROI-Zeile
+> zählt ihre Mehrkosten und ihre Netto-Jahres-Einsparung ab ihrem eigenen Anschaffungsjahr (ein
+> PV-System ab seiner ersten Komponente, seine Kosten je Komponente gestuft), sonstige Ausgaben
+> erhöhen und sonstige Erträge mindern den Kapitaleinsatz im Jahr ihrer Buchung. Das
+> **Break-Even-Jahr** ist das erste Jahr, ab dem die kumulierte Einsparung den kumulierten
+> Kapitaleinsatz dauerhaft nicht mehr unterschreitet — eine spätere Anschaffung kann eine schon
+> amortisierte Anlage wieder unter die Linie drücken. Formel-SoT
+> `core/berechnungen/kapitalrechnung.py::amortisations_verlauf`; der Client zeichnet die Reihe.
+> Die **Dauer** in Jahren bleibt Modell A (Kapitaleinsatz ÷ heutige Jahres-Einsparung); Dauer und
+> Jahr fallen nur bei einer Anlage zusammen, die auf einmal gebaut wurde.
+>
+> *Bis dahin* stand hier: „Verteilen sich die Anschaffungen über mehrere Jahre, ist das
+> ausgewiesene Amortisationsjahr optimistisch (der Anker ist die erste Anschaffung, die Kosten
+> sind die Summe)." Das war die benannte Näherung, die der Kurve seit v4.0.1 unter dem Text stand
+> (Radiocarbonat, T89667 #342).
 
 > **Jede Dauer nennt ihre Annahme (seit 2026-08-10).** Der Fortschritt unterstellt
 > nichts, die Dauer **muss** etwas unterstellen — gewählt ist **Modell A**
