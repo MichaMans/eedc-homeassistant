@@ -36,7 +36,7 @@ BRAUCHT_DEN_SOT = [
     "api/routes/cockpit/komponenten.py",
     "api/routes/investitionen/dashboards.py",
     "api/routes/ha_export.py",
-    "api/routes/aktueller_monat.py",
+    "api/routes/aktueller_monat/__init__.py",
     "core/berechnungen/speicher.py",
     "services/energie_profil/tage_werte.py",
     # N-264: der letzte Pfad mit eigener Semantik (stilles Cap auf 100 %).

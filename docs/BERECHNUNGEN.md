@@ -651,7 +651,7 @@ Ersparnis = PV-Anteil   × (Netzbezug − Einspeisevergütung) / 100
 ```
 
 **SoT:** `core/berechnungen/speicher_wirtschaftlichkeit.py::berechne_speicher_ersparnis`.
-Aufrufer: T-Konto (`aktueller_monat.py::_baue_investition_financial`), Speicher-Dashboard und
+Aufrufer: T-Konto (`aktueller_monat/tkonto.py::_baue_investition_financial`), Speicher-Dashboard und
 Sonstiges-Speicher (`investitionen/dashboards.py`), Aussichten. Gewächtert von
 `test_speicher_kanon_symmetrie.py` (drei Achsen, mit **absoluten** Erwartungen — Symmetrie allein
 ließe auch drei gleich falsche Zahlen durch, Lehre aus N-130).

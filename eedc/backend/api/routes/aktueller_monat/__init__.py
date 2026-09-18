@@ -1,29 +1,34 @@
 """
-Aktueller Monat API Route.
+Aktueller Monat API Route — Paket-Fassade.
 
 Kombiniert Daten aus HA-Sensoren, HA-Statistics, Connectors und gespeicherten
 Monatsdaten zu einer Echtzeit-Übersicht des laufenden Monats.
+
+Seit 18.09.2026 ein Paket (Vorlage 1 des Refactorings grosser Dateien, reiner Umzug):
+- ``schemas.py``   — Antwortmodelle und Konstanten
+- ``vergleich.py`` — Vorjahr, PVGIS-SOLL, Nachtsockel, Tarifaufloesung
+- ``tkonto.py``    — die T-Konto-Zeile je Investition
+- hier            — Router, die fuenf Quellen-Sammler und der Endpunkt
+
+⚠ Endpunkt und Sammler bleiben BEWUSST in dieser Datei: 57 Testpatches setzen Attribute auf
+diesem Modulobjekt (``monkeypatch.setattr(am, "datetime", …)`` und die drei Sammler). Laege der
+Endpunkt in einem Untermodul, traefen die Patches ein Modul, das die Uhr nicht mehr liest —
+die Tests blieben gruen und pruefen nichts. Alle Namen, die Tests und Aufrufer bisher aus dem
+Modul importierten, werden hier weiter exportiert (``__all__``).
 """
 
 import asyncio
 import logging
 from datetime import date, datetime, time, timedelta
-from typing import NamedTuple, Optional
-
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from typing import Optional
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
 from backend.core.exceptions import not_found
 from backend.api.deps import get_db
-from backend.services.waermepumpe_kennzahlen_je_geraet import (
-    lade_kennzahlen_je_geraet,
-)
+from backend.services.waermepumpe_kennzahlen_je_geraet import lade_kennzahlen_je_geraet
 from backend.services.waerme_klima_block import (
-    WpGeraetZeile,
-    WpMoeglichZeile,
     achsen_der_anlage,
     funktions_eingaenge_der_anlage,
     geraete_zeilen,
@@ -34,28 +39,25 @@ from backend.services.waerme_klima_block import (
 from backend.models.anlage import Anlage
 from backend.models.investition import Investition, InvestitionMonatsdaten
 from backend.models.monatsdaten import Monatsdaten
-from backend.services.prognose_auswahl import lade_aktive_monatsprognosen
 from backend.core.berechnungen.zeittarif import hat_zeitfenster
-from backend.services.strompreis_aggregator import (
-    aufgeloester_monatspreis,
-    wirksamer_arbeitspreis_cent,
-)
-from backend.api.routes.strompreise import (
-    lade_tarife_fuer_anlage,
-    resolve_einspeise_preis_cent,
-    resolve_netzbezug_preis_cent,
-)
+from backend.services.strompreis_aggregator import aufgeloester_monatspreis
+from backend.api.routes.strompreise import lade_tarife_fuer_anlage, resolve_einspeise_preis_cent
 from backend.api.routes.connector import _calc_month_delta
 from backend.core.berechnungen.anlagen_kwp import anlagen_kwp
 from backend.core.berechnungen.waermepumpe_kennzahl import (
-    ARBEITSZAHL_FUNKTIONEN, abgrenzung_je_funktion, als_arbeitszahl, hub_hilft,
-    abgrenzungs_grund, arbeitszahl, arbeitszahl_je_funktion, arbeitszahl_kuehlen,
-    heizwaerme_kwh, systemarbeitszahl, waerme_gesamt_kwh,
+    ARBEITSZAHL_FUNKTIONEN,
+    abgrenzung_je_funktion,
+    als_arbeitszahl,
+    hub_hilft,
+    abgrenzungs_grund,
+    arbeitszahl_je_funktion,
+    arbeitszahl_kuehlen,
+    heizwaerme_kwh,
+    systemarbeitszahl,
+    waerme_gesamt_kwh,
 )
 from backend.core.berechnungen import (
     sonstiges_richtung,
-    Monatsfenster,
-    anteilig,
     auslastung_prozent,
     auslastungs_basis_kwh,
     autarkie_prozent,
@@ -63,31 +65,20 @@ from backend.core.berechnungen import (
     monatsfenster,
     berechne_netzbezug_kosten,
     berechne_netzladung_kosten,
-    berechne_speicher_ersparnis,
     eauto_effizienz_100km,
     eigenverbrauchsquote_prozent,
     einspeise_erloes_euro,
     erzeugung_hinter_zaehler_kwh,
     merge_datenquellen,
     spezifischer_ertrag_kwh_kwp,
-    # Alias, weil in `get_aktueller_monat` eine lokale Variable denselben
-    # Namen trägt (der η-Wert selbst).
     speicher_wirkungsgrad as berechne_speicher_wirkungsgrad,
     teilzeitraum_felder,
     vollzyklen as berechne_vollzyklen,
 )
 from backend.core.monatswert_grund import monatswert_grund, monatswert_grund_text
 from backend.services.einspeise_erloes_service import get_neg_preis_einspeisung_monat
-from backend.services.wp_wirtschaftlichkeit import (
-    WP_ERSPARNIS_FORMEL,
-    berechne_wp_ersparnis,
-    wp_ersparnis_berechnung,
-)
-from backend.services.eauto_wirtschaftlichkeit import (
-    attribute_emob_pool_by_km,
-    berechne_eauto_ersparnis,
-    compute_emob_pool_attribution,
-)
+from backend.services.wp_wirtschaftlichkeit import berechne_wp_ersparnis, wp_ersparnis_berechnung
+from backend.services.eauto_wirtschaftlichkeit import compute_emob_pool_attribution
 from backend.services.emob_ladeanteil import reichere_monatszeilen_an
 from backend.services.monats_fakten import (
     MonatsFakt,
@@ -99,72 +90,63 @@ from backend.core.wirtschaftlichkeit_defaults import (
     EINSPEISEVERGUETUNG_DEFAULT_CENT,
     NETZBEZUG_DEFAULT_CENT,
 )
-from backend.core.berechnungen.betriebsart_gemessen import modus_strom_zeile
-from backend.core.betriebsmodus import BETRIEBSART_NUTZENERGIE_FELD
-from backend.core.betriebsmodus import BETRIEBSART_STROM_FELD
-from backend.core.betriebsmodus import HEIZEN as BM_HEIZEN
-from backend.core.betriebsmodus import KUEHLEN as BM_KUEHLEN
-from backend.core.betriebsmodus import MESSBARE_MODI
-from backend.core.betriebsmodus import MODUS_STROM_FELD
+from backend.core.betriebsmodus import (
+    BETRIEBSART_NUTZENERGIE_FELD,
+    BETRIEBSART_STROM_FELD,
+    HEIZEN as BM_HEIZEN,
+    MESSBARE_MODI,
+)
 from backend.core.field_definitions import (
     FEINE_STROM_FELDER,
-    SONSTIGES_ABGABE_LABEL,
     basis_feld_key,
-    get_eauto_ladung_kwh,
-    get_emob_pv_netz_kwh,
-    get_speicher_netzladung_kwh,
     get_wp_strom_kwh,
-    get_wp_warmwasser_kwh,
-    ist_abgabe_kategorie,
     wp_strom_aufteilung,
 )
-from backend.utils.sonstige_positionen import berechne_sonstige_summen
 from backend.core.investition_kennwerte import get_speicher_kapazitaet_kwh
 from backend.core.investition_parameter import ist_dienstlich
+from backend.api.routes.aktueller_monat.schemas import (  # noqa: F401 — Re-Export fuer Tests und Aufrufer
+    AktuellerMonatResponse,
+    DatenquelleInfo,
+    ERLOES_LABEL_EINSPEISUNG,
+    InvestitionFinancialDetail,
+    MONAT_NAMEN,
+    SollPv,
+    SonstigesGeraet,
+)
+from backend.api.routes.aktueller_monat.tkonto import _baue_investition_financial  # noqa: F401
+from backend.api.routes.aktueller_monat.vergleich import (  # noqa: F401
+    _load_grundlast_nacht_kw,
+    _load_soll_pv,
+    _load_vorjahr,
+    _zeittarif_preis,
+)
 
 logger = logging.getLogger(__name__)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# N-267: Zeittarif (HT/NT) in Cockpit → Monat
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# ⛔ Diese Route ist die VIERTE Bildungsstelle des Monatspreises, und das
-# Konzept zu N-267 hat sie zunaechst uebersehen — es nannte drei
-# (`monats_fakten::_lade_tarif`, `finanz_zeilen::baue_finanz_zeile`,
-# `strompreise::monats_strompreis_lookup`). Gefunden erst beim Bau von Z2, an
-# `netzbezug_preis_effektiv_cent`: aus ihm entstehen hier die
-# Netzbezugskosten (`berechne_netzbezug_kosten`), die EV-Ersparnis und das
-# ausgelieferte Feld `netzbezug_preis_cent`. Ohne die Einhaengung haette
-# Cockpit → Monat den Hochtarif genannt, waehrend Cockpit → Jahr daneben den
-# gewichteten Preis zeigt — „zwei Zahlen auf einer Seite", die v4.0.1-Klasse.
-#
-# ⭐ Die Lehre steht schon in `test_zeittarif_ht_nt.py::test_wz1b_*`: JEDE
-# Bildungsstelle braucht ihre eigene Gegenprobe. Die Zaehlung „drei" war eine
-# Behauptung, kein Befund — sie kam aus einem Grep ueber Aufrufer des
-# Resolvers, und diese Route bildet den Preis eine Ebene darueber.
-
-async def _zeittarif_preis(
-    db, anlage_id: int, jahr: int, monat: int, tarif, fallback: float, cache: dict
-) -> float:
-    """Der wirksame Arbeitspreis (ct/kWh) — mit Zeitfenstern gewichtet.
-
-    ``fallback`` gilt, wenn es die Tarifzeile nicht gibt; ohne Fenster liefert
-    der Helfer die Spalte unveraendert zurueck, ohne die Datenbank zu fragen.
-    """
-    if tarif is None or tarif.netzbezug_arbeitspreis_cent_kwh is None:
-        return fallback
-    return await wirksamer_arbeitspreis_cent(
-        db, anlage_id, jahr, monat, tarif, cache=cache
-    )
-
+__all__ = [
+    'AktuellerMonatResponse',
+    'DatenquelleInfo',
+    'ERLOES_LABEL_EINSPEISUNG',
+    'InvestitionFinancialDetail',
+    'MONAT_NAMEN',
+    'SollPv',
+    'SonstigesGeraet',
+    '_baue_investition_financial',
+    '_collect_connector_data',
+    '_collect_ha_statistics_data',
+    '_collect_mqtt_inbound_data',
+    '_collect_saved_data',
+    '_collect_tagesebene_data',
+    '_load_grundlast_nacht_kw',
+    '_load_soll_pv',
+    '_load_vorjahr',
+    '_zeittarif_preis',
+    'datetime',
+    'get_aktueller_monat',
+    'router',
+]
 
 router = APIRouter()
-
-MONAT_NAMEN = [
-    "", "Januar", "Februar", "März", "April", "Mai", "Juni",
-    "Juli", "August", "September", "Oktober", "November", "Dezember",
-]
 
 #: Der Schluessel, unter dem die **Vorausloesung** der Waerme je Geraet ihr
 #: Ergebnis in ``resolved`` ablegt (N-391/D1, 14.09.2026).
@@ -183,496 +165,6 @@ _WP_WAERME_D1_SUFFIX: str = "_waerme_d1_kwh"
 #: ⚠ Dieselbe Warnung wie oben — **kein Registry-Feld**, kein Sensor- oder
 #: MQTT-Name; er lebt nur zwischen ``_wp_strom_k3`` und ``typ_aggregation``.
 _WP_STROM_K3_SUFFIX: str = "_strom_k3_kwh"
-
-
-# =============================================================================
-# Schemas
-# =============================================================================
-
-class DatenquelleInfo(BaseModel):
-    """Quellenangabe für ein einzelnes Feld."""
-    quelle: str          # "ha_sensor" | "local_connector" | "gespeichert"
-    konfidenz: int       # 95, 90, 85
-    zeitpunkt: Optional[str] = None
-    # Zeitraum, den der Wert tatsächlich misst — bisher nur beim Connector
-    # gesetzt, dessen Delta aus zwei Zähler-Snapshots stammt und den Monat
-    # nicht abdecken MUSS (frisch eingerichteter Connector). Leer = Abdeckung
-    # unbekannt bzw. nicht anwendbar.
-    abdeckung_von: Optional[datetime] = None
-    abdeckung_bis: Optional[datetime] = None
-
-
-#: Anzeigename der Erlös-Zeile im Regelfall — BKW und *Sonstiges/Erzeuger*
-#: speisen ins öffentliche Netz ein. Die Kategorie *Abgabe an Dritte* setzt
-#: stattdessen `SONSTIGES_ABGABE_LABEL` (§9.2).
-ERLOES_LABEL_EINSPEISUNG: str = "Einspeisung"
-
-
-class InvestitionFinancialDetail(BaseModel):
-    """Finanzielle Details einer einzelnen Investition für den T-Konto-View."""
-    investition_id: int
-    bezeichnung: str
-    typ: str
-    betriebskosten_monat_euro: float = 0.0
-    #: Der Jahresbetrag, aus dem `betriebskosten_monat_euro` der Zwölftel ist
-    #: (A6: die Kachel nennt „Betriebskosten/Jahr ÷ 12", der Jahreswert stand
-    #: bis 2026-09-13 auf keiner Fläche). Quelle ist dieselbe wie oben —
-    #: `Investition.betriebskosten_jahr`; der Client teilt NICHT selbst.
-    betriebskosten_jahr_euro: float = 0.0
-    erloes_euro: Optional[float] = None      # z.B. BKW-Einspeisung
-    #: Herleitung der Erlös-Zeile. Sie ist NICHT für alle Typen dieselbe: beim
-    #: BKW rechnet eedc `Einspeisung × Vergütung`, bei einem sonstigen Erzeuger
-    #: steht dort ein **gepflegter** Betrag (Konzept §9 Weg 2). Der Client hat
-    #: den Satz bis 2026-09-02 fest verdrahtet und hätte damit für den zweiten
-    #: Fall eine Rechnung behauptet, die niemand angestellt hat (Regel A6:
-    #: Formel **+ eingesetzte Werte**). Wer den Wert bildet, beschreibt ihn.
-    erloes_formel: Optional[str] = None
-    #: Die **eingesetzten Werte** zur Formel darüber (Style-Guide A6: Formel sagt
-    #: WAS gerechnet wird, die Berechnung WOMIT). Bis 2026-09-13 standen beide in
-    #: `erloes_formel` in EINER Zeile („Einspeisung × Einspeisevergütung — 123,4
-    #: kWh × 8,20 ct/kWh") und damit unter der Überschrift „Formel" — an jeder
-    #: anderen Kachel stehen sie getrennt. `None` bei den **gepflegten** Erlösen:
-    #: dort gibt es keine Rechnung, nur eine Herkunftsangabe (Konzept §9 Weg 2).
-    #: ⛔ Der Wert wird hier gebildet, nicht im Client — eine im Client
-    #: nachgerechnete Herleitung führt auf eine andere Zahl als die Zeile daneben.
-    erloes_berechnung: Optional[str] = None
-    #: Anzeigename der Erlös-Zeile („{Gerät} — {erloes_label}"). Kommt aus dem
-    #: Backend statt aus dem Client, weil ihn die **Kategorie** entscheidet:
-    #: ein Gerät der Kategorie *Abgabe an Dritte* trägt keinen Einspeise-Erlös,
-    #: sondern den Erlös des dritten Wegs (§9.2). Der Client hatte „Einspeisung"
-    #: bis 2026-09-06 hart verdrahtet und nannte damit im T-Konto ein Wort, das
-    #: in der Energiebilanz derselben Anlage nicht vorkommt (Melder rilmor-mhrs,
-    #: #402). Regel 0 verlangt für die Geldzeile denselben Namen wie für die
-    #: Energiezeile; Bauform wie `ersparnis_label`.
-    erloes_label: str = ERLOES_LABEL_EINSPEISUNG
-    ersparnis_euro: Optional[float] = None   # Eigenverbrauch, WP, eMob, Speicher, ...
-    ersparnis_label: str = ""                # "Eigenverbrauch-Ersparnis", "Ersparnis vs. Alternative", ...
-    formel: Optional[str] = None
-    berechnung: Optional[str] = None
-    # Sonstige Positionen (z.B. AG-Vergütung Dienstwagen, THG-Quote, Reparaturen).
-    # Werden je Investition aggregiert; Detail-Zeilen rendert das Frontend.
-    sonstige_ertraege_euro: float = 0.0
-    sonstige_ausgaben_euro: float = 0.0
-
-
-class SonstigesGeraet(BaseModel):
-    """Ein einzelnes „Sonstiges"-Gerät mit seinen Energiewerten — für die Sonder-
-    Darstellung im Cockpit: zwei Blöcke (Erzeuger/Verbraucher), darin pro Gerät
-    eine eigene Werte-Zeile mit Bezeichnung."""
-    bezeichnung: str
-    kategorie: str  # "erzeuger" | "verbraucher" | "abgabe" (§9.2)
-    # Abgabe an Dritte (§9.2)
-    abgabe_kwh: Optional[float] = None
-    erloes_euro: Optional[float] = None
-    # Erzeuger
-    erzeugung_kwh: Optional[float] = None
-    eigenverbrauch_kwh: Optional[float] = None
-    einspeisung_kwh: Optional[float] = None
-    # Verbraucher
-    verbrauch_kwh: Optional[float] = None
-    bezug_pv_kwh: Optional[float] = None
-    bezug_netz_kwh: Optional[float] = None
-
-
-class AktuellerMonatResponse(BaseModel):
-    """Aggregierte Übersicht des aktuellen Monats."""
-    anlage_id: int
-    anlage_name: str
-    jahr: int
-    monat: int
-    monat_name: str
-    aktualisiert_um: str
-
-    # Verfügbare Quellen
-    quellen: dict[str, bool]
-    #: Beschriftung für Werte, die weniger enthalten als ihr Name sagt (P4-Form,
-    #: gerendert über `unvollstaendigHerkunft` + `HerkunftZeile`). Leer =
-    #: vollständig. Wird **nur** gefüllt, wenn die PV-Zahl dieses Monats aus der
-    #: gespeicherten Zeile stammt — kommt sie aus Sensor, Connector oder MQTT,
-    #: sagt `pv_vollstaendig` der Monats-Fakten nichts über sie aus.
-    hinweise: list[str] = []
-    #: Warum eine Kachel **leer** bleibt — je Basis-Größe der fertige Satz aus
-    #: `core/monatswert_grund.py` (N-472, W-18-Klasse eine Zeitebene höher).
-    #: Nur für Größen ohne Wert gesetzt; eine Größe mit Zahl steht nicht drin.
-    #:
-    #: ⚠ Bewusst nur die **drei Basis-Größen** (PV · Einspeisung · Netzbezug).
-    #: Autarkie, Eigenverbrauch und Gesamtverbrauch entstehen aus ihnen — an
-    #: jeder abgeleiteten Kachel denselben Grund zu wiederholen wäre genau die
-    #: Strich-Flut, gegen die die D-Sicht gebaut ist (WK-16ab/E-2).
-    datenlage_gruende: dict[str, str] = {}
-
-    # Energie-Bilanz (kWh)
-    pv_erzeugung_kwh: Optional[float] = None
-    einspeisung_kwh: Optional[float] = None
-    netzbezug_kwh: Optional[float] = None
-    eigenverbrauch_kwh: Optional[float] = None
-    direktverbrauch_kwh: Optional[float] = None  # PV direkt verbraucht (ohne Speicher): EV − Speicher-Entladung; günstigster Verbrauch (nur entgangene Einspeisung)
-    gesamtverbrauch_kwh: Optional[float] = None
-
-    # Quoten (%)
-    autarkie_prozent: Optional[float] = None
-    eigenverbrauch_quote_prozent: Optional[float] = None
-    # Spezifischer Ertrag kWh/kWp — gleiche Basis wie der Community-Vergleich
-    # (anlage.leistung_kwp), damit die Abweichung zum Community-Median stimmt.
-    spez_ertrag: Optional[float] = None
-
-    # Komponenten — Speicher
-    speicher_ladung_kwh: Optional[float] = None
-    speicher_entladung_kwh: Optional[float] = None
-    speicher_ladung_netz_kwh: Optional[float] = None   # Arbitrage-Ladung vom Netz
-    # F-22: SoC-KORRIGIERT (nicht der rohe Quotient) — der Ladestand am
-    # Monatsrand ist herausgerechnet und der Wert auf 100 % geklemmt.
-    speicher_wirkungsgrad_prozent: Optional[float] = None
-    speicher_vollzyklen: Optional[float] = None        # Entladung / Kapazität
-    speicher_kapazitaet_kwh: Optional[float] = None    # Aus Investition.parameter
-    # F-22: worauf der η beruht — `soc_korrigiert` (Ladestand herausgerechnet,
-    # der Regelfall) · `roh-unkorrigiert` (kein SoC verfügbar, Wert plausibel
-    # aber ungenau — der Client kennzeichnet ihn) · `fenster-zu-kurz` /
-    # `nicht-ermittelbar` (kein Wert, Grund steht unter der Kachel, ADR-002/P4).
-    speicher_wirkungsgrad_quelle: Optional[str] = None
-    # Etappe C (#264), Bedeutung seit F-22 geschärft: „für diesen Monat ist kein
-    # belastbarer η ermittelbar" — nicht mehr „der SoC ist gedriftet". Drift
-    # allein blendet NICHTS mehr aus, sie wird herausgerechnet; ausgeblendet
-    # wird nur, was ohne SoC-Randwerte und ohne langes Fenster unbestimmbar ist.
-    # Name bleibt für Bestandsclients, die ihn lesen.
-    speicher_soc_drift_signifikant: bool = False
-    speicher_effektiver_ladepreis_cent: Optional[float] = None
-    speicher_effektiver_ladepreis_quelle: Optional[str] = None  # dyn-tarif | boersenpreis
-    # R15-1 (Rainer-Kostenkacheln): Kosten der Netzladung + verwendeter Preis
-    speicher_ladung_netz_kosten_euro: Optional[float] = None
-    speicher_ladung_netz_preis_cent: Optional[float] = None
-    speicher_ladung_netz_preis_quelle: Optional[str] = None  # tep | imd | bezugspreis
-    # #358 Phase 1 — Auslastung und Netto-Nutzen des Zeitraums.
-    # `basis` = Kapazität × Tage (theoretisch verfügbare Menge). Sie steht als
-    # eigenes Feld daneben, damit die Jahres-Sicht Entladung und Basis SUMMIEREN
-    # und einmal teilen kann: Auslastungen mehrerer Monate lassen sich nicht
-    # mitteln (Februar wiegt weniger als Juli). Ohne gepflegte Kapazität bleiben
-    # beide `None` — „unbekannt", nicht 0.
-    speicher_auslastungs_basis_kwh: Optional[float] = None
-    speicher_auslastung_prozent: Optional[float] = None
-    # Σ der Speicher-Ersparnisse des Monats — dieselbe Zahl wie im T-Konto
-    # (Spread-SoT), aufgesammelt statt zweitgerechnet.
-    speicher_ersparnis_euro: Optional[float] = None
-    hat_speicher: bool = False
-
-    # Komponenten — Wärmepumpe
-    wp_strom_kwh: Optional[float] = None
-    wp_waerme_kwh: Optional[float] = None
-    wp_heizung_kwh: Optional[float] = None
-    wp_warmwasser_kwh: Optional[float] = None
-    # ── Arbeitszahl: die Zahl UND ihre Begründung (R2, Befund W-3) ──────────
-    #
-    # ⛔ **Bis 2026-08-26 lieferte diese Response nur `wp_waerme_kwh` und
-    # `wp_strom_kwh`, und der Client bildete den Quotienten selbst.** Er
-    # **konnte** die Sperre nicht kennen, die der Komponenten-Hub und die
-    # Cockpit-Übersicht anwenden — Folge: dieselbe Anlage zeigte im Hub „—"
-    # und im Cockpit eine Zahl. Zwei Sichten, zwei Antworten auf dieselbe
-    # Frage (ADR-001, SOLL §3.3/S1).
-    #
-    # SoT ist `core/berechnungen/waermepumpe_kennzahl.arbeitszahl`.
-    wp_jaz: Optional[float] = None
-    #: Warum es **keine** Arbeitszahl gibt — nie ein „—" ohne Grund (S3).
-    wp_jaz_grund: Optional[str] = None
-    #: Die Zahl existiert, ist aber erklärungsbedürftig (Fall H-B: ein großer
-    #: Teil der Wärme kam direkt elektrisch). **Kein Fehler, keine Bewertung.**
-    wp_jaz_hinweis: Optional[str] = None
-    #: Die beiden Zahlen, aus denen die Arbeitszahl **tatsächlich** entstanden
-    #: ist (kWh) — für die Herleitung an der Kachel.
-    #:
-    #: ⚠ ``wp_jaz_nenner_kwh`` ist **nicht** ``wp_strom_kwh``: der funktions-
-    #: fremde Anteil (Kühlen, Lüften, Entfeuchten) ist abgezogen. Wer die
-    #: Herleitung im Client aus den Anzeigefeldern nachbaut, zeigt bei jeder
-    #: Anlage mit erfasstem Betriebsmodus eine Rechnung, die nicht auf die Zahl
-    #: daneben führt. Deshalb kommen beide aus dem Layer — wie ``grund`` und
-    #: ``hinweis`` (W-3: dieselbe Regel an drei Stellen war der teure Fall).
-    wp_jaz_zaehler_kwh: Optional[float] = None
-    wp_jaz_nenner_kwh: Optional[float] = None
-    #: Ist ein Teil der Wärme aus `Strom × JAZ` gerechnet statt gemessen?
-    #: Gleicher Name wie im Komponenten-Hub (`KomponentenMonat`), damit dieselbe
-    #: Größe in beiden Sichten gleich heißt (S1).
-    wp_waerme_abgeleitet: bool = False
-    #: Steht mindestens eine hier gesperrte Kennzahl im **Komponenten-Hub**?
-    #:
-    #: Der Hub rechnet je Gerät; was aus dem Zusammenspiel MEHRERER Geräte
-    #: entsteht, gibt es dort nicht. Nur dann lohnt der Weg — die Liste der
-    #: Gründe steht im Layer (``GRUENDE_HUB_HILFT``), damit der Client keine
-    #: Grund-Texte vergleichen muss.
-    wp_hub_hilft: bool = False
-    #: **Wie viel** davon gerechnet ist — die Menge neben dem Flag darüber.
-    #:
-    #: ⚠ Das Flag beantwortet „ist *irgendein* Teil gerechnet?" und ist damit
-    #: für eine **Kennzahl** die richtige Auskunft: `jaz_belastbar`
-    #: (`monats_fakten.py`) sperrt alles-oder-nichts, und zwar mit Grund —
-    #: gemessene Wärme durch den **Gesamt**strom geteilt gäbe eine zu kleine
-    #: JAZ, also falsch statt unbekannt.
-    #:
-    #: ⭐ Für eine **Menge** gilt das nicht. Ein Verlauf, der nur gemessene
-    #: Wärme zeigen soll (Konzept Wärme/Klima §8/E7, SOLL §3.3), braucht
-    #: `waerme_kwh − waerme_abgeleitet_kwh` — und das ist bei gemischter Lage
-    #: (Wärmepumpe mit Wärmemengenzähler + Klimaanlage ohne) eine ganz andere
-    #: Aussage als das Flag: dort ist der größte Teil der Wärme gemessen,
-    #: während das Flag bereits True ist. **Zwei Objekte, zwei Regeln.**
-    wp_waerme_abgeleitet_kwh: Optional[float] = None
-    # B4 (05.09.2026, C-2): Herkunft der Wärme und Vorbehalt an Ersparnis/CO₂,
-    # fertig formuliert aus dem Layer (`waermepumpe_kennzahl.waerme_herkunft` /
-    # `ersparnis_vorbehalt`) — dieselben Worte wie im Komponenten-Hub (B3).
-    # SOLL §6 (05.09.): eine geschätzte Wärme erscheint als geschätzt.
-    wp_waerme_herkunft: Optional[str] = None
-    wp_ersparnis_vorbehalt: Optional[str] = None
-    # B6/Y-3: die Rechnung hinter der Zahl, aus dem Layer-Ergebnis — der Client
-    # baut keinen Formeltext mehr selbst (A6, ADR-002/P12).
-    wp_ersparnis_berechnung: Optional[str] = None
-    # #191: Strom-Aufteilung Heizung/Warmwasser. Nur gesetzt wenn mindestens
-    # eine WP-Investition `getrennte_strommessung=true` hat. Sonst None →
-    # Frontend zeigt nur den Gesamtstromverbrauch.
-    wp_strom_heizen_kwh: Optional[float] = None
-    wp_strom_warmwasser_kwh: Optional[float] = None
-    # #263 K-2 (S4): Aufteilung nach Betriebsmodus — **Teilmengen** von
-    # `wp_strom_kwh`, nie Summanden. Alle vier fehlen gemeinsam, wenn kein
-    # Modus erfasst ist (eine 0 hieße „hat nicht geheizt", ADR-002/P4).
-    wp_modus_strom_heizen_kwh: Optional[float] = None
-    wp_modus_strom_kuehlen_kwh: Optional[float] = None
-    #: N-336: die dritte ableitbare Betriebsart. ⚠ **Nicht** dasselbe wie
-    #: `wp_strom_warmwasser_kwh` darüber — das ist ein Summand aus der
-    #: getrennten Strommessung, dies eine Teilmenge des Gesamtstroms.
-    wp_modus_strom_warmwasser_kwh: Optional[float] = None
-    #: E4 (Konzept §2.3): eigene Segmente statt stummer Restmenge. Nur aus
-    #: **gemessenen** Betriebsart-Zählern — der abgeleitete Split kann sie
-    #: nicht und lässt sie bei 0. Sie bekommen keine Kennzahl (*erfassen ja,
-    #: bewerten nein*) und fallen aus dem Nenner der Arbeitszahl.
-    #: W-4 (SOLL §4.1): Arbeitszahl je Funktion — mit ihrem Grund, wenn es sie
-    #: nicht gibt. Erscheint nur bei getrennter Strommessung; ohne sie liegt E
-    #: je Funktion nicht vor und beide tragen denselben Grund.
-    wp_jaz_heizen: Optional[float] = None
-    wp_jaz_heizen_grund: Optional[str] = None
-    wp_jaz_warmwasser: Optional[float] = None
-    wp_jaz_warmwasser_grund: Optional[str] = None
-    #: W-5: Arbeitszahl **Kühlen** (Kältemenge ÷ Kühlstrom). Bewusst nicht
-    #: „SEER" — das ist eine genormte Prüfstandsgröße, dies ein gemessener
-    #: Quotient über einen Zeitraum.
-    wp_jaz_kuehlen: Optional[float] = None
-    wp_jaz_kuehlen_grund: Optional[str] = None
-    #: **E1b (14.09.2026): die anlagenweite Zahl darf eine untere SCHRANKE sein.**
-    #: ``True`` ⇒ ``wp_jaz`` ist ein **Mindestwert** („≥ 3,25"), weil im Nenner
-    #: Strom steht, dem keine gemessene Wärme gegenübersteht (Klimaanlage ohne
-    #: Wärmemengenzähler, Heizstab). Mehr Strom im Nenner kann den Quotienten
-    #: nur kleiner machen — die Aussage bleibt wahr (ADR-002/**P4** verbietet
-    #: falsche Zahlen, nicht wahre Schranken).
-    #:
-    #: ⛔ **Der Client rechnet daraus nichts** — er setzt ein „≥" davor
-    #: (``check:cop-roh``). Die Entscheidung, ob eine Schranke vorliegt, gehört
-    #: in den Layer; im Client wäre sie eine zweite Regel über denselben
-    #: Sachverhalt.
-    wp_jaz_ist_schranke: bool = False
-    #: Der EINE Satz unter der Schranke: *„Klimaanlage: Strom ohne Wärmemessung
-    #: enthalten"*. Er nennt die Ursache, er bewertet nicht.
-    wp_jaz_schranke_hinweis: Optional[str] = None
-    #: **D-Sicht 3: die Kennzahlen JE GERÄT stehen im Block selbst.** Bis
-    #: 14.09.2026 gab es sie nur im Komponenten-Hub, und der Block verwies mit
-    #: einem Link dorthin — bei gemischter Ausstattung blieb der Anwender damit
-    #: vor vier Strichen stehen, obwohl jedes seiner Geräte eine saubere Zahl
-    #: hat. Quelle ist **dieselbe** Rechenstelle wie im Hub
-    #: (``services/waermepumpe_kennzahlen_je_geraet.py``).
-    wp_geraete: list[WpGeraetZeile] = Field(default_factory=list)
-    #: **D-Sicht 1: was die Ausstattung nicht hergibt — einmal je Sicht.**
-    #: Größen ohne Zahl erscheinen nicht mehr als Kachel mit „—", sondern hier,
-    #: mit dem Handgriff und dem Weg dorthin. Ein Grund der Klasse *Zeitraum*
-    #: („kein Heizbetrieb in diesem Zeitraum") steht **nicht** darin — dort gibt
-    #: es nichts zu tun, und die Kachel zeigt ein „—" ohne Text.
-    wp_moeglich: list[WpMoeglichZeile] = Field(default_factory=list)
-    #: Bauschnitt 6b: die **gemessene Kälte** des Monats — dieselbe Menge, die
-    #: die Arbeitszahl Kühlen daneben als Zähler benutzt. ``None`` statt 0,0,
-    #: wo kein Kältemengenzähler etwas gemeldet hat: die Monats-Fakten füllen
-    #: dort 0,0 (`or 0.0`), und eine 0 ohne Zähler ist keine Messung (P4).
-    wp_kaelte_kwh: Optional[float] = None
-    wp_modus_strom_lueften_kwh: Optional[float] = None
-    wp_modus_strom_entfeuchten_kwh: Optional[float] = None
-    #: **R-C (WK-16f, N-398):** die abgegebene Nutzenergie derselben zwei
-    #: Betriebsarten — **nur mit Zahl** (D-Sicht). E4 bleibt: Menge, keine
-    #: Kennzahl. Bis zum 14.09.2026 las diese zwei Registry-Felder niemand.
-    wp_modus_nutzenergie_lueften_kwh: Optional[float] = None
-    wp_modus_nutzenergie_entfeuchten_kwh: Optional[float] = None
-    wp_modus_nicht_aufgeteilt_kwh: Optional[float] = None
-    wp_modus_abdeckung_h: Optional[float] = None
-    #: **W-17b** — die Grundmenge, auf die sich die Aufteilung bezieht.
-    #: Bewusst **nicht** `wp_strom_kwh`: dort steckt auch der Strom von Geraeten
-    #: ohne Modus-Signal. Der Balken steht sonst unter einer Kachel mit einer
-    #: groesseren Zahl, ohne dass die Differenz irgendwo benannt waere
-    #: (dietmar1968, T89667 #210: Balken 30 kWh unter Kachel 284 kWh).
-    wp_modus_strom_bezug_kwh: Optional[float] = None
-    #: #263 — die Aufteilung ist GEMESSEN (Betriebsart-Zähler) statt aus dem
-    #: Betriebsmodus abgeleitet. Dann ist `wp_modus_abdeckung_h` 0, ohne dass
-    #: etwas fehlt — ein Zähler zählt kWh, keine Stunden mit Signal.
-    wp_modus_gemessen: Optional[bool] = None
-    # Issue #169: Kompressor-Starts. Quelle: TagesZusammenfassung.komponenten_starts
-    # über die Tage des Monats, summiert über alle WP-Investitionen.
-    wp_starts_max_tag: Optional[int] = None
-    wp_starts_summe_monat: Optional[int] = None
-    # Issue #238: Betriebsstunden analog zu den Starts (gleiche Counter-Architektur,
-    # Feld `wp_betriebsstunden` in komponenten_starts). Stunden → float.
-    wp_betriebsstunden_max_tag: Optional[float] = None
-    wp_betriebsstunden_summe_monat: Optional[float] = None
-    hat_waermepumpe: bool = False
-
-    # Komponenten — E-Mobilität
-    emob_ladung_kwh: Optional[float] = None
-    emob_km: Optional[float] = None
-    # Ø Verbrauch (kWh/100 km) zentral via core/berechnungen/emob.py (gemessen > Ladung).
-    emob_verbrauch_100km: Optional[float] = None
-    emob_verbrauch_quelle: str = "keine"
-    emob_ladung_pv_kwh: Optional[float] = None       # PV-Anteil der Ladung
-    emob_ladung_netz_kwh: Optional[float] = None     # Netz-Anteil
-    emob_ladung_extern_kwh: Optional[float] = None   # Extern (Ladesäule o.ä.)
-    emob_v2h_kwh: Optional[float] = None             # V2H-Rückspeisung
-    hat_emobilitaet: bool = False
-
-    # Komponenten — BKW
-    bkw_erzeugung_kwh: Optional[float] = None
-    bkw_eigenverbrauch_kwh: Optional[float] = None
-    hat_balkonkraftwerk: bool = False
-
-    # Komponenten — Sonstiges
-    sonstiges_erzeugung_kwh: Optional[float] = None    # Erzeuger-Typ
-    # §9.2 — Abgabe an Dritte: der dritte Weg der Verwendung (nicht im
-    # Eigenverbrauch, nicht in der Netz-Einspeisung).
-    abgabe_dritte_kwh: Optional[float] = None
-    sonstiges_eigenverbrauch_kwh: Optional[float] = None
-    sonstiges_einspeisung_kwh: Optional[float] = None
-    sonstiges_verbrauch_kwh: Optional[float] = None    # Verbraucher-Typ
-    sonstiges_bezug_pv_kwh: Optional[float] = None
-    sonstiges_bezug_netz_kwh: Optional[float] = None
-    # Pro-Gerät-Aufschlüsselung für die Sonder-Darstellung (2 Blöcke Erzeuger/
-    # Verbraucher, darin je Gerät eine eigene Werte-Zeile mit Bezeichnung).
-    sonstiges_geraete: list[SonstigesGeraet] = []
-    hat_sonstiges: bool = False
-
-    # Finanzen (Euro)
-    einspeise_erloes_euro: Optional[float] = None
-    # §51 EEG: was der Abzug gekostet hat. `None` = keine Tages-Aggregate bzw.
-    # Anlage unterliegt nicht §51; `0.0` = betroffen, aber in dem Monat keine
-    # Einspeisung zu Negativpreisen. Der Erlös oben ist bereits gekürzt — ohne
-    # diesen Ausweis bliebe die Kürzung unsichtbar (Versprechen im Anlage-
-    # Formular: „der entgangene Erlös wird im Cockpit als §51-Verlust ausgewiesen").
-    einspeisung_neg_preis_kwh: Optional[float] = None
-    nicht_vergueteter_erloes_euro: Optional[float] = None
-    netzbezug_kosten_euro: Optional[float] = None
-    # Arbeitspreis-Anteil der Netzbezugskosten OHNE Grundpreis
-    # (`netzbezug_kwh × Preis`). Reiner Ausweis für Sichten, die kWh und € so
-    # nebeneinander stellen, dass ein Leser sie dividiert — dort muss der
-    # Ø-Preis herauskommen. Kein zweiter Kostenposten; verrechnet wird
-    # weiterhin ausschließlich `netzbezug_kosten_euro`.
-    netzbezug_arbeitspreis_kosten_euro: Optional[float] = None
-    ev_ersparnis_euro: Optional[float] = None
-    netto_ertrag_euro: Optional[float] = None
-    wp_ersparnis_euro: Optional[float] = None
-    emob_ersparnis_euro: Optional[float] = None
-    # Sonstige Positionen aggregiert (z.B. AG-Vergütung Dienstwagen, THG-Quote,
-    # Reparaturen). Detail-Zeilen pro Investition stehen in
-    # investitionen_financials. Frontend addiert sonstige_netto auf
-    # nettoNachAllem; gesamtnettoertrag enthält sie bewusst NICHT (Backward-Compat).
-    sonstige_ertraege_euro: float = 0.0
-    sonstige_ausgaben_euro: float = 0.0
-    sonstige_netto_euro: float = 0.0
-    # G19-1: davon Anlage-Ebene (Monatsdaten.sonstige_positionen) — reiner
-    # Ausweis für die T-Konto-Zeile „Anlage — Sonstige …", bereits in den
-    # sonstige_*-Totals enthalten (kein zweiter Posten, R15-5-Muster).
-    anlage_sonstige_ertraege_euro: float = 0.0
-    anlage_sonstige_ausgaben_euro: float = 0.0
-    gesamtnettoertrag_euro: Optional[float] = None  # Erlöse + Einsparungen − Kosten
-
-    # Tarif-Info
-    netzbezug_preis_cent: Optional[float] = None      # Verwendeter Tarif
-    # N-267: sagt der Anzeige, dass der Preis daneben ein ueber die Stunden
-    # GEWICHTETER Wert ist und nicht der Arbeitspreis aus den Stammdaten. Ohne
-    # ihn stuende „Netzbezugspreis 26,25" neben einem Tarif, der 30,00 nennt —
-    # und niemand koennte die Differenz erklaeren. Dieselbe Rolle, die
-    # `netzbezug_durchschnittspreis_cent` beim dynamischen Tarif hat.
-    netzbezug_preis_zeittarif: bool = False
-    einspeise_preis_cent: Optional[float] = None
-    netzbezug_durchschnittspreis_cent: Optional[float] = None  # Flexibler Tarif (Monatsdurchschnitt)
-    #: **Der Preis, mit dem das Geld dieses Monats gerechnet wurde** — das
-    #: Ergebnis der vollen Kaskade (`aufgeloester_monatspreis`), zu dem die
-    #: beiden Felder darunter (`_herkunft`, `_abdeckung`) gehören.
-    #:
-    #: ⛔ **Bis 2026-09-17 fehlte er, und das war der Fehler:** Herkunft und
-    #: Abdeckung wurden ausgeliefert, der zugehörige **Wert** nicht. Die Kachel
-    #: zeigte deshalb `netzbezug_durchschnittspreis_cent ?? netzbezug_preis_cent`
-    #: — im laufenden Monat ohne Abschluss also den **Stammpreis**, während die
-    #: Formelzeile darüber „Ø deiner gemessenen Stundenpreise" sagte und die
-    #: Kosten daneben mit dem gemessenen Ø gerechnet waren. Drei Zahlen, eine
-    #: Kachel (OB73-gif, #412-Folgemeldung).
-    #:
-    #: SOLL Flex-Tarife **H-2**: die Beschriftung beschreibt die Zahl daneben.
-    #: `netzbezug_preis_cent` bleibt unverändert der **Tarif**-Wert („Verwendeter
-    #: Tarif") — beide nebeneinander sind eine Aussage, eines allein ist keine.
-    netzbezug_preis_effektiv_cent: Optional[float] = None
-    #: Welche Stufe der Preis-Kaskade gegriffen hat: ``gepflegt`` (abgerechneter
-    #: Ø aus dem Monatsabschluss) · ``gemessen`` (Ø der mitgeschriebenen
-    #: Stundenpreise) · ``zeitfenster`` (HT/NT, über den Netzbezug gewichtet) ·
-    #: ``stamm`` (die Tarifspalte). ⚠ Ohne diese Angabe wäre ein **gemessener**
-    #: Preis in der Anzeige von einem Stammpreis nicht zu unterscheiden — die
-    #: Formel-Zeile der Kachel nannte bis 11.09.2026 beide „Arbeitspreis aus dem
-    #: Strompreis-Tarif" (P4: die Antwort sagt, was sie ist).
-    netzbezug_preis_herkunft: Optional[str] = None
-    #: Anteil der Monatsstunden mit Preisdaten (0..1) — **nur** bei
-    #: ``gemessen``. Ein Ø aus 40 % der Stunden hat dieselbe Herkunft wie einer
-    #: aus 98 %, aber nicht dieselbe Belastbarkeit; im **laufenden** Monat ist
-    #: er zwangsläufig klein (die Abdeckung misst gegen den vollen Monat).
-    netzbezug_preis_abdeckung: Optional[float] = None
-    # G19-1 K3 (R19-3): Grundgebühr des Monats — steckt bereits in
-    # netzbezug_kosten_euro (reiner Ausweis, kein zweiter Posten).
-    grundgebuehr_euro: Optional[float] = None
-    # G19-1 K3: jährliche Zähler-/Messstellengebühr vom Tarif — reiner Ausweis
-    # in der Jahresaufstellung, NICHT in Kosten/Netto-Ertrag verrechnet.
-    zaehlergebuehr_euro_jahr: Optional[float] = None
-
-    # Vergleiche
-    vorjahr: Optional[dict] = None
-    # PVGIS-SOLL des Monats. Im LAUFENDEN Monat nur der Anteil der abgelaufenen
-    # Tage (N-69) — sonst stünde ein voller Monats-Nenner über einem
-    # angefangenen Ertrag. `soll_pv_tage`/`_gesamt` benennen das Fenster, damit
-    # die Anzeige „anteilig" sagen kann statt eine gekürzte Zahl als Monats-SOLL
-    # auszugeben; `tage == tage_gesamt` heißt „voller Monat".
-    soll_pv_kwh: Optional[float] = None
-    soll_pv_tage: Optional[int] = None
-    soll_pv_tage_gesamt: Optional[int] = None
-    # Dasselbe SOLL **ungekürzt** — die Prognose für den ganzen Monat.
-    # Melder dietmar1968 (T89667 #155, 14.08.2026): der Fortschritt gegen die
-    # volle Monatsprognose war ihm wichtig und ist mit N-69 aus der Anzeige
-    # verschwunden. Die Größe steht hier, statt im Client aus `soll_pv_kwh`
-    # zurückgerechnet zu werden: die Kürzung ist zwar linear und damit exakt
-    # umkehrbar, der gelieferte Wert ist aber auf **eine Stelle gerundet**, und
-    # die Umkehrung multipliziert diesen Rest mit `tage_gesamt ÷ tage` — am
-    # Monatsersten das 28- bis 31-Fache (gemessen: 1388,0 statt 1387,9 am 4.).
-    # Im abgeschlossenen Monat ist der Wert identisch mit `soll_pv_kwh`.
-    soll_pv_kwh_monat: Optional[float] = None
-
-    # Grundlast (Nacht-Sockel; R12-1 ersetzt PVGIS-SOLL/IST). `grundlast_kwh` ist
-    # additiv → Cockpit/Jahr summiert die Monate (analog soll_pv_kwh).
-    grundlast_kw: Optional[float] = None              # Median der Nacht-Stunden-Leistung
-    grundlast_kwh: Optional[float] = None             # geschätzte Grundlast-Energie (kW × 24 × Tage)
-    grundlast_anteil_prozent: Optional[float] = None  # Anteil am Gesamtverbrauch
-
-    # Betriebskosten (anteilig, Σ betriebskosten_jahr / 12 aller aktiven Investitionen)
-    betriebskosten_anteilig_euro: Optional[float] = None
-    #: Die beiden Summanden der Zeile darüber (A6). Die T-Konto-Zeile
-    #: „Betriebskosten (anteilig)" erscheint GENAU DANN, wenn es keine
-    #: Per-Investition-Zeilen gibt — der Anwender sieht die Summanden also
-    #: nirgends sonst und braucht die Herleitung dort am nötigsten.
-    betriebskosten_anteilig_jahr_euro: Optional[float] = None
-    betriebskosten_anteilig_anzahl: Optional[int] = None
-
-    # Per-Investition Finanzdetails (für T-Konto)
-    investitionen_financials: list[InvestitionFinancialDetail] = []
-
-    # Aktive Geräte je Typ im Monat (Namen) — macht in aggregierten Blöcken
-    # kenntlich, woraus die Summe besteht (z. B. PV aus mehreren Strings + WR,
-    # E-Mob aus Auto + Wallbox). Deckungsgleich mit der Aggregation (ist_aktiv_im_monat).
-    komponenten_geraete: dict[str, list[str]] = {}
-
-    # Quellenangabe pro Feld
-    feld_quellen: dict[str, DatenquelleInfo] = {}
-
 
 # =============================================================================
 # Datensammlung
@@ -1097,624 +589,9 @@ async def _collect_tagesebene_data(
         resolved["wp_modus_kuehlen_kwh"] = (_kuehl, quelle)
     return resolved
 
-
-# =============================================================================
-# Vergleichsdaten
-# =============================================================================
-
-async def _load_vorjahr(anlage_id: int, investitionen: list[Investition], jahr: int, monat: int, db: AsyncSession) -> Optional[dict]:
-    """Lädt Vorjahres-Monatsdaten für Vergleich (Energie + Finanzen).
-
-    Die **anlagenweiten** Mengen kommen aus den Monats-Fakten (ADR-002/**P10**).
-    Damit fallen drei Divergenzen, die hier als „D6 / IST-Stand erhalten"
-    konserviert waren und den Vorjahresvergleich systematisch zu niedrig
-    zeigten — jede davon ist eine sichtbare Zahl:
-
-    - **PV:** je Modul roh gelesen, **ohne** P7-Auflösung. Wer nur das
-      Anlagen-Aggregat pflegt, hatte im Vorjahr 0 kWh stehen.
-    - **Eigenverbrauch/Autarkie:** handgerechnet **ohne V2H**. Was das E-Auto
-      ins Haus zurückspeist, zählt im laufenden Monat, im Vorjahr nicht.
-    - **E-Mob-Ladung:** ``max(E-Auto, Wallbox)`` je Feld statt der kanonischen
-      Trias aus EINER Quelle (#262) — dieselbe Falle, die der aktuelle Monat
-      längst über ``get_emob_heimladung_canonical`` vermeidet.
-
-    Selbst geladen wird nur noch, was **je Investition** hängt: die eMob-Zeilen
-    des T-Kontos brauchen die Zuordnung ``inv → verbrauch_daten``, die
-    ``MonatsFakt`` mangels per-Investition-Sicht (Register N-2) nicht hergibt.
-    """
-    from datetime import date as date_type
-    vj = jahr - 1
-
-    # Ein Tarif-Cache für beides: die Schicht löst den Stichtag (P8) ohnehin
-    # auf, der Finanzblock unten liest denselben Eintrag statt ein zweites Mal
-    # zu laden.
-    tarif_cache: dict[date, dict] = {}
-    # N-267: eigener Cache je Aufruf — begruendet im Block ueber `_zeittarif_preis`
-    # bzw. ausfuehrlich in `monats_fakten.py` ueber `_komponenten_preis`.
-    _zt_cache: dict = {}
-    fakten_vj = await lade_monats_fakten(
-        db, anlage_id, von=(vj, monat), bis=(vj, monat), tarif_cache=tarif_cache
-    )
-    fakt = fakten_vj[0] if fakten_vj else None
-    # Ohne Zählerzeile gibt es keinen Vergleich — unverändert die Bedingung,
-    # unter der die Route bisher `None` lieferte.
-    if fakt is None or fakt.meta.monatsdaten is None:
-        return None
-    md = fakt.meta.monatsdaten
-
-    result: dict = {
-        "einspeisung_kwh": md.einspeisung_kwh,
-        "netzbezug_kwh": md.netzbezug_kwh,
-        "netzbezug_durchschnittspreis_cent": md.netzbezug_durchschnittspreis_cent,
-        # #392: variable Einspeisevergütung des Vorjahresmonats
-        "einspeise_durchschnittspreis_cent": md.einspeise_durchschnittspreis_cent,
-    }
-
-    if fakt.erzeugung.pv_kwh > 0:
-        result["pv_erzeugung_kwh"] = round(fakt.erzeugung.pv_kwh, 1)
-    if fakt.speicher.ladung_kwh > 0:
-        result["speicher_ladung_kwh"] = round(fakt.speicher.ladung_kwh, 1)
-    if fakt.speicher.entladung_kwh > 0:
-        result["speicher_entladung_kwh"] = round(fakt.speicher.entladung_kwh, 1)
-    if fakt.wp.strom_kwh > 0:
-        result["wp_strom_kwh"] = round(fakt.wp.strom_kwh, 1)
-    if fakt.wp.waerme_kwh > 0:
-        result["wp_waerme_kwh"] = round(fakt.wp.waerme_kwh, 1)
-    if fakt.wp.modus_strom_kuehlen_kwh > 0:
-        result["wp_modus_kuehlen_kwh"] = round(fakt.wp.modus_strom_kuehlen_kwh, 1)
-    if fakt.emob.ladung_kwh > 0:
-        result["emob_ladung_kwh"] = round(fakt.emob.ladung_kwh, 1)
-    if fakt.emob.km > 0:
-        result["emob_km"] = round(fakt.emob.km, 1)
-
-    # Per-Investition: die eMob-Zeilen des T-Kontos brauchen die Zuordnung
-    # `inv → verbrauch_daten`. DI-2-C: Vor-Anschaffungs-/Nach-Stilllegungs-
-    # Monate überspringen — die Anschaffungsdatum-Grenze gilt für ALLE
-    # Auswertungen ([[feedback_anschaffungsdatum_grenze]], #236).
-    imd_data_by_inv_vj: dict[int, dict] = {}
-    emob_inv_ids = [
-        i.id for i in investitionen
-        if i.typ in ("e-auto", "wallbox") and not ist_dienstlich(i)
-    ]
-    if emob_inv_ids:
-        imd_result = await db.execute(
-            select(InvestitionMonatsdaten).where(
-                InvestitionMonatsdaten.investition_id.in_(emob_inv_ids),
-                InvestitionMonatsdaten.jahr == vj,
-                InvestitionMonatsdaten.monat == monat,
-            )
-        )
-        inv_by_id_vj = {i.id: i for i in investitionen}
-        for imd in imd_result.scalars().all():
-            inv = inv_by_id_vj.get(imd.investition_id)
-            if inv is None or not inv.ist_aktiv_im_monat(imd.jahr, imd.monat):
-                continue
-            imd_data_by_inv_vj[imd.investition_id] = imd.verbrauch_daten or {}
-
-        # F-16: auch die Vorjahres-Zeile bekommt den abgeleiteten PV-Anteil.
-        # Sie speist die Vorjahres-eMob-Ersparnis, die in Cockpit → Monat direkt
-        # neben der laufenden steht — ungeteilt daneben wäre der Vergleich eine
-        # Aussage über die Rechenweise statt über das Jahr.
-        _wb_ids_vj = {i.id for i in investitionen if i.typ == "wallbox"}
-        _keys_vj = list(imd_data_by_inv_vj)
-        _daten_vj = await reichere_monatszeilen_an(
-            db,
-            anlage_id,
-            [
-                ((vj, monat), inv_id in _wb_ids_vj, imd_data_by_inv_vj[inv_id])
-                for inv_id in _keys_vj
-            ],
-        )
-        imd_data_by_inv_vj = dict(zip(_keys_vj, _daten_vj))
-
-    # Berechnete Energie-Werte — aus der Schicht, also inkl. V2H (Entladung ins
-    # Haus zählt wie Speicher-Entladung) und inkl. sonstiger Erzeuger hinter dem
-    # Zähler. `pv_erzeugung_kwh` im Result bleibt daneben rein.
-    kz = fakt.kennzahlen
-    einsp = result.get("einspeisung_kwh", 0) or 0
-    netz = result.get("netzbezug_kwh", 0) or 0
-    ev = kz.eigenverbrauch_kwh
-    gv = kz.gesamtverbrauch_kwh
-    result["eigenverbrauch_kwh"] = round(ev, 1)
-    result["direktverbrauch_kwh"] = round(kz.direktverbrauch_kwh, 1)
-    result["gesamtverbrauch_kwh"] = round(gv, 1) if gv > 0 else None
-    result["autarkie_prozent"] = round(kz.autarkie_prozent, 1) if gv > 0 else None
-
-    # Finanzen mit historisch korrektem Tarif berechnen
-    try:
-        stichtag_vj = date_type(vj, monat, 1)
-        tarife_vj = tarif_cache.get(stichtag_vj) or await lade_tarife_fuer_anlage(
-            db, anlage_id, target_date=stichtag_vj
-        )
-        tarif_vj = tarife_vj.get("allgemein")
-        if tarif_vj:
-            netz_preis = await _zeittarif_preis(
-                db, anlage_id, vj, monat, tarif_vj, NETZBEZUG_DEFAULT_CENT, _zt_cache,
-            )
-            # `is not None` statt truthy — dieselbe Regel wie beim Flex-Tarif
-            # vier Zeilen tiefer: seit 08.08.2026 ist **0** die Vorbelegung
-            # eines neuen Tarifs (eedc rät keinen EEG-Satz mehr). Mit `or`
-            # rechnete genau diese Vorjahres-Zeile still mit 8,2 ct weiter,
-            # während alle anderen Sichten 0 nehmen.
-            einsp_preis = (
-                tarif_vj.einspeiseverguetung_cent_kwh
-                if tarif_vj.einspeiseverguetung_cent_kwh is not None
-                else EINSPEISEVERGUETUNG_DEFAULT_CENT
-            )
-            grundpreis = tarif_vj.grundpreis_euro_monat or 0
-            # Flexibler Tarif überschreibt wenn vorhanden. `is not None` statt
-            # truthy: ein Monats-Ø von 0,0 ct ist bei dynamischem Tarif real
-            # (viele Negativpreis-Stunden) und wäre sonst still auf den
-            # Tarifpreis zurückgefallen.
-            if result.get("netzbezug_durchschnittspreis_cent") is not None:
-                netz_preis = result["netzbezug_durchschnittspreis_cent"]
-            # #392: der Vergütungssatz des Vorjahresmonats schlägt den
-            # Stammwert — dieselbe `is not None`-Regel wie zwei Zeilen darüber.
-            if result.get("einspeise_durchschnittspreis_cent") is not None:
-                einsp_preis = result["einspeise_durchschnittspreis_cent"]
-            if einsp > 0:
-                # §51 EEG: Einspeisung in Negativpreis-Stunden ist seit
-                # Solarpaket I unvergütet. Wenn das Tages-Aggregat fehlt
-                # (Anwender ohne Strompreis-Sensor), greift die alte
-                # Berechnung unverändert (None → kein Abzug).
-                m_neg = await get_neg_preis_einspeisung_monat(db, anlage_id, vj, monat)
-                m_erloes = einspeise_erloes_euro(
-                    einspeisung_kwh=einsp,
-                    neg_preis_kwh=m_neg,
-                    verguetung_ct_kwh=einsp_preis,
-                )
-                result["einspeise_erloes_euro"] = round(m_erloes.erloes_euro, 2)
-            if netz > 0:
-                result["netzbezug_kosten_euro"] = round(
-                    berechne_netzbezug_kosten(netz, netz_preis, grundpreis), 2
-                )
-                # Arbeitspreis-Anteil ohne Grundpreis — symmetrisch zum
-                # laufenden Monat, damit die Jahres-Summe beide Felder findet.
-                result["netzbezug_arbeitspreis_kosten_euro"] = round(
-                    netz * netz_preis / 100, 2
-                )
-            if ev > 0:
-                result["ev_ersparnis_euro"] = round(ev * netz_preis / 100, 2)
-            einspeise_e = result.get("einspeise_erloes_euro", 0) or 0
-            ev_e = result.get("ev_ersparnis_euro", 0) or 0
-            netz_k = result.get("netzbezug_kosten_euro", 0) or 0
-
-            # DI-5 (G20-3): gesamtnettoertrag SYMMETRISCH zum aktuellen Monat —
-            # inkl. WP- und E-Mob-Ersparnis. Vorher fehlten beide im Vorjahr →
-            # das T-Konto-Δ verglich Äpfel (Monat mit WP/eMob) mit Birnen
-            # (Vorjahr ohne). Es werden dieselben Leaf-Helfer wie im aktuellen
-            # Monat mit den Vorjahres-Tarifen/-Preisen genutzt (kein Formel-Dupli).
-            monats_gaspreis_vj = md.gaspreis_cent_kwh
-            monats_benzinpreis_vj = md.kraftstoffpreis_euro
-
-            # WP-Ersparnis über die WP-Mengen des Monats — dieselben, die oben
-            # angezeigt werden. Der Filter „nur im Vorjahres-Monat AKTIVE WPs"
-            # (#236/[[feedback_anschaffungsdatum_grenze]]) steckt in der Schicht;
-            # bis C1c stand er hier als zweiter, handgeführter Loop über
-            # dieselben Zeilen und lieferte per Konstruktion dieselbe Summe.
-            wp_waerme_fin = fakt.wp.waerme_kwh
-            wp_strom_fin = fakt.wp.strom_kwh
-
-            wp_ersparnis_vj = 0.0
-            if wp_waerme_fin > 0 and wp_strom_fin > 0:
-                wp_p_vj = await _zeittarif_preis(
-                    db, anlage_id, vj, monat, tarife_vj.get("waermepumpe"),
-                    netz_preis, _zt_cache,
-                )
-                wp_invs_vj = [
-                    i for i in investitionen
-                    if i.typ == "waermepumpe" and i.ist_aktiv_im_monat(vj, monat)
-                ]
-                wp_r_vj = berechne_wp_ersparnis(
-                    wp_waerme_kwh=wp_waerme_fin,
-                    wp_strom_kwh=wp_strom_fin,
-                    wp_strompreis_cent=wp_p_vj,
-                    wp_parameter=wp_invs_vj[0].parameter if wp_invs_vj else None,
-                    monats_gaspreis_cent=monats_gaspreis_vj,
-                    # B5/X-5: E-B auch im Vorjahr — der laufende Monat zog den
-                    # Kühlstrom ab, sein Vergleichswert ein Jahr davor nicht.
-                    strom_kuehlen_kwh=fakt.wp.modus_strom_kuehlen_kwh,
-                )
-                wp_ersparnis_vj = round(wp_r_vj.ersparnis_euro, 2)
-
-            emob_ersparnis_vj = 0.0
-            wb_p_vj = await _zeittarif_preis(
-                db, anlage_id, vj, monat, tarife_vj.get("wallbox"),
-                netz_preis, _zt_cache,
-            )
-            _emob_aktiv = [
-                i for i in investitionen
-                if i.typ in ("e-auto", "wallbox")
-                and not ist_dienstlich(i)
-                and i.ist_aktiv_im_monat(vj, monat)
-                and i.id in imd_data_by_inv_vj
-            ]
-            _ea_data_vj = [imd_data_by_inv_vj[i.id] for i in _emob_aktiv if i.typ == "e-auto"]
-            _wb_data_vj = [imd_data_by_inv_vj[i.id] for i in _emob_aktiv if i.typ == "wallbox"]
-            _emob_pool_attr_vj = compute_emob_pool_attribution(
-                eauto_imd_data=_ea_data_vj,
-                wallbox_imd_data=_wb_data_vj,
-            )
-            for i in _emob_aktiv:
-                _d_vj = _baue_investition_financial(
-                    i,
-                    imd_data_by_inv_vj[i.id],
-                    netz_p=netz_preis,
-                    einsp_p=einsp_preis,
-                    wp_p=netz_preis,     # für eMob-Zweig irrelevant
-                    wb_p=wb_p_vj,
-                    monats_gaspreis=monats_gaspreis_vj,
-                    monats_benzinpreis=monats_benzinpreis_vj,
-                    emob_pool_attr=_emob_pool_attr_vj,
-                )
-                if (
-                    _d_vj is not None
-                    and _d_vj.ersparnis_label == "Ersparnis vs. Verbrenner"
-                    and _d_vj.ersparnis_euro is not None
-                ):
-                    emob_ersparnis_vj += _d_vj.ersparnis_euro
-            emob_ersparnis_vj = round(emob_ersparnis_vj, 2)
-
-            if wp_ersparnis_vj:
-                result["wp_ersparnis_euro"] = wp_ersparnis_vj
-            if emob_ersparnis_vj:
-                result["emob_ersparnis_euro"] = emob_ersparnis_vj
-            if einspeise_e or ev_e:
-                result["gesamtnettoertrag_euro"] = round(
-                    einspeise_e + ev_e + wp_ersparnis_vj + emob_ersparnis_vj - netz_k, 2
-                )
-    except Exception:
-        logger.warning("Vorjahr-Finanzen konnten nicht berechnet werden")
-
-    return result
-
-
-class SollPv(NamedTuple):
-    """Das PVGIS-SOLL eines Monats in seinen zwei Lesarten.
-
-    ``anteilig`` ist die Zahl, gegen die die Erfüllungsquote rechnet (N-69:
-    Nenner auf die abgelaufenen Tage gekürzt). ``monat`` ist dieselbe Prognose
-    **ungekürzt** — der Fortschritts-Bezug, den dietmar1968 vermisst hat
-    (T89667 #155). Beide kommen aus **einem** Datenbank-Zugriff; der volle Wert
-    wird bewusst nicht im Client zurückgerechnet, weil ``anteilig`` gerundet
-    ausgeliefert wird und die Umkehrung den Rundungsrest mit
-    ``tage_gesamt ÷ tage`` multipliziert.
-
-    Im abgeschlossenen Monat sind beide gleich.
-    """
-
-    anteilig: Optional[float]
-    monat: Optional[float]
-
-
-async def _load_soll_pv(
-    anlage_id: int, jahr: int, monat: int, db: AsyncSession, fenster: Monatsfenster,
-) -> SollPv:
-    """Lädt PVGIS SOLL-Wert für den Monat — aus der AKTIVEN Prognose (P5).
-
-    Vorher stand hier ein `JOIN` auf `ist_aktiv` **ohne `limit`** und ein `sum()`
-    darüber: bei zwei aktiven Prognosen kam der Monatswert doppelt zurück (N83).
-    Der Fehler war nicht sichtbar, weil die Summe plausibel aussah — sie war nur
-    doppelt so groß, und die SOLL/IST-Abweichung sowie die Grundlast-SOLL-Kachel
-    rechneten mit. Der Auswahl-SoT trägt das `LIMIT 1` in der Subquery.
-
-    **Im laufenden Monat trägt der Rückgabewert nur die abgelaufenen Tage**
-    (N-69, Entscheid Gernot 2026-08-04): PVGIS liefert eine Monatssumme, der IST
-    daneben ist angefangen. Ungekürzt maß die Erfüllungsquote das Datum statt
-    die Anlage — am 4. August 19 % für eine Anlage, die über die abgeschlossenen
-    Monate auf 119 % kam. Begründung der Kürzung im Layer-Docstring
-    (`core/berechnungen/monatsfenster.py`); die Jahres-Sicht summiert diese
-    Monatswerte und erbt die Korrektur damit ohne eigene Rechnung.
-    """
-    prognosen = await lade_aktive_monatsprognosen(db, anlage_id, monat=monat)
-    if not prognosen:
-        return SollPv(None, None)
-    voll = sum(p.ertrag_kwh for p in prognosen)
-    gekuerzt = anteilig(voll, fenster)
-    return SollPv(
-        anteilig=round(gekuerzt, 1) if gekuerzt is not None else None,
-        monat=round(voll, 1),
-    )
-
-
-async def _load_grundlast_nacht_kw(
-    anlage_id: int, jahr: int, monat: int, db: AsyncSession,
-) -> list[float]:
-    """Nacht-Stunden-Leistungen (0–5 Uhr, verbrauch_kw > 0) des Monats aus dem
-    stündlichen Energieprofil — Sourcing für `berechne_grundlast` (ADR-001:
-    Formel liegt im Berechnungs-Layer, hier nur die Query). Leer, wenn die Anlage
-    keine Stundenprofile hat (dann fällt die Sicht auf PVGIS-SOLL/IST zurück)."""
-    from calendar import monthrange
-    from backend.models.tages_energie_profil import TagesEnergieProfil
-
-    monat_ende = date(jahr, monat, monthrange(jahr, monat)[1])
-    result = await db.execute(
-        select(TagesEnergieProfil.verbrauch_kw).where(
-            TagesEnergieProfil.anlage_id == anlage_id,
-            TagesEnergieProfil.datum >= date(jahr, monat, 1),
-            TagesEnergieProfil.datum <= monat_ende,
-            TagesEnergieProfil.stunde < 5,
-            TagesEnergieProfil.verbrauch_kw.is_not(None),
-            TagesEnergieProfil.verbrauch_kw > 0,
-        )
-    )
-    return [float(w) for w in result.scalars().all()]
-
-
 # =============================================================================
 # Endpoint
 # =============================================================================
-
-def _baue_investition_financial(
-    inv,
-    data: dict,
-    *,
-    netz_p: float,
-    einsp_p: float,
-    wp_p: float,
-    wb_p: float,
-    monats_gaspreis: Optional[float],
-    monats_benzinpreis: Optional[float],
-    emob_pool_attr,
-) -> Optional[InvestitionFinancialDetail]:
-    """Baut das T-Konto-Detail (InvestitionFinancialDetail) EINER Investition.
-
-    Extrahiert aus get_aktueller_monat (Spur A, Refactoring-Plan). Bewusst IM
-    Route-Modul statt core/berechnungen: erzeugt deutsche Anzeige-Strings
-    (label/formel/berechnung) und das Pydantic-Response-Modell — Präsentations-
-    Finanzlogik, kein Aggregat-Σ. Verhaltensneutral 1:1 übernommen.
-
-    Gibt None zurück, wenn die Investition inaktiv ist ODER keinerlei finanzielle
-    Relevanz hat (Inclusion-Guard: weder Betriebskosten noch Ersparnis/Erlös/
-    sonstige Positionen). Preis-/Pool-Kontext wird vom Aufrufer einmal aufgelöst
-    und übergeben.
-    """
-    if not inv.aktiv:
-        return None
-    bk_monat = round((inv.betriebskosten_jahr or 0) / 12, 2)
-    # Sonstige Erträge/Ausgaben (z.B. AG-Vergütung Dienstwagen, THG-Quote)
-    # für JEDE Investition evaluieren — typ-unabhängig, auch wenn der
-    # Wirtschaftlichkeits-Zweig unten übersprungen wird (z.B. ist_dienstlich).
-    inv_sonstige = berechne_sonstige_summen(data)
-    inv_sonstige_ertraege = round(inv_sonstige["ertraege_euro"], 2)
-    inv_sonstige_ausgaben = round(inv_sonstige["ausgaben_euro"], 2)
-    inv_erloes: Optional[float] = None
-    inv_erloes_formel: Optional[str] = None
-    inv_erloes_berechnung: Optional[str] = None
-    #: Default „Einspeisung" — die Abgabe-Kategorie überschreibt ihn unten.
-    inv_erloes_label = ERLOES_LABEL_EINSPEISUNG
-
-    inv_ersparnis: Optional[float] = None
-    inv_label = ""
-    inv_formel: Optional[str] = None
-    inv_berechnung: Optional[str] = None
-
-    if inv.typ == "balkonkraftwerk":
-        ev_kwh = data.get("eigenverbrauch_kwh") or data.get("pv_erzeugung_kwh")
-        einsp_kwh = data.get("einspeisung_kwh")
-        if ev_kwh:
-            inv_ersparnis = round(ev_kwh * netz_p / 100, 2)
-            inv_label = "Eigenverbrauch-Ersparnis"
-            inv_formel = "BKW-Eigenverbrauch × Netzbezugspreis"
-            inv_berechnung = f"{ev_kwh:.1f} kWh × {netz_p:.2f} ct/kWh"
-        if einsp_kwh and einsp_kwh > 0:
-            inv_erloes = round(einsp_kwh * einsp_p / 100, 2)
-            # A6: Formel und eingesetzte Werte in GETRENNTE Felder — beides in
-            # einem Satz stand unter der Überschrift „Formel", während jede
-            # andere Kachel „Berechnung" daneben führt. Kein Wert ändert sich.
-            inv_erloes_formel = "Einspeisung × Einspeisevergütung"
-            inv_erloes_berechnung = (
-                f"{einsp_kwh:.1f} kWh × {einsp_p:.2f} ct/kWh"
-            )
-
-    elif inv.typ == "speicher":
-        entl_kwh = data.get("entladung_kwh")
-        if entl_kwh and entl_kwh > 0:
-            # SPREAD, nicht Voll-Netzbezugspreis (Entscheid Gernot 2026-08-04,
-            # #358 — er bestätigt den Drift-Audit-Entscheid A3, der seit
-            # `core/berechnungen/speicher_wirtschaftlichkeit.py` im Docstring
-            # steht und den ROI und Aussichten längst befolgen). Bis hierher
-            # rechnete das T-Konto `Entladung × Netzbezug` und damit bei 30/8 ct
-            # 36 % über der Zahl, die dieselbe Anlage in der ROI-Sicht trug.
-            #
-            # Begründung: die entladene kWh hätte sonst eingespeist werden
-            # können — die entgangene Vergütung ist eine reale Gegenposition.
-            # Netzgeladene Energie ist davon ausgenommen (sie hätte nie
-            # eingespeist werden können); diese Trennung macht der Layer, nicht
-            # dieser Aufrufer.
-            netzladung = get_speicher_netzladung_kwh(data)
-            lad_kwh = data.get("ladung_kwh") or 0
-            # Gemessener Monats-η, sonst der Layer-Default. Er wirkt nur auf die
-            # Aufteilung der Entladung nach Herkunft, nicht auf den PV-Spread.
-            eta = (entl_kwh / lad_kwh * 100) if lad_kwh > 0 else None
-            erg = berechne_speicher_ersparnis(
-                entladung_kwh=entl_kwh,
-                bezug_preis_cent=netz_p,
-                einspeise_verg_cent=einsp_p,
-                ladung_netz_kwh=netzladung,
-                **({"wirkungsgrad_prozent": eta} if eta is not None else {}),
-                lade_preis_cent=data.get("speicher_ladepreis_cent"),
-            )
-            inv_ersparnis = round(erg.ersparnis_euro, 2)
-            inv_label = "Entladung-Ersparnis"
-            if netzladung > 0:
-                inv_formel = "PV-Anteil × (Netzbezug − Einspeisung) + Netz-Anteil × (Netzbezug − Ladepreis)"
-                inv_berechnung = (
-                    f"{erg.pv_anteil_entladung_kwh:.1f} kWh × {erg.spread_cent_kwh:.2f} ct/kWh"
-                    f" + {erg.netz_anteil_entladung_kwh:.1f} kWh Netz-Anteil"
-                )
-            else:
-                inv_formel = "Speicher-Entladung × (Netzbezugspreis − Einspeisevergütung)"
-                inv_berechnung = f"{entl_kwh:.1f} kWh × {erg.spread_cent_kwh:.2f} ct/kWh"
-
-    elif inv.typ == "waermepumpe":
-        # N-398: dieselbe Weiche wie im Layer — Geraetefeld, sonst die gemessene
-        # Nutzenergie Heizbetrieb. Ohne sie blieb die Zeile „Ersparnis vs.
-        # Alternative" an einer Split-Klimaanlage leer, die ihre Waerme je
-        # Innengeraet misst.
-        waerme = heizwaerme_kwh(data)
-        # N-379: die eine Lesetuer — an einem Geraet ohne Warmwasserkreis ist 0.
-        ww = get_wp_warmwasser_kwh(data, inv.parameter)
-        strom = get_wp_strom_kwh(data, inv.parameter) or None
-        # ⛔ **N-391/D1 (14.09.2026): Gesamtwert vor Summanden, je Geraet.**
-        # Hier stand bis dahin `(waerme or 0) + (ww or 0)`. Traegt der Monat
-        # dieses Geraets EINEN Waermemengenzaehler (`waerme_kwh`), war die
-        # Summe **0** — und die Zeile „Ersparnis vs. Alternative" entstand
-        # wegen der Bedingung darunter **gar nicht**, waehrend der
-        # Komponenten-Hub fuer dieselbe Anlage seit WK-14b eine Ersparnis
-        # nennt. Zwei Sichten, zwei Auskuenfte (SOLL §3.3 S1). Gemessen ueber
-        # die echte Route (`get_aktueller_monat`): Lage B **0** WP-Zeilen,
-        # Lage D eine Zeile mit **33,33 EUR**.
-        waerme_total = waerme_gesamt_kwh(data.get("waerme_kwh"), waerme, ww)
-        if waerme_total > 0 and strom is not None:
-            wp_result = berechne_wp_ersparnis(
-                wp_waerme_kwh=waerme_total,
-                wp_strom_kwh=strom,
-                wp_strompreis_cent=wp_p,
-                wp_parameter=inv.parameter,
-                monats_gaspreis_cent=monats_gaspreis,
-                # E-B: Kühlen ersetzt keine Heizung (#263 K-2).
-                # B5/X-5c: über den SoT der Betriebsart-Weiche (F-56) — das
-                # Rohfeld kennt nur den abgeleiteten Split; bei gemessenen
-                # Betriebsart-Zählern stand hier 0 und der Kühlstrom blieb im
-                # Vergleich (dieselbe Klasse wie im Hub am 26.08.).
-                strom_kuehlen_kwh=modus_strom_zeile(data).kuehlen_kwh,
-            )
-            inv_ersparnis = round(wp_result.ersparnis_euro, 2)
-            # #411: Der ersetzte Energietraeger ist gepflegt (Gas · Oel ·
-            # Strom-Direktheizung) und wird korrekt verrechnet — die
-            # Beschriftung nannte trotzdem unbedingt Gas. Der Block fasst
-            # ausserdem mehrere Waermepumpen zusammen, die verschiedene
-            # Traeger ersetzt haben koennen: ein Aggregat kann keinem
-            # einzelnen folgen. Deshalb die allgemeine Form.
-            inv_label = "Ersparnis vs. Alternative"
-            # B6/Y-3: Formel und Rechnung beschreiben, was der Layer rechnet —
-            # mit Zusatzkosten der Altheizung und ohne den Kühlstrom (E-B). Bis
-            # hierher stand ein Text, der bei F8 10 € ergab, neben dem Wert 100 €.
-            inv_formel = WP_ERSPARNIS_FORMEL
-            inv_berechnung = wp_ersparnis_berechnung(
-                wp_result, waerme_total, strom, wp_p, inv.parameter,
-            )
-
-    elif inv.typ in ("e-auto", "wallbox") and not ist_dienstlich(inv):
-        km = data.get("km_gefahren")
-        ladung = get_eauto_ladung_kwh(data) or None
-        # #262: SoT-Helper konsolidiert den vorherigen Inline-Fallback
-        # (netz = ladung_netz ?? total − pv) — gleiche Semantik, gleiche
-        # Drift-Quelle wie in den anderen Read-Sites.
-        ladung_pv, netz_kwh = get_emob_pv_netz_kwh(data, total_kwh=ladung or 0)
-        ladung_pv = ladung_pv or None
-        if km and km > 0:
-            extern_euro = data.get("ladung_extern_euro", 0) or 0
-            # Wallbox-Pool-Override für evcc-Setups (Ladedaten auf der
-            # Wallbox-IMD, nur km am E-Auto). Selbes Pattern wie im
-            # EAutoDashboard.
-            if emob_pool_attr.use_wb_pool and inv.typ == "e-auto":
-                share = attribute_emob_pool_by_km(emob_pool_attr, km)
-                if share.netz_kwh + share.pv_kwh > 0:
-                    netz_kwh = share.netz_kwh
-                    ladung_pv = share.pv_kwh or None
-                    extern_euro = share.extern_euro
-            eauto_result = berechne_eauto_ersparnis(
-                km_gefahren=km,
-                ladung_netz_kwh=max(0, netz_kwh),
-                ladung_extern_euro=extern_euro,
-                wallbox_strompreis_cent=wb_p,
-                eauto_parameter=inv.parameter,
-                monats_benzinpreis_euro=monats_benzinpreis,
-                # #331: der EXPLIZITE Fahrverbrauch, nicht `ladung` von oben —
-                # `get_eauto_ladung_kwh` fällt auf dasselbe Feld zurück und
-                # läse eine Heimladung als Fahrleistung.
-                fahrverbrauch_kwh=data.get("verbrauch_kwh"),
-            )
-            inv_ersparnis = round(eauto_result.ersparnis_euro, 2)
-            inv_label = "Ersparnis vs. Verbrenner"
-            inv_formel = "(km × Verbrauch × Benzinpreis) − Netzladung × Strompreis"
-            inv_berechnung = (
-                f"{km:.0f} km × {eauto_result.verwendeter_verbrauch_l_100km:.1f} L/100km × "
-                f"{eauto_result.verwendeter_benzinpreis_euro:.2f} €"
-            )
-        elif inv.typ == "wallbox" and ladung_pv and ladung_pv > 0:
-            inv_ersparnis = round(ladung_pv * wb_p / 100, 2)
-            inv_label = "PV-Ladung-Ersparnis"
-            inv_formel = "PV-Ladung × Netzbezugspreis"
-            inv_berechnung = f"{ladung_pv:.1f} kWh × {wb_p:.2f} ct/kWh"
-
-    elif inv.typ == "sonstiges":
-        # ⛔ KEINE Eigenverbrauchs-Bewertung je Gerät (N-131, Entscheid Gernot
-        # 2026-09-01: „Für einen sonstigen Erzeuger rechnet eedc den Nutzen
-        # bewusst nicht selbst; er wird am Gerät als ‚Ertrag/Jahr' gepflegt").
-        #
-        # Bis 2026-09-02 stand hier `eigenverbrauch_kwh × netz_p` — und das war
-        # eine **gemessene Doppelzählung**, keine zweite Meinung: Die Bilanz
-        # führt den sonstigen Erzeuger über `erzeugung_hinter_zaehler_kwh` in
-        # `eigenverbrauch_kwh` (ein Netzanschluss, ein Zähler), und
-        # `ev_ersparnis_euro` bewertet **diese** Menge. Dieselben kWh standen
-        # damit zweimal im Σ HABEN. Gegen eine Probe-Anlage erhoben: 430 kWh
-        # Bilanz-Eigenverbrauch (129,00 €) enthielten die 50 kWh des BHKW, die
-        # daneben noch einmal mit 15,00 € auftraten.
-        #
-        # ⚠ Die PV-Zeile sagt das seit N-131 sogar selbst („Eigenverbrauch aus
-        # Sonstiges ist hier nicht bewertet") — der Satz war unwahr, solange
-        # diese Zeile daneben stand. Jetzt stimmt er.
-        #
-        # ⚑ Der Erlös bleibt, aber nur als **gepflegter** Betrag: Konzept §9
-        # Weg 2 (`einspeise_erloes_euro`, Layer-SoT
-        # `finanz_aggregat.erzeuger_erloes_euro` = „Σ der gepflegten Erlöse").
-        # Ein aus `einspeisung_kwh × Anlagen-Vergütung` gerechneter Betrag wäre
-        # die zweite Doppelzählung: diese kWh stehen im Hauszähler und sind in
-        # `einspeise_erloes_euro` eine Zeile höher bereits bewertet. Wer einen
-        # eigenen Vergütungssatz hat, hat einen eigenen Zähler — und pflegt
-        # deshalb den Betrag (Begründung Maintainer 2026-08-10, §9).
-        #
-        # ⚑ §9.2 Geldseite (06.09.): Dasselbe Feld trägt bei der Kategorie
-        # *Abgabe an Dritte* eine **andere Ertragsart** — den Erlös des dritten
-        # Wegs statt eines Einspeise-Erlöses. Der Betrag wird gleich behandelt
-        # (gepflegt, nicht nachgerechnet), nur benannt wird er anders: Regel 0
-        # verlangt für die Geldzeile denselben Namen wie für die Energiezeile.
-        # Vorher stand über beiden „— Einspeisung", und rilmor-mhrs (#402) hat
-        # im T-Konto ein Wort gelesen, das seine Bilanz gar nicht kennt.
-        erloes_gepflegt = data.get("einspeise_erloes_euro")
-        if erloes_gepflegt:
-            inv_erloes = round(float(erloes_gepflegt), 2)
-            if ist_abgabe_kategorie((inv.parameter or {}).get("kategorie")):
-                inv_erloes_label = SONSTIGES_ABGABE_LABEL
-                inv_erloes_formel = (
-                    f"Am Gerät gepflegter Erlös aus {SONSTIGES_ABGABE_LABEL} "
-                    "(eigener Satz) — von eedc nicht nachgerechnet"
-                )
-            else:
-                inv_erloes_formel = (
-                    "Am Gerät gepflegter Einspeise-Erlös (eigener Vergütungssatz) "
-                    "— von eedc nicht nachgerechnet"
-                )
-
-    if (
-        bk_monat > 0
-        or inv_ersparnis is not None
-        or inv_erloes is not None
-        or inv_sonstige_ertraege > 0
-        or inv_sonstige_ausgaben > 0
-    ):
-        return InvestitionFinancialDetail(
-            investition_id=inv.id,
-            bezeichnung=inv.bezeichnung,
-            typ=inv.typ,
-            betriebskosten_monat_euro=bk_monat,
-            betriebskosten_jahr_euro=round(float(inv.betriebskosten_jahr or 0), 2),
-            erloes_euro=inv_erloes,
-            erloes_formel=inv_erloes_formel,
-            erloes_berechnung=inv_erloes_berechnung,
-            erloes_label=inv_erloes_label,
-            ersparnis_euro=inv_ersparnis,
-            ersparnis_label=inv_label,
-            formel=inv_formel,
-            berechnung=inv_berechnung,
-            sonstige_ertraege_euro=inv_sonstige_ertraege,
-            sonstige_ausgaben_euro=inv_sonstige_ausgaben,
-        )
-    return None
-
 
 @router.get("/{anlage_id}", response_model=AktuellerMonatResponse)
 async def get_aktueller_monat(

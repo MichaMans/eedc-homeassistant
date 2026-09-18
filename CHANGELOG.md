@@ -19,6 +19,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 - **Die Break-Even-Kurve in *Auswertungen → ROI* zeichnet gewachsene Anlagen als Treppe** (gemeldet von **Radiocarbonat**, Forum). Bisher stand der gesamte Kapitaleinsatz ab der frühesten Anschaffung, und die heutige Jahres-Einsparung lief von dort linear — wer über Jahre erweitert hat, las ein zu frühes Jahr; die Fußzeile nannte es „eher optimistisch". Jetzt zählt jede Komponente ihre Mehrkosten und ihre Netto-Jahres-Einsparung ab ihrem eigenen Anschaffungsjahr, sonstige Ausgaben heben und sonstige Erträge senken die Linie im Jahr ihrer Buchung, und das Break-Even-Jahr in der Kachel „Amortisation" ist der Schnittpunkt genau dieser Reihe. Die Reihe rechnet das Backend (`kapitalrechnung.amortisations_verlauf`), der Client zeichnet nur noch. Die **Dauer in Jahren** bleibt wie bisher (Kapitaleinsatz ÷ heutige Jahres-Einsparung); HA-Sensoren, PDF und Aussichten sind unberührt. Benannte Grenze: ein PV-System hat eine gemeinsame Einsparung, ein später ergänztes Modulfeld stuft nur die Kosten (N-525).
 
+### Changed
+
+- **Intern — `api/routes/aktueller_monat.py` ist ein Paket (Vorlage 1 des Refactorings großer Dateien).** Die 3.642-Zeilen-Datei hinter *Cockpit → Monat* ist in vier Module geteilt, Code 1:1 umgezogen: `schemas.py` (Antwortmodelle, Konstanten), `vergleich.py` (Vorjahr, PVGIS-Soll, Nachtsockel, Tarifauflösung), `tkonto.py` (T-Konto-Zeile je Investition) und die Fassade `__init__.py` mit Router, den fünf Quellen-Sammlern und dem Endpunkt. Endpunkt und Sammler bleiben bewusst in der Fassade: 57 Testpatches setzen Attribute auf diesem Modul. ⚠ **Keine Zahl, kein Pfad und keine Anzeige ändern sich** — belegt mit bitgleichen Antworten des Endpunkts vor und nach dem Umzug an drei Beständen, unveränderter Routen-Baseline und identischer Testsammlung.
+
 ---
 
 ## [4.0.47] - 2026-09-18 — Der Monatsabschluss sendet wieder, der Community-Vergleich rechnet gleich auf beiden Seiten — und die Ersparnis kennt den Preis der vermiedenen Stunden

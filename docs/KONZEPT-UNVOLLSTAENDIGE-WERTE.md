@@ -109,7 +109,7 @@ nur nicht als Regel aufgeschrieben und deshalb nicht durchgesetzt.
 | --- | --- |
 | `api/routes/solar_prognose.py:402-408` | **Der geltende P4-Vertrag.** Wert bleibt stehen, wird beschriftet, **mit Umfang** („nur 3 von 4 Teilanlagen"). Ausdrücklich: „kein Ersatz durch Schätzung, keine Kappung" |
 | `services/daten_checker/monatsdaten.py:531-544` | Dreifacher `is not None`-Guard, sonst wird die Prüfung übersprungen — „eine Prüfung, die schlicht nicht prüfbar ist" |
-| `api/routes/aktueller_monat.py:1276-1295` | **Gestufte** Unterdrückung: ohne Einspeisung kein Eigenverbrauch; ohne Netzbezug zusätzlich kein Gesamtverbrauch und keine Autarkie — aber der Eigenverbrauch **bleibt**. Die feinste Behandlung im Baum |
+| `api/routes/aktueller_monat/vergleich.py::_load_vorjahr` | **Gestufte** Unterdrückung: ohne Einspeisung kein Eigenverbrauch; ohne Netzbezug zusätzlich kein Gesamtverbrauch und keine Autarkie — aber der Eigenverbrauch **bleibt**. Die feinste Behandlung im Baum |
 | `core/berechnungen/tagesbilanz.py:92-115` | NULL-Stunden zählen nicht als 0; Quoten `None` statt 0, „damit die UI '—' statt '0 %' zeigt" |
 | `api/routes/import_export/csv_operations.py:454-461` | Import setzt `eigenverbrauch = None` vor, rechnet nur im Guard |
 | `services/monats_fakten.py:116-135` | `ErzeugungFakten.pv_module_kwh: Optional[float]` — im Docstring steht die richtige Regel wörtlich: „Wer summiert, behandelt `None` als Lücke, **nie** als 0" |

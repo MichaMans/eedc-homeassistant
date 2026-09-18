@@ -430,7 +430,7 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   ├── main.py                  # Entry Point + alle include_router-Aufrufe
     │   ├── requirements.txt
     │   ├── api/routes/
-    │   │   ├── aktueller_monat.py       # Cockpit → Monat (laufender + gespeicherter Monat)
+    │   │   ├── aktueller_monat/         # Cockpit → Monat — Paket seit 18.09.2026: __init__ (Router, Sammler, Endpunkt) · schemas · vergleich · tkonto
     │   │   ├── anlagen.py               # Anlagen-CRUD + Anlagenfoto
     │   │   ├── aussichten.py            # Prognose-Aussichten (Kurz/Lang/Trend/Finanzen)
     │   │   ├── prognosen.py             # Prognose-Vergleich, Genauigkeits-Tracking

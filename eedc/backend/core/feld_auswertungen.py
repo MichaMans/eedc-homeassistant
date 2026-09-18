@@ -162,13 +162,13 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
 
     # ── Anlagen-Ebene: Monatswerte ───────────────────────────────────────────
     (TYP_ANLAGE, "einspeisung_kwh"): (
-        _a(COCKPIT_MONAT, "api/routes/aktueller_monat.py", "get_aktueller_monat"),
+        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
         _a(COCKPIT_JAHR, "api/routes/cockpit/uebersicht.py", "get_cockpit_uebersicht"),
         _a(AUSW_TABELLE, "api/routes/monatsdaten.py", "list_monatsdaten_aggregiert"),
         _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
     ),
     (TYP_ANLAGE, "netzbezug_kwh"): (
-        _a(COCKPIT_MONAT, "api/routes/aktueller_monat.py", "get_aktueller_monat"),
+        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
         _a(COCKPIT_JAHR, "api/routes/cockpit/uebersicht.py", "get_cockpit_uebersicht"),
         _a(AUSW_TABELLE, "api/routes/monatsdaten.py", "list_monatsdaten_aggregiert"),
         _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
@@ -197,7 +197,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
 
     # ── Anlagen-Ebene: Preise je Monat (ADR-002/P8) ──────────────────────────
     (TYP_ANLAGE, "netzbezug_durchschnittspreis_cent"): (
-        _a(COCKPIT_MONAT, "api/routes/aktueller_monat.py", "get_aktueller_monat"),
+        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
         # ADR-002/P8 — der wirksame Arbeitspreis DIESES Monats, nicht der heutige.
         _a(AUSW_FINANZEN, "services/strompreis_aggregator.py", "wirksamer_arbeitspreis_cent"),
     ),
@@ -211,7 +211,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ),
     (TYP_ANLAGE, "gaspreis_cent_kwh"): (
         _a(KOMP_WP, "services/wp_wirtschaftlichkeit.py", "berechne_wp_ersparnis"),
-        _a(COCKPIT_MONAT, "api/routes/aktueller_monat.py", "get_aktueller_monat"),
+        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
     ),
     (TYP_ANLAGE, "strompreis"): (
         # Der dynamische Börsenpreis — Live-Kachel und die stündliche Mitschrift,
@@ -442,7 +442,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ),
     ("e-auto", "ladung_extern_kwh"): (
         _a(KOMP_EAUTO, "api/routes/investitionen/dashboards.py", "get_eauto_dashboard"),
-        _a(COCKPIT_MONAT, "api/routes/aktueller_monat.py", "get_aktueller_monat"),
+        _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
     ),
     ("e-auto", "ladung_extern_euro"): (
         _a(KOMP_EAUTO, "api/routes/investitionen/dashboards.py", "get_eauto_dashboard"),

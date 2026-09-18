@@ -2082,12 +2082,12 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # Erzeuger · Eigenverbrauch/Autarkie) kommen aus `lade_monats_fakten`.
     # Selbst geladen wird nur die Zuordnung `inv → verbrauch_daten` für die
     # eMob-Zeilen des Vorjahres-T-Kontos.
-    "backend/api/routes/aktueller_monat.py::_load_vorjahr",
+    "backend/api/routes/aktueller_monat/vergleich.py::_load_vorjahr",
     # C1d (2026-08-04): der Komponenten-Detailblock ist umgehängt — Speicher,
     # WP, E-Mob, BKW und die sechs Sonstiges-Mengen kommen aus
     # `lade_monats_fakten`. Selbst geladen wird nur noch die Zuordnung
     # `inv → verbrauch_daten` für die Financial-Zeile JE Investition.
-    "backend/api/routes/aktueller_monat.py::get_aktueller_monat",
+    "backend/api/routes/aktueller_monat/__init__.py::get_aktueller_monat",
     "backend/api/routes/aussichten.py::get_finanz_prognose",
     "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
     "backend/api/routes/ha_export.py::calculate_anlage_sensors",
@@ -2887,7 +2887,7 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     # rohe Division wird.
     "backend/services/monats_fakten.py::falte",                   # zählt luft_luft/luft_wasser je Block
     "backend/api/routes/energie_profil/views.py::get_tag_detail", # dieselbe Frage je Tag
-    "backend/api/routes/aktueller_monat.py::get_aktueller_monat",
+    "backend/api/routes/aktueller_monat/__init__.py::get_aktueller_monat",
     "backend/api/routes/cockpit/komponenten.py::get_komponenten_zeitreihe",
     "backend/api/routes/monatsdaten.py::list_monatsdaten_aggregiert",
     # B6/Y-2 (05.09.2026): Jahresroute UND PDF-Jahresbericht lesen die Abgrenzung
