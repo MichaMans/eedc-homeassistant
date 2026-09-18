@@ -1670,11 +1670,11 @@ P8_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # (gemessen: Juli mit dem Septemberpreis). Die Ausnahme zählte den Lader,
     # nicht, was mit dem Tarif geschah — dieselbe Lücke wie bei P8/S4 oben.
     # Seit X-1 lädt die Funktion je Monat mit Stichtag; der Eintrag ist weg.
-    "backend/api/routes/ha_export.py::calculate_anlage_sensors",
+    "backend/api/routes/ha_export/anlage_sensoren.py::calculate_anlage_sensors",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
     # N-200: seit dem SoT-Umbau sichtbar. Die Route reicht den Tarif nur an
     # `calculate_investition_sensors` durch — dieselbe Rolle wie die Zeile
     # darüber, eine Ebene höher.
-    "backend/api/routes/ha_export.py::get_all_sensors",
+    "backend/api/routes/ha_export/sensoren.py::get_all_sensors",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
     # Anzeige des aktuellen Tarifs + Komponenten-Kennwerte.
     "backend/api/routes/cockpit/uebersicht.py::get_cockpit_uebersicht",
     # Hochrechnung + ausgewiesener Tarif der Response.
@@ -2092,9 +2092,9 @@ P10_PER_INVESTITION: frozenset[str] = frozenset({
     # Vorlage 2 (18.09.2026): die IMD-Ladung des T-Kontos zog aus dem Endpunkt nach finanzen.py.
     "backend/api/routes/aktueller_monat/finanzen.py::t_konto_je_investition",
     "backend/api/routes/aussichten/finanz_eingaenge.py::lade_finanz_eingaenge",   # Vorlage 7b (18.09.2026): finanzen.py::get_finanz_prognose → finanz_eingaenge.py
-    "backend/api/routes/ha_export.py::_load_emob_pool_ctx",
-    "backend/api/routes/ha_export.py::calculate_anlage_sensors",
-    "backend/api/routes/ha_export.py::calculate_investition_sensors",
+    "backend/api/routes/ha_export/emob.py::_load_emob_pool_ctx",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
+    "backend/api/routes/ha_export/anlage_sensoren.py::calculate_anlage_sensors",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
+    "backend/api/routes/ha_export/investition_sensoren.py::calculate_investition_sensors",   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
     # Vorlage 5b (18.09.2026): die IMD-Ladungen des ROI-Dashboards zogen aus dem Endpunkt in zwei Phasen —
     # sonstige Positionen je Investition (Kopf) und Speicher-IST-Aggregate (PV-Seite).
     "backend/api/routes/investitionen/roi_eingaenge.py::lade_roi_eingaenge",

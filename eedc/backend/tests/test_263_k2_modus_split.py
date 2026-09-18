@@ -516,7 +516,7 @@ JAZ_STELLEN: tuple[tuple[str, str], ...] = (
     ("backend/api/routes/cockpit/komponenten.py", "jaz_belastbar"),
     ("backend/api/routes/investitionen/dashboard_waermepumpe.py", "waerme_abgeleitet"),   # Vorlage 6: dashboards.py → dashboard_waermepumpe.py
     ("backend/services/pdf/builders/jahresbericht.py", "wp_waerme_abgeleitet"),
-    ("backend/api/routes/ha_export.py", "waerme_abgeleitet"),
+    ("backend/api/routes/ha_export/investition_sensoren.py", "waerme_abgeleitet"),   # Vorlage 8 (18.09.2026): ha_export.py → Paket ha_export/
 )
 
 

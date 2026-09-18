@@ -15,7 +15,7 @@ mussten für Option A eigens angefasst werden:
 
 * `services/monats_fakten.py::_ergaenze_modus_split_ohne_abschluss` — für
   Komponenten-Hub, Cockpit Monat/Jahr und die Auswertungs-Tabelle;
-* `api/routes/ha_export.py`, WP-Zweig — er faltet seine IMD-Zeilen **je
+* `api/routes/ha_export/investition_sensoren.py`, WP-Zweig — er faltet seine IMD-Zeilen **je
   Investition** (bekannte P10-Restschuld) und geht deshalb nicht über die
   Monats-Fakten.
 

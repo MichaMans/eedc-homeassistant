@@ -463,7 +463,11 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── mqtt_gateway.py · mqtt_presets.py   # beide unter /api/live eingehängt
     │   │   ├── datenquellen.py          # Datenquellen-Fläche (ein Feld = eine Quelle)
     │   │   ├── sensor_mapping.py        # HA-Sensor-Zuordnung (nur HA_MODE)
-    │   │   ├── ha_integration.py · ha_statistics.py · ha_export.py · ha_remote.py
+    │   │   ├── ha_integration.py · ha_statistics.py · ha_remote.py
+    │   │   ├── ha_export/               # HA-Sensor-Export — Paket seit 18.09.2026 (Vorlage 8)
+    │   │   │   ├── __init__.py          # Fassade: Router (Präfix /ha/export) + Re-Export
+    │   │   │   ├── anlage_sensoren.py · investition_sensoren.py   # die zwei Rechenkerne
+    │   │   │   └── schemas.py · emob.py · konfig.py · sensoren.py · mqtt.py   # Modelle · E-Mob-Pool · Routen
     │   │   ├── connector.py             # Geräte-Connectors (lokales Netz)
     │   │   ├── cloud_import.py          # Cloud-API-Import
     │   │   ├── custom_import/ · data_import.py · import_export/   # CSV/JSON/Demo/PDF

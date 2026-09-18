@@ -2,7 +2,7 @@
 
 `einsparung_prognose_jahr` wurde an drei Stellen unabhängig summiert
 (`investitionen/roi.py` je Investition, `aussichten/finanz_rueckblick.py::finanz_zeilen_und_tarife` (`ertrag_jahr_ges`) **mit**
-Aktiv-Filter, `ha_export.py::jahres_ertraege_ges` **ohne**). Die
+Aktiv-Filter, `ha_export/anlage_sensoren.py::jahres_ertraege_ges` **ohne**). Die
 §9.2-Geldseite hätte die Regel „Abgabe rechnet aus gemessenen Monatserlösen"
 dort dreimal eingebaut. `jahresertrag_posten` beantwortet sie einmal.
 

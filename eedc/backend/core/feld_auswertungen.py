@@ -165,13 +165,13 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
         _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
         _a(COCKPIT_JAHR, "api/routes/cockpit/uebersicht.py", "get_cockpit_uebersicht"),
         _a(AUSW_TABELLE, "api/routes/monatsdaten.py", "list_monatsdaten_aggregiert"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/anlage_sensoren.py", "calculate_anlage_sensors"),
     ),
     (TYP_ANLAGE, "netzbezug_kwh"): (
         _a(COCKPIT_MONAT, "api/routes/aktueller_monat/__init__.py", "get_aktueller_monat"),
         _a(COCKPIT_JAHR, "api/routes/cockpit/uebersicht.py", "get_cockpit_uebersicht"),
         _a(AUSW_TABELLE, "api/routes/monatsdaten.py", "list_monatsdaten_aggregiert"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/anlage_sensoren.py", "calculate_anlage_sensors"),
     ),
     (TYP_ANLAGE, "pv_gesamt_kwh"): (
         # ADR-002/**P7**: das Anlagen-Aggregat ist ausschliesslich EINGANG der
@@ -244,7 +244,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ("pv-module", "pv_erzeugung_kwh"): (
         _a(KOMP_PV, "api/routes/cockpit/pv_strings.py", "_lade_ist_je_modul"),
         _a(COCKPIT_MONAT, "core/berechnungen/imd_monatsaggregat.py", "imd_typ_beitrag"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/anlage_sensoren.py", "calculate_anlage_sensors"),
     ),
     ("pv-module", "leistung_w"): (
         _a(COCKPIT_LIVE, "services/live_komponenten_builder.py", "build_komponenten"),
@@ -260,12 +260,12 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ("speicher", "ladung_kwh"): (
         _a(KOMP_SPEICHER, "services/speicher_wirtschaftlichkeit.py", "berechne_ist_wirkungsgrad"),
         _a(COCKPIT_MONAT, "core/berechnungen/imd_monatsaggregat.py", "imd_typ_beitrag"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/anlage_sensoren.py", "calculate_anlage_sensors"),
     ),
     ("speicher", "entladung_kwh"): (
         _a(KOMP_SPEICHER, "services/speicher_wirtschaftlichkeit.py", "berechne_ist_wirkungsgrad"),
         _a(COCKPIT_MONAT, "core/berechnungen/imd_monatsaggregat.py", "imd_typ_beitrag"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/anlage_sensoren.py", "calculate_anlage_sensors"),
     ),
     ("speicher", "ladung_netz_kwh"): (
         # Arbitrage: Netzladung × Ladepreis gegen den Entladewert.
@@ -290,7 +290,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
            "get_wp_strom_kwh"),
         _a(COCKPIT_MONAT, "core/berechnungen/imd_monatsaggregat.py", "imd_typ_beitrag",
            "get_wp_strom_kwh"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_investition_sensors",
+        _a(HA_SENSOREN, "api/routes/ha_export/investition_sensoren.py", "calculate_investition_sensors",
            "get_wp_strom_kwh"),
     ),
     ("waermepumpe", "strom_heizen_kwh"): (
@@ -308,7 +308,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ("waermepumpe", "waerme_kwh"): (
         _a(KOMP_WP, "core/berechnungen/waermepumpe_kennzahl.py", "waerme_gesamt_kwh"),
         _a(COCKPIT_MONAT, "core/berechnungen/imd_monatsaggregat.py", "imd_typ_beitrag"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_investition_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/investition_sensoren.py", "calculate_investition_sensors"),
     ),
     ("waermepumpe", "heizenergie_kwh"): (
         _a(KOMP_WP, "core/berechnungen/waermepumpe_kennzahl.py", "heizwaerme_kwh"),
@@ -424,7 +424,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ("e-auto", "km_gefahren"): (
         _a(KOMP_EAUTO, "services/eauto_wirtschaftlichkeit.py", "berechne_eauto_ersparnis"),
         _a(COCKPIT_MONAT, "core/berechnungen/imd_monatsaggregat.py", "imd_typ_beitrag"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_investition_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/investition_sensoren.py", "calculate_investition_sensors"),
     ),
     ("e-auto", "verbrauch_kwh"): (
         _a(KOMP_EAUTO, "api/routes/investitionen/dashboard_eauto.py", "get_eauto_dashboard"),
@@ -451,7 +451,7 @@ FELD_AUSWERTUNGEN: dict[tuple[str, str], tuple[Auswertung, ...]] = {
     ("e-auto", "v2h_entladung_kwh"): (
         _a(KOMP_EAUTO, "api/routes/investitionen/dashboard_eauto.py", "get_eauto_dashboard"),
         _a(COCKPIT_JAHR, "api/routes/cockpit/uebersicht.py", "get_cockpit_uebersicht"),
-        _a(HA_SENSOREN, "api/routes/ha_export.py", "calculate_anlage_sensors"),
+        _a(HA_SENSOREN, "api/routes/ha_export/anlage_sensoren.py", "calculate_anlage_sensors"),
     ),
     ("e-auto", "leistung_w"): (
         _a(COCKPIT_LIVE, "services/live_komponenten_builder.py", "build_komponenten"),

@@ -70,7 +70,7 @@ async def finanz_zeilen_und_tarife(
     # Versicherung mehr; sie verlängerte die Amortisation trotzdem dauerhaft.
     # Der RÜCKBLICK ist davon unberührt — er rechnet weiter unten mit
     # `betriebskosten_hist_je_inv` über die tatsächliche Laufzeit.
-    # `ha_export.py` filtert an derselben Stelle seit jeher (`aktiv_jetzt()`),
+    # `ha_export/anlage_sensoren.py` filtert an derselben Stelle seit jeher (`aktiv_jetzt()`),
     # die vier Sichten waren darüber uneins.
     _heute_bk = date.today()
     betriebskosten_ges = sum(

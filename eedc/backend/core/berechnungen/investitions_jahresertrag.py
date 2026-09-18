@@ -8,7 +8,7 @@ Stellen unabhängig summiert, und zwar mit **verschiedenen** Filtern:
 ===========================================  ==========================================
 `investitionen/roi.py` (ROI-Dashboard)       je Investition
 `aussichten/finanz_rueckblick.py` (`ertrag_jahr_ges`) Σ, **mit** ``ist_aktiv_an(heute)``
-`ha_export.py` (`jahres_ertraege_ges`)       Σ, **ohne** Aktiv-Filter
+`ha_export/anlage_sensoren.py` (`jahres_ertraege_ges`) Σ, **ohne** Aktiv-Filter
 ===========================================  ==========================================
 
 Drei Stellen, drei Filter, eine Größe — die Bauform, die in diesem Projekt schon

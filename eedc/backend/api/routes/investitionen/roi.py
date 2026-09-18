@@ -878,7 +878,7 @@ async def get_roi_dashboard(
         )
         alle_inv = alle_inv_result.scalars().all()
         # N-228: die USt-Bemessung ist eine JAHRES-Größe — stillgelegte
-        # Komponenten verursachen keine laufenden Kosten mehr. `ha_export.py`
+        # Komponenten verursachen keine laufenden Kosten mehr. `ha_export/anlage_sensoren.py`
         # filtert an derselben Stelle seit jeher; die vier Sichten waren
         # darüber uneins.
         _heute_bk = date.today()
