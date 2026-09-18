@@ -2888,7 +2888,8 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     # rohe Division wird.
     "backend/services/monats_fakten.py::falte",                   # zählt luft_luft/luft_wasser je Block
     "backend/api/routes/energie_profil/views.py::get_tag_detail", # dieselbe Frage je Tag
-    "backend/api/routes/aktueller_monat/__init__.py::get_aktueller_monat",
+    # Vorlage 2 (18.09.2026): die R2-/SOLL-3.2b-Abgrenzung zog aus dem Endpunkt nach waerme.py.
+    "backend/api/routes/aktueller_monat/waerme.py::waerme_klima_monat",
     "backend/api/routes/cockpit/komponenten.py::get_komponenten_zeitreihe",
     "backend/api/routes/monatsdaten.py::list_monatsdaten_aggregiert",
     # B6/Y-2 (05.09.2026): Jahresroute UND PDF-Jahresbericht lesen die Abgrenzung
