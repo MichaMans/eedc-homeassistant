@@ -536,7 +536,7 @@ def erwartete_komponenten_keys(
     sind und keine zweite Query brauchen.
 
     Zwei Konsumenten, damit Versprechen und Rückmeldung dieselbe Menge
-    benutzen: der Daten-Checker (`daten_checker.datenquelle.
+    benutzen: der Daten-Checker (`daten_checker.datenquelle.tage.
     _check_leere_tage_trotz_zaehler`) und die Tages-Reparatur
     (`repair_orchestrator._execute_reaggregate_day`, N-58).
     """

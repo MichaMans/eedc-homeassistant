@@ -141,7 +141,7 @@ cd eedc/frontend && npm run test              # faehrt seit E8/M14 ALLE 25 Quell
 > * **HA-Add-on** — der Supervisor reicht die in HA eingestellte Zone durch. Das steht nicht nur
 >   in der HA-Doku, sondern im eigenen Produkt: der Daten-Checker sagt es dem Anwender wörtlich
 >   („Das Add-on übernimmt die Zeitzone beim Start von Home Assistant").
-> * **Abweichung** — `daten_checker/datenquelle.py` (Kategorie `ZEITZONE_ABWEICHUNG`) holt
+> * **Abweichung** — `daten_checker/datenquelle/zeitzone.py` (Kategorie `ZEITZONE_ABWEICHUNG`) holt
 >   `/config` von HA, vergleicht `time_zone` mit der eigenen und warnt samt Reparaturweg.
 >
 > **Was die Prozesszone überhaupt entscheidet, und was nicht.** HA liefert absolute

@@ -521,6 +521,7 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── energie_profil/       # Tages-Aggregation, Monats-Rollup, Tag-Status
     │   │   ├── snapshot/             # 5-Min-/Stunden-Snapshots + aggregator.py
     │   │   ├── daten_checker/        # Kategorien der Datenqualitäts-Prüfung
+    │   │   │   └── datenquelle/      # Quellen · Tage · Speicher · Klima · Connector · Zeitzone · Rücksprung — Unterpaket seit 18.09.2026 (Vorlage 9)
     │   │   ├── cloud_import/         # Cloud-Provider (registry.py = SoT der Liste,
     │   │   │                         #   quellen.py = mehrere Quellen je Anlage, je mit Ziel-Gerät)
     │   │   ├── erzeuger_ziel.py      # SoT: welche Investition darf Ziel einer Quelle sein

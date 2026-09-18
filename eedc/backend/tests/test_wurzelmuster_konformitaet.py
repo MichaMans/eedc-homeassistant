@@ -2068,7 +2068,7 @@ P10_SCHREIBEN_IMPORT_CHECKER: frozenset[str] = frozenset({
     # solchen Zähler gepflegt?", und dafür zählt auch ein Monat vor der
     # Anschaffung oder nach der Stilllegung. Gelesen wird über den SoT-Helfer
     # `hat_gemessene_betriebsart`, nicht über eine eigene Feldliste.
-    "backend/services/daten_checker/datenquelle.py::_check_klima_modus_sensor",
+    "backend/services/daten_checker/datenquelle/klima.py::_check_klima_modus_sensor",   # Vorlage 9 (18.09.2026): datenquelle.py → Unterpaket datenquelle/
     # Zählt Zeilen für die DB-Statistik.
     "backend/main.py::get_database_stats",
     # Reicht die Zeilen EINES Monats unverändert an das Frontend durch.
@@ -2940,7 +2940,7 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     # zusätzlich an jedem Gerät mit zugeordneter oder gepflegter Kühl-Spur
     # (Beleglage, bauartblind). Die Bauart entscheidet hier kein Feld und keine
     # Erwartung, nur ob ein Angebot gezeigt wird.
-    "backend/services/daten_checker/datenquelle.py::_check_klima_modus_sensor",
+    "backend/services/daten_checker/datenquelle/klima.py::_check_klima_modus_sensor",   # Vorlage 9 (18.09.2026): datenquelle.py → Unterpaket datenquelle/
 })
 
 #: Gruppe 4 — nach Bauart FORDERN oder SCHWEIGEN, statt den Zähler zu fragen.
