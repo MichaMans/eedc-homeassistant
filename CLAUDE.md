@@ -308,6 +308,8 @@ cd website && npm run build  # Synct automatisch docs/ → website/ (prebuild: w
 >
 > ADR-002 trägt die Pflicht-Spalte **„gesichert durch"** mit der Unterscheidung **Wächter** (baumweit, fängt auch eine Stelle, die es heute noch nicht gibt) und **Regression** (schützt nur die namentlich aufgerufenen Stellen). Wer die Spalte fortschreibt, trägt die Art der Deckung mit ein — eine Regel ohne Code-Beleg gilt als nicht gesichert.
 >
+> **Flächen-Konzept Flex-Tarife:** [`docs/KONZEPT-FLEX-TARIFE.md`](docs/KONZEPT-FLEX-TARIFE.md) — welchen Preis eedc einer Kilowattstunde zuordnet, auf welcher Ebene, aus welcher Quelle (Slot · Tag · Monat; Kaskade gepflegt → gemessen → Zeitfenster → Stamm; EV-Ersparnis mit dem Preis der vermiedenen Stunden). Abgenommen und gebaut 18.09.2026.
+>
 > **Flächen-Konzept Wärme/Klima:** [`docs/KONZEPT-WAERME-KLIMA.md`](docs/KONZEPT-WAERME-KLIMA.md) — Heizen · Warmwasser · Kühlen an einem Ort (Grundsatz R1/R2, Erfassungs-Kanon K1–K5, Kennzahlen, Sichten, #263 als Kapitel 8, Wächter-Tabelle mit derselben Spalte); es **setzt die drei Regime oben um** und ersetzt keines.
 
 ## Design-Konventionen (Regel 0a — Pflicht bei allem Neuen)
