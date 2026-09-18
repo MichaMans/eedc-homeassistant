@@ -33,6 +33,27 @@ getrennt liefert. Dann vergleicht eedc jeden String mit seinem eigenen Soll.
 
 ---
 
+**Ost-West-Anlagen: Die Wetterprognose rechnet jetzt wie PVGIS mit zwei halben Anlagen**
+
+**Betrifft dich das?** Ja, wenn eine deiner PV-Komponenten oder dein Balkonkraftwerk die
+Ausrichtung „Ost-West (gemischt)" trägt, oder wenn du dein Balkonkraftwerk im
+Einrichtungsassistenten angelegt hast.
+
+**Was war:** Die PVGIS-Prognose rechnete Ost-West richtig als eine halbe Anlage nach Ost und
+eine nach West. Die Wetterprognose dagegen — Live, 14 Tage, die Prognosesensoren in Home
+Assistant — kannte den Wert nicht und rechnete Süd: eine Mittagsspitze, die deine Anlage
+nicht hat, und eine zu hohe Tagessumme. Ein Balkonkraftwerk aus dem Einrichtungsassistenten
+wurde in der PVGIS-Prognose ebenfalls als Süd gerechnet, weil seine Ausrichtung an einer
+Stelle lag, die die Prognose nicht las.
+
+**Was jetzt:** Beide Prognosen rechnen Ost-West als zwei halbe Anlagen mit derselben Neigung,
+und das Balkonkraftwerk aus dem Assistenten mit seiner gepflegten Ausrichtung. ⚠ **Die
+Prognosesensoren einer Ost-West-Anlage sinken nach dem Update einmalig** — auf das Niveau,
+das die Anlage wirklich liefert. Bei fester Ausrichtung ändert sich keine Zahl. **Du musst
+nichts tun.**
+
+---
+
 **Die Amortisationskurve zeigt gewachsene Anlagen als Treppe**
 
 **Betrifft dich das?** Ja, wenn du deine Anlage über mehrere Jahre erweitert

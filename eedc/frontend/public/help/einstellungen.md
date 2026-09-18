@@ -375,7 +375,9 @@ Eigenschaft:
 > **Ein Balkonkraftwerk trägt für sich genau *eine* Ausrichtung und *eine* Neigung.** Es ist als
 > Kompaktgerät gedacht — Module, Mikro-Wechselrichter und (optional) Akku in einer Investition. Die
 > Modulzahl steckt in *Leistung je Modul × Anzahl*; alle Module teilen sich dann dieselbe
-> Ausrichtung. Die Option **„Ost-West (gemischt)"** rechnet einen festen **50/50**-Split.
+> Ausrichtung. Die Option **„Ost-West (gemischt)"** rechnet einen festen **50/50**-Split — in der
+> PVGIS-Prognose wie in der Wetterprognose (Live, 14 Tage, HA-Sensoren): zwei halbe Anlagen, eine
+> nach Ost, eine nach West, mit derselben Neigung.
 
 **Neu: du kannst dem Balkonkraftwerk PV-Module zuordnen.** Damit wird jede Ausrichtung einzeln
 erfasst — ohne das Gerät als Wechselrichter umdeklarieren zu müssen. So geht es:
