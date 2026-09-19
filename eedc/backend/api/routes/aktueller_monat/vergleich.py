@@ -101,7 +101,7 @@ async def _load_vorjahr(anlage_id: int, investitionen: list[Investition], jahr: 
     # zu laden.
     tarif_cache: dict[date, dict] = {}
     # N-267: eigener Cache je Aufruf — begruendet im Block ueber `_zeittarif_preis`
-    # bzw. ausfuehrlich in `monats_fakten.py` ueber `_komponenten_preis`.
+    # bzw. ausfuehrlich in `monats_fakten/` ueber `_komponenten_preis`.
     _zt_cache: dict = {}
     fakten_vj = await lade_monats_fakten(
         db, anlage_id, von=(vj, monat), bis=(vj, monat), tarif_cache=tarif_cache

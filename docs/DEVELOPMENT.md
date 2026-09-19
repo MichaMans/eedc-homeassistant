@@ -303,7 +303,7 @@ Eintrag in der Ausnahmen-Liste.
 
 ### Monatswerte nur aus den Monats-Fakten (ADR-002/P10)
 
-SoT ist `eedc/backend/services/monats_fakten.py`. Wer eine abgeleitete Monatsgröße auswertet,
+SoT ist `eedc/backend/services/monats_fakten/`. Wer eine abgeleitete Monatsgröße auswertet,
 faltet `InvestitionMonatsdaten` **nicht selbst** — Zeitfilter, Dienstwagen-Filter und Auflösung
 sind dort schon drin:
 
@@ -515,7 +515,15 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── activity_log.py · data_provenance_log.py
     │   │
     │   ├── services/                # ~70 Module + Unterpakete
-    │   │   ├── monats_fakten.py      # ADR-002/P10: die Monatszeile wird EINMAL aufbereitet
+    │   │   ├── monats_fakten/        # ADR-002/P10: die Monatszeile wird EINMAL aufbereitet — seit 19.09.2026 ein Paket:
+    │   │   │   ├── __init__.py       #   Fassade + Re-Exporte (lade_monats_fakten, MonatsFakt, WpFakten, …)
+    │   │   │   ├── fakten.py         #   die Feldgruppen (Konzept §3) und MonatsFakt
+    │   │   │   ├── fakten_wp.py      #   WpFakten
+    │   │   │   ├── roh.py            #   _RohMonat (falte) und die Lader
+    │   │   │   ├── tarif.py          #   Monatstarif je Stichtag (P8)
+    │   │   │   ├── bau.py            #   _baue_fakt: Rohmonat → Fakt
+    │   │   │   ├── laden.py          #   lade_monats_fakten (Orchestrator)
+    │   │   │   └── ableitungen.py    #   finanz_zeile_eingabe, Kennzahlen, PV-Hinweis, PV-Ladeanteil
     │   │   ├── pv_monatswerte.py     # P7: lade_pv_je_monat / pv_summe_je_monat
     │   │   ├── preis_tag.py          # eine Schicht für Preis-Chart UND HA-Sensoren
     │   │   ├── energie_profil/       # Tages-Aggregation, Monats-Rollup, Tag-Status
@@ -716,7 +724,7 @@ from backend.tests.quellbaum import produktivbaum   # alles ohne tests/, venv/, 
 from backend.tests.quellbaum import probenbaum      # der Testbaum
 
 for datei in produktivbaum():
-    datei.rel      # "services/monats_fakten.py" — der Name, den der Prüfer meldet
+    datei.rel      # "services/monats_fakten/laden.py" — der Name, den der Prüfer meldet
     datei.quelle   # Quelltext
     datei.baum     # fertiger ast.Module — NICHT selbst parsen
 ```

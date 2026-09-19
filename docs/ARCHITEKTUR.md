@@ -192,7 +192,7 @@ Die Reihenfolge ist die Abhängigkeitsrichtung — **nach oben wird nie gerufen*
 
 Drei Stellen sind dabei die tragenden **Single Sources of Truth**:
 
-- **`services/monats_fakten.py`** — die Monatszeile wird **einmal** aufgelöst und gefiltert
+- **`services/monats_fakten/`** — die Monatszeile wird **einmal** aufgelöst und gefiltert
   (`aktiv` · Anschaffung · Stilllegung · Dienstwagen), dann ruft sie die Layer-Formeln. Keine
   Read-Site faltet `InvestitionMonatsdaten` mehr selbst (ADR-002/P10,
   [KONZEPT-MONATS-FAKTEN.md](KONZEPT-MONATS-FAKTEN.md)).
@@ -634,7 +634,7 @@ GET /api/cockpit/pv-strings-gesamtlaufzeit/{anlage_id}   # String-Vergleich (Ges
 - Monatsdaten: Einspeisung, Netzbezug
 - InvestitionMonatsdaten: Alle Komponenten-Details
 
-Beides kommt **aufbereitet** aus `services/monats_fakten.py` (s. §7 „Lese-Schichtung"), nicht als Roh-Faltung im Endpoint — dort greifen auch die Zeitfilter. Der Umbau läuft sichtweise (S2–S6); bis dahin faltet ein Teil der Endpoints noch selbst.
+Beides kommt **aufbereitet** aus `services/monats_fakten/` (s. §7 „Lese-Schichtung"), nicht als Roh-Faltung im Endpoint — dort greifen auch die Zeitfilter. Der Umbau läuft sichtweise (S2–S6); bis dahin faltet ein Teil der Endpoints noch selbst.
 
 #### Aussichten (Prognosen)
 
@@ -984,7 +984,7 @@ Zwischen den Tabellen und den auswertenden Endpoints liegen **drei** Schichten, 
 ```
 Monatsdaten · InvestitionMonatsdaten · Strompreise · TagesZusammenfassung
         │
-        ▼   services/monats_fakten.py        ← Aufbereitung  (ADR-002/P10)
+        ▼   services/monats_fakten/        ← Aufbereitung  (ADR-002/P10)
    MonatsFakt je (jahr, monat): zaehler · erzeugung · bkw · speicher · emob ·
    wp · sonstiges · tarif · eeg · kennzahlen · meta
    Hier — und nur hier — greifen die Zeitfilter (aktiv · Anschaffung ·
@@ -1004,7 +1004,7 @@ Monatsdaten · InvestitionMonatsdaten · Strompreise · TagesZusammenfassung
 
 | Schicht | Darf | Darf nicht |
 | --- | --- | --- |
-| `services/monats_fakten.py` | laden, filtern, kanonisch auflösen, Layer-Helfer **rufen** | selbst rechnen (das wäre eine Formel-Duplikation) |
+| `services/monats_fakten/` | laden, filtern, kanonisch auflösen, Layer-Helfer **rufen** | selbst rechnen (das wäre eine Formel-Duplikation) |
 | `core/berechnungen/` | rechnen | eine Session sehen |
 | `api/routes/…` | darstellen, Zeiträume wählen | `InvestitionMonatsdaten` selbst laden und falten (P10) |
 
@@ -1520,7 +1520,7 @@ Beim Monatsabschluss werden zwei Schritte ausgeführt:
 - `Monatsdaten` = Nur Zählerwerte (Einspeisung, Netzbezug)
 - `InvestitionMonatsdaten` = Alle Komponenten-Details
 
-**Was diese Trennung NICHT bedeutet** (Lehre aus der Drift-Inventur 2026-07-31): dass jede Read-Site sich ihre Monatszeile selbst aus beiden Tabellen zusammenfaltet. Genau das war jahrelang der Fall und genau daraus entstanden sechs Befunde mit derselben Ursache. Die Auflösung — welcher Wert gilt, welche Lücke wird gefüllt, welche Investition zählt im Monat überhaupt — liegt seit ADR-002/P10 in `services/monats_fakten.py` (§7 „Lese-Schichtung").
+**Was diese Trennung NICHT bedeutet** (Lehre aus der Drift-Inventur 2026-07-31): dass jede Read-Site sich ihre Monatszeile selbst aus beiden Tabellen zusammenfaltet. Genau das war jahrelang der Fall und genau daraus entstanden sechs Befunde mit derselben Ursache. Die Auflösung — welcher Wert gilt, welche Lücke wird gefüllt, welche Investition zählt im Monat überhaupt — liegt seit ADR-002/P10 in `services/monats_fakten/` (§7 „Lese-Schichtung").
 
 ### Warum Parent-Child für PV-Module?
 

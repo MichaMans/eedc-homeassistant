@@ -1062,7 +1062,7 @@ ein Jahr wird **je Monat** gerechnet und als Preis der mengengewichtete Mittelwe
 gezeigt, damit `kWh × Preis = Kosten` aufgeht (**A6**). ⛔ **Es sind die Kosten des
 verbrauchten Stroms, nicht des Netzbezugs** — welche Kilowattstunde aus der PV kam,
 ist je Gerät ohne Zuteilungsannahme nicht bekannt (dieselbe Begründung wie bei der
-Tarif-Gewichtung in `monats_fakten.py::_komponenten_preis`).
+Tarif-Gewichtung in `monats_fakten/tarif.py::_komponenten_preis`).
 
 **Das Wettersymbol ist der häufigste Code der Periode** (Stunde direkt, Tag =
 häufigster Stundencode, Monat = häufigster Tagescode). ⚠ **Nicht der schlechteste

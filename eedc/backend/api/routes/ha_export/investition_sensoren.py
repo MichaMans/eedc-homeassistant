@@ -312,7 +312,7 @@ async def calculate_investition_sensors(
                     # ⚠ `hat_aufteilung`, nicht nur die Abdeckung: eine
                     # gemessene Zeile braucht den gerechneten Split nicht und
                     # darf ihn nicht zusätzlich bekommen (Doppelzählung).
-                    # `monats_fakten.py` wendet dieselbe Weiche an.
+                    # `monats_fakten/` wendet dieselbe Weiche an.
                     _zeile.hat_aufteilung,
                     get_wp_strom_kwh(d, investition.parameter),
                 )

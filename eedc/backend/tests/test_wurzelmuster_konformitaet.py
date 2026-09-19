@@ -1958,7 +1958,7 @@ def test_p9_durchreicher_sind_noch_belegt():
 # Rohdaten selbst zu Monatswerten, und dabei fällt jedes Mal etwas anderes weg
 # — mal V2H, mal der Erzeuger hinter dem Zähler, mal der Aggregat-Fallback, mal
 # der Monatstarif, mal der Dienstwagen-Filter. SoT ist seit S1
-# `services/monats_fakten.py` (`docs/KONZEPT-MONATS-FAKTEN.md`).
+# `services/monats_fakten/` (`docs/KONZEPT-MONATS-FAKTEN.md`; seit 19.09.2026 ein Paket).
 #
 # **Der Wächter ist funktions-granular, nicht modul-granular**, und das ist der
 # Kern seiner Schärfe: `dashboards.py` darf für seine per-Investition-Sicht
@@ -1998,7 +1998,7 @@ def test_p9_durchreicher_sind_noch_belegt():
 # SOLL der Wächter anschlagen — der Eintrag wird dann bewusst und mit dieser
 # Begründung in P10_SCHREIBEN_IMPORT_CHECKER aufgenommen.
 
-_P10_SCHICHT = "backend/services/monats_fakten.py"
+_P10_SCHICHT = "backend/services/monats_fakten/"   # seit Vorlage 10 (19.09.2026) ein Paket — Praefix
 
 #: Schreib-, Import-, Migrations- und Checker-Pfade + reine Durchreicher.
 P10_SCHREIBEN_IMPORT_CHECKER: frozenset[str] = frozenset({
@@ -2264,7 +2264,7 @@ def test_p10_monatszeile_nur_aus_der_schicht():
     assert offen == [], (
         f"{len(offen)} Funktionen laden `InvestitionMonatsdaten` selbst: {offen}\n"
         "Eine abgeleitete Monatsgröße einer Anlage kommt aus "
-        "`services/monats_fakten.py::lade_monats_fakten` — dort gelten die "
+        "`services/monats_fakten/laden.py::lade_monats_fakten` — dort gelten die "
         "Zeitfilter (aktiv · Anschaffung · Stilllegung), der Dienstwagen-Filter, "
         "die P7-Auflösung der PV und der Monatstarif (P8) genau einmal. Wer "
         "selbst faltet, verliert erfahrungsgemäß eine davon, und niemand merkt "
@@ -2329,7 +2329,7 @@ def test_p10_finanz_zeile_eingabe_nur_aus_einem_monats_fakt():
     treffer: list[str] = []
     for pfad, baum in _quelldateien():
         modul = f"backend/{pfad.relative_to(_BACKEND).as_posix()}"
-        if modul in _P10_ZEILE_ERLAUBT:
+        if modul in _P10_ZEILE_ERLAUBT or modul.startswith(_P10_SCHICHT):
             continue
         for knoten in ast.walk(baum):
             if (
@@ -2341,7 +2341,7 @@ def test_p10_finanz_zeile_eingabe_nur_aus_einem_monats_fakt():
     assert treffer == [], (
         f"`FinanzZeileEingabe` außerhalb der Schicht gebaut: {treffer}\n"
         "Die Eingabe der Finanz-Zeile entsteht in "
-        "`services/monats_fakten.py::finanz_zeile_eingabe` aus einem "
+        "`services/monats_fakten/ableitungen.py::finanz_zeile_eingabe` aus einem "
         "`MonatsFakt` — nur so tragen alle Sichten denselben Tarif-Stichtag (P8) "
         "und dieselbe BKW-Aufteilung (P9)."
     )
@@ -2396,7 +2396,7 @@ _P11_SELEKTOR = "backend/core/berechnungen/erzeuger_traeger.py"
 #: heute vier (`PV_ERZEUGER_TYPEN`, `PVGIS_ERZEUGER_TYPEN`, `_ERZEUGER_TYPEN`,
 #: `ERZEUGER_TYPEN`), und der fünfte soll nicht erst auffallen, wenn jemand ihn
 #: hier einträgt. Der erste Entwurf listete nur die zwei öffentlichen und war
-#: für `monats_fakten.py::_erzeuger_aktiv` blind.
+#: für `monats_fakten/roh.py::_erzeuger_aktiv` blind.
 _P11_MENGEN_NAMEN: frozenset[str] = frozenset({
     "PV_ERZEUGER_TYPEN",
     "PVGIS_ERZEUGER_TYPEN",
@@ -2419,7 +2419,7 @@ P11_AUSNAHMEN: frozenset[str] = frozenset({
     # ── 1. Definition der Menge selbst ─────────────────────────────────────
     "backend/core/berechnungen/spez_ertrag.py::<modul>",   # PV_ERZEUGER_TYPEN
     "backend/api/routes/pvgis.py::<modul>",                # PVGIS_ERZEUGER_TYPEN
-    "backend/services/monats_fakten.py::<modul>",          # _ERZEUGER_TYPEN
+    "backend/services/monats_fakten/roh.py::<modul>",      # _ERZEUGER_TYPEN (bis 19.09.2026 `monats_fakten/`)
     "backend/services/live_sensor_config.py::<modul>",     # ERZEUGER_TYPEN
     "backend/services/datenquellen_validierung.py::<modul>",  # _PV_KOMPONENTEN_TYPEN
     "backend/api/routes/connector.py::<modul>",            # _KATEGORIE_TYPEN
@@ -2434,7 +2434,7 @@ P11_AUSNAHMEN: frozenset[str] = frozenset({
     # „Ist das ein PV-Erzeuger?" zählt nichts und kann nichts doppeln. Der
     # Selektor davor würde die Frage nicht beantworten, sondern verschieben.
     "backend/main.py::get_database_stats",                 # zählt GERÄTE
-    "backend/services/monats_fakten.py::_erzeuger_aktiv",  # „war einer aktiv?"
+    "backend/services/monats_fakten/roh.py::_erzeuger_aktiv",  # „war einer aktiv?"
     "backend/api/routes/monatsabschluss/views.py::get_naechster_monat",
     "backend/api/routes/monatsdaten.py::list_monatsdaten_aggregiert",  # `pv_ziel_aktiv`
     "backend/services/energie_profil/_helpers.py::_get_tagespeaks_aus_ha_lts",
@@ -2487,12 +2487,12 @@ P11_AUSNAHMEN: frozenset[str] = frozenset({
     "backend/services/erzeuger_ziel.py::loese_ziel",
 
     # ── 3b. Sie IMPLEMENTIEREN die Abtretung, statt sie anzuwenden ─────────
-    # `monats_fakten.py::falte` bekommt die abgetretenen IDs als Argument
+    # `monats_fakten/roh.py::falte` bekommt die abgetretenen IDs als Argument
     # (`abgetretene_bkw`, vom Aufrufer über `abgetretene_bkw_ids` erhoben) und
     # setzt für sie Erzeugung UND Rest-Eigenverbrauch auf 0. Der Selektor würde
     # die Zeile ganz verwerfen — dann verlöre das BKW auch die Größen, die es
     # NICHT abtritt (Speicher-Beiträge seines Akkus).
-    "backend/services/monats_fakten.py::falte",
+    "backend/services/monats_fakten/roh.py::falte",
     # `pv_monatswerte.py::_lade_bkw_aggregate` ist die GEGENRICHTUNG: sie sucht
     # gezielt die abtretenden BKW, um deren Monatswert als Lückenfüller der
     # Kinder zu verwenden (P7, Stufe 2). Ein Selektor davor lieferte immer `{}`.
@@ -2909,7 +2909,7 @@ P13_AUSNAHMEN: frozenset[str] = frozenset({
     # Feldangebot. `bauarten_gemischt` kommt aus den Stammdaten (monats_fakten)
     # und wird an `abgrenzungs_grund` gereicht — P12 hält, dass daraus nie eine
     # rohe Division wird.
-    "backend/services/monats_fakten.py::falte",                   # zählt luft_luft/luft_wasser je Block
+    "backend/services/monats_fakten/roh.py::falte",               # zählt luft_luft/luft_wasser je Block
     "backend/api/routes/energie_profil/tag.py::get_tag_detail",   # dieselbe Frage je Tag (Vorlage 4: views.py → tag.py)
     # Vorlage 2 (18.09.2026): die R2-/SOLL-3.2b-Abgrenzung zog aus dem Endpunkt nach waerme.py.
     "backend/api/routes/aktueller_monat/waerme.py::waerme_klima_monat",

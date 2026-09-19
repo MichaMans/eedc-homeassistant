@@ -148,7 +148,7 @@ async def get_neg_preis_einspeisung_je_monat(
     """Alle Monats-Aggregate auf einmal — dieselbe Aussage, EIN Query.
 
     Gegenstück zu `get_neg_preis_einspeisung_monat` für Aufrufer, die eine ganze
-    Historie aufbereiten (`services/monats_fakten.py`): pro Monat einzeln zu
+    Historie aufbereiten (`services/monats_fakten/`): pro Monat einzeln zu
     fragen wären N Rundreisen für dieselbe Gruppierung.
 
     Returns:

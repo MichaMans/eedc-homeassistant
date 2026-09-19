@@ -24,7 +24,7 @@
 > **kostet**, statt zu verdienen (v4.0.5, `core/berechnungen/dienstliche_ladekosten.py`) — die
 > vierte Stelle, an der E-Auto-Ladung in Geld umgerechnet wird, im ursprünglichen Entwurf nicht
 > vorgesehen. Und die Monatszeile wird genau einmal aufbereitet (ADR-002/P10): Read-Sites lesen
-> sie aus `services/monats_fakten.py`, statt `InvestitionMonatsdaten` selbst zu falten.
+> sie aus `services/monats_fakten/`, statt `InvestitionMonatsdaten` selbst zu falten.
 >
 > ⚠ **Sprachliche Altlast:** Wo unten „Wallbox-Dashboard" steht, ist die Wallbox-Fläche des
 > **Komponenten-Hubs** gemeint (`frontend/src/v4/WallboxHubBloecke.tsx`); die Backend-Route heißt
@@ -560,7 +560,7 @@ Drei Stellen, in dieser Reihenfolge:
    `stunde_aus_bilanzwerten`, **nicht** ein Ausdruck in der Schleife (Begründung unten).
 2. **`TagesZusammenfassung`** — zwei Spalten `emob_ladung_{pv,netz}_abgeleitet_kwh` + Migration +
    `source_provenance`-Marke (Rahmenbedingung 4).
-3. **`services/monats_fakten.py`** — `EmobFakten` zieht den Wert heran, wo kein gepflegter existiert,
+3. **`services/monats_fakten/`** — `EmobFakten` zieht den Wert heran, wo kein gepflegter existiert,
    und weist das mit `ladung_anteil_abgeleitet` aus (Rahmenbedingung 1).
 
 **Zwei Befunde haben die Bauform gegenüber dem Schnitt vom Vormittag geändert:**
@@ -601,7 +601,7 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 > Stand nach `a7a50abc` beschreibt; was tatsächlich galt, steht hier.
 >
 > **Der Fehler war die Methode, nicht die Formulierung.** Die Wirkungen waren aus der **Bauabsicht**
-> geschrieben, nicht aus den **Lesestellen** ausgezählt. Die Ableitung saß in `monats_fakten.py`
+> geschrieben, nicht aus den **Lesestellen** ausgezählt. Die Ableitung saß in `monats_fakten/` (damals `monats_fakten/`)
 > *oberhalb* von `get_emob_heimladung_canonical` und traf damit nur die Felder
 > `EmobFakten.ladung_pv_kwh`/`ladung_netz_kwh`. Von **achtzehn** Lesestellen sahen sie **vier**:
 >

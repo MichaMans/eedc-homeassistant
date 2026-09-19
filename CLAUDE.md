@@ -294,7 +294,7 @@ cd website && npm run build  # Synct automatisch docs/ → website/ (prebuild: w
 2. **Datenquellen getrennt:** `Monatsdaten` = Zählerwerte, `InvestitionMonatsdaten` = Komponenten-Details
 3. **Legacy-Felder NICHT verwenden:** `Monatsdaten.batterie_*` und das computed-Trio (`eigenverbrauch_kwh`, `direktverbrauch_kwh`, `gesamtverbrauch_kwh`) → erst `InvestitionMonatsdaten`, Legacy nur als expliziter Fallback
 4. **`Monatsdaten.pv_erzeugung_kwh` ist KEIN Legacy-Feld, aber auch keine Lesequelle** (Gernot 2026-07-29, ADR-002/**P7**): manuelles bzw. importiertes Anlagen-Aggregat und **ausschließlich Eingang** von `resolve_pv_je_modul` — geladen über `services/pv_monatswerte.py`, nie direkt verrechnet. Einzelwerte und ihre Summe haben immer Vorrang; das Aggregat füllt nur die Lücken der Module **ohne** eigenen Wert. Programmatisch füllen bleibt verboten. Der baumweite Wächter ist `test_wurzelmuster_konformitaet.py::test_p7_*` (Baseline 0). Detail: [BERECHNUNGEN §1](docs/BERECHNUNGEN.md), [ADR-002](docs/ADR-002-WURZELMUSTER.md)
-5. **Die Monatszeile wird genau einmal aufbereitet** (ADR-002/**P10**): `services/monats_fakten.py` löst auf, filtert (`aktiv` · Anschaffung · Stilllegung · Dienstwagen) und **ruft** die Layer-Formeln — keine Read-Site faltet `InvestitionMonatsdaten` mehr selbst. Verallgemeinerung von P7 von einer Größe auf die ganze Zeile; Auslöser war die Drift-Inventur 2026-07-31 (sechs Befunde, **kein** Rechenfehler im Layer). **Seit S5 baumweit gewächtert** (`test_wurzelmuster_konformitaet.py::test_p10_*`, funktions-granular, Baseline 0); **der Bauplan ist mit S6 abgearbeitet**, und mit **C1d** (04.08.) steht `P10_NOCH_NICHT_MIGRIERT` auf **0** — **die anlagenweite Restschuld ist getilgt**, der Test hält die Liste jetzt leer statt sie zu deckeln. Detail: [KONZEPT-MONATS-FAKTEN](docs/KONZEPT-MONATS-FAKTEN.md), [ARCHITEKTUR §7](docs/ARCHITEKTUR.md)
+5. **Die Monatszeile wird genau einmal aufbereitet** (ADR-002/**P10**): `services/monats_fakten/` löst auf, filtert (`aktiv` · Anschaffung · Stilllegung · Dienstwagen) und **ruft** die Layer-Formeln — keine Read-Site faltet `InvestitionMonatsdaten` mehr selbst. Verallgemeinerung von P7 von einer Größe auf die ganze Zeile; Auslöser war die Drift-Inventur 2026-07-31 (sechs Befunde, **kein** Rechenfehler im Layer). **Seit S5 baumweit gewächtert** (`test_wurzelmuster_konformitaet.py::test_p10_*`, funktions-granular, Baseline 0); **der Bauplan ist mit S6 abgearbeitet**, und mit **C1d** (04.08.) steht `P10_NOCH_NICHT_MIGRIERT` auf **0** — **die anlagenweite Restschuld ist getilgt**, der Test hält die Liste jetzt leer statt sie zu deckeln. Detail: [KONZEPT-MONATS-FAKTEN](docs/KONZEPT-MONATS-FAKTEN.md), [ARCHITEKTUR §7](docs/ARCHITEKTUR.md)
 
 ## Drei SoT-Regime — nicht mischen
 
@@ -326,7 +326,7 @@ Bei **allem mit Darstellung** (Seite, Komponente, Chart, Tabelle, Tooltip, Butto
 
 ### Monatswerte nur aus den Monats-Fakten (ADR-002/P10)
 
-SoT ist `eedc/backend/services/monats_fakten.py`. Wer eine abgeleitete Monatsgröße auswertet, faltet `InvestitionMonatsdaten` **nicht selbst**:
+SoT ist `eedc/backend/services/monats_fakten/`. Wer eine abgeleitete Monatsgröße auswertet, faltet `InvestitionMonatsdaten` **nicht selbst**:
 
 ```python
 from backend.services.monats_fakten import lade_monats_fakten, finanz_zeile_eingabe

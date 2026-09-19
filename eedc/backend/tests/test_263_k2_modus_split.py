@@ -473,8 +473,11 @@ def test_teilmengen_werden_nirgends_addiert():
         # ausdrücklich, um sie GEGEN den Gesamtwert zu prüfen (E-H-Invariante).
         "services/energie_profil/modus_split_schreiben.py",
         "services/daten_checker/monatsdaten.py",
-        # Der P10-Akkumulator addiert Monatswerte derselben Größe über Geräte.
-        "services/monats_fakten.py",
+        # Der P10-Akkumulator (`services/monats_fakten/`, seit Vorlage 10 am 19.09.2026
+        # ein Paket) addiert Monatswerte derselben Größe über Geräte — der Scan
+        # trifft dort keine Zeile (gemessen 19.09.2026 ohne Eintrag: grün), deshalb
+        # steht hier bewusst KEIN Eintrag: eine Freistellung ohne Treffer wäre eine
+        # Allowlist-Leiche, die eine künftige Stelle still freistellt.
         # Der per-Zeilen-Resolver liest sie nur (`_f(...)`).
         "core/berechnungen/imd_monatsaggregat.py",
     }

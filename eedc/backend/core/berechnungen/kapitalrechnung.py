@@ -65,7 +65,7 @@ sie seine Amortisation **verlängert** statt verkürzt.
 - Die **Zeitraum-Bilanz** behält die sonstigen Positionen auf der **Ertragsseite**.
   „Was hat der Monat März gekostet und eingebracht?" — dort ist eine Reparatur
   ein Aufwand des Zeitraums und eine Förderung ein Ertrag des Zeitraums, und das
-  ist richtig so (``monats_fakten.py``, ``aktueller_monat.py``, ``cockpit/*``,
+  ist richtig so (``monats_fakten/``, ``aktueller_monat.py``, ``cockpit/*``,
   Jahresbericht-PDF, CSV-Export, HA-Sensor ``netto_ertrag_euro``).
 - Die **Kapitalrechnung** nimmt sie in den **Nenner**. „Wie lange dauert es, bis
   sich das rechnet?" — dort ist dieselbe Reparatur zusätzlich eingesetztes

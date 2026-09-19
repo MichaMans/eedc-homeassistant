@@ -233,7 +233,7 @@ class AktuellerMonatResponse(BaseModel):
     #:
     #: ⚠ Das Flag beantwortet „ist *irgendein* Teil gerechnet?" und ist damit
     #: für eine **Kennzahl** die richtige Auskunft: `jaz_belastbar`
-    #: (`monats_fakten.py`) sperrt alles-oder-nichts, und zwar mit Grund —
+    #: (`monats_fakten/`) sperrt alles-oder-nichts, und zwar mit Grund —
     #: gemessene Wärme durch den **Gesamt**strom geteilt gäbe eine zu kleine
     #: JAZ, also falsch statt unbekannt.
     #:

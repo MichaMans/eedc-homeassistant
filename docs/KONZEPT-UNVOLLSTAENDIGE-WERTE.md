@@ -80,9 +80,9 @@ standen in keinem Register.
 | Stelle | Ausprägung |
 | --- | --- |
 | `core/berechnungen/verbrauch.py:66-71` | **Der Kern.** `berechne_verbrauchs_kennzahlen` nimmt sechs `float` und macht aus jedem `None` per `or 0.0` eine 0. Die **Signatur hat keinen Platz für „unbekannt"** — ab hier ist die Information weg, für alle fünf Aufrufer |
-| ~~`services/monats_fakten.py`: `einspeisung_kwh=(monatsdaten.einspeisung_kwh or 0.0) …`~~ | ⛔ **Am 2026-08-29 am Code widerlegt — die Begründung stimmte nicht.** Hier stand „Die NULL-Spalte in `Monatsdaten` **weiß** es; die Schicht wirft es hier weg". Gemessen: `einspeisung_kwh` und `netzbezug_kwh` sind `nullable=False, default=0` — im Modell **und** in drei echten Datenbanken (`NOT NULL`, 0 NULL-Zeilen). Das `or 0.0` kann dort nichts wegwerfen. Was tatsächlich Information verliert, ist der andere Zweig — `if monatsdaten else 0.0`, also ein Monat **ohne Zählerzeile** —, und **den führt die Schicht bereits**: `MetaFakten.hat_zaehlerzeile`, gelesen von acht Stellen unter `backend/api/`. *Eine Inventur-Zeile, die eine Spalte für nullable hält, ohne ins Modell zu sehen* |
-| `services/monats_fakten.py:658` | `pv_kwh = (pv_modul_summe or 0.0) + roh.bkw_erzeugung` — **die Schicht bricht ihre eigene, ausgeschriebene Regel** (s. §2.3) |
-| `services/monats_fakten.py:513-520` | `kennzahlen_aus_fakten` summiert über Monate; ein Monat ohne Zählerzeile geht als 0 ein |
+| ~~`services/monats_fakten/`: `einspeisung_kwh=(monatsdaten.einspeisung_kwh or 0.0) …`~~ | ⛔ **Am 2026-08-29 am Code widerlegt — die Begründung stimmte nicht.** Hier stand „Die NULL-Spalte in `Monatsdaten` **weiß** es; die Schicht wirft es hier weg". Gemessen: `einspeisung_kwh` und `netzbezug_kwh` sind `nullable=False, default=0` — im Modell **und** in drei echten Datenbanken (`NOT NULL`, 0 NULL-Zeilen). Das `or 0.0` kann dort nichts wegwerfen. Was tatsächlich Information verliert, ist der andere Zweig — `if monatsdaten else 0.0`, also ein Monat **ohne Zählerzeile** —, und **den führt die Schicht bereits**: `MetaFakten.hat_zaehlerzeile`, gelesen von acht Stellen unter `backend/api/`. *Eine Inventur-Zeile, die eine Spalte für nullable hält, ohne ins Modell zu sehen* |
+| `services/monats_fakten/bau.py::_baue_fakt` | `pv_kwh = (pv_modul_summe or 0.0) + roh.bkw_erzeugung` — **die Schicht bricht ihre eigene, ausgeschriebene Regel** (s. §2.3) |
+| `services/monats_fakten/ableitungen.py::kennzahlen_aus_fakten` | `kennzahlen_aus_fakten` summiert über Monate; ein Monat ohne Zählerzeile geht als 0 ein |
 | `core/calculations.py:157-161` | Legacy-Pfad, gar keine Guards |
 | `api/routes/cockpit/uebersicht.py:328` · `ha_export.py:389` · `monatsdaten.py:504` · `core/berechnungen/finanz_aggregat.py:120` | die vier Aufrufer des Kerns — erben dessen Blindheit unverändert |
 | `services/pdf/builders/jahresbericht.py:285-296` · `:346-347` | `gesamt = ev + netz` ohne Guard |
@@ -112,19 +112,19 @@ nur nicht als Regel aufgeschrieben und deshalb nicht durchgesetzt.
 | `api/routes/aktueller_monat/vergleich.py::_load_vorjahr` | **Gestufte** Unterdrückung: ohne Einspeisung kein Eigenverbrauch; ohne Netzbezug zusätzlich kein Gesamtverbrauch und keine Autarkie — aber der Eigenverbrauch **bleibt**. Die feinste Behandlung im Baum |
 | `core/berechnungen/tagesbilanz.py:92-115` | NULL-Stunden zählen nicht als 0; Quoten `None` statt 0, „damit die UI '—' statt '0 %' zeigt" |
 | `api/routes/import_export/csv_operations.py:454-461` | Import setzt `eigenverbrauch = None` vor, rechnet nur im Guard |
-| `services/monats_fakten.py:116-135` | `ErzeugungFakten.pv_module_kwh: Optional[float]` — im Docstring steht die richtige Regel wörtlich: „Wer summiert, behandelt `None` als Lücke, **nie** als 0" |
+| `services/monats_fakten/fakten.py::ErzeugungFakten` | `ErzeugungFakten.pv_module_kwh: Optional[float]` — im Docstring steht die richtige Regel wörtlich: „Wer summiert, behandelt `None` als Lücke, **nie** als 0" |
 
 ### §2.4 Der schärfste Einzelbefund: ein Flag ohne Leser
 
-`monats_fakten.py` **hat** bereits ein Provenance-Flag. Es wird gesetzt
+`monats_fakten/` **hat** bereits ein Provenance-Flag. Es wird gesetzt
 (`:667`), in die Meta-Gruppe gereicht (`:752`) und von zwei Tests geprüft. Der
 baumweite Grep, **ohne Glob, über beide Repo-Hälften**:
 
 ```
-eedc/backend/services/monats_fakten.py:143   pv_vollstaendig: bool = True     ← Definition
-eedc/backend/services/monats_fakten.py:341   pv_vollstaendig: bool = True     ← Definition
-eedc/backend/services/monats_fakten.py:667   pv_vollstaendig=…                ← gesetzt
-eedc/backend/services/monats_fakten.py:752   pv_vollstaendig=…                ← gesetzt
+eedc/backend/services/monats_fakten/fakten.py::ErzeugungFakten   pv_vollstaendig: bool = True     ← Definition
+eedc/backend/services/monats_fakten/fakten.py::MetaFakten        pv_vollstaendig: bool = True     ← Definition
+eedc/backend/services/monats_fakten/bau.py::_baue_fakt           pv_vollstaendig=…                ← gesetzt
+eedc/backend/services/monats_fakten/bau.py::_baue_fakt           pv_vollstaendig=…                ← gesetzt
 eedc/backend/tests/test_monats_fakten_schicht.py:146,166,167                  ← geprüft
 ```
 
@@ -133,7 +133,7 @@ Frontend. Das Flag war vollständig implementiert, getestet und **erreichte die
 Antwort nie**.
 
 > ✅ **Behoben am 2026-08-29.** `pv_unvollstaendig_hinweis()` in
-> `services/monats_fakten.py` ist die eine Stelle, die aus dem Flag einen Satz
+> `services/monats_fakten/` ist die eine Stelle, die aus dem Flag einen Satz
 > macht; ausgeliefert wird er als `hinweise` (P4-Form, wie
 > `SolarPrognoseResponse`) in **Cockpit → Monat** und **Cockpit → Jahr**, und als
 > Feld `pv_vollstaendig` **je Zeile** in `/monatsdaten/aggregiert` — dort ist die

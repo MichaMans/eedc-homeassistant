@@ -1276,7 +1276,7 @@ class StammdatenChecks:
                     #     `investitionen/roi.py`). DAS prüft diese Zeile.
                     #   • `speicher_ladepreis_cent` — der gemessene Monatswert,
                     #     im Monatsabschluss erfassbar und per Sensor füllbar
-                    #     (`monats_fakten.py`).
+                    #     (`monats_fakten/`).
                     # Er hatte den Sensor zugeordnet, sah daneben 24,79 ct
                     # stehen und las die Meldung als Widerspruch. Sie war
                     # richtig — sie sagte nur nicht, welchen Preis sie meint.

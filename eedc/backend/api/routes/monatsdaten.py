@@ -450,7 +450,7 @@ async def list_monatsdaten_aggregiert(
     Gibt Monatsdaten mit aggregierten Werten aus InvestitionMonatsdaten zurück.
 
     Die Monatsgrößen kommen aus der Monats-Fakten-Schicht (ADR-002/**P10**,
-    `services/monats_fakten.py`) — dort gelten Zeitfilter, Dienstwagen-Filter,
+    `services/monats_fakten/`) — dort gelten Zeitfilter, Dienstwagen-Filter,
     die P7-Auflösung der PV und der Monatstarif genau einmal. Bis 2026-08-03
     faltete diese Route die `InvestitionMonatsdaten` selbst (Register N-15).
 

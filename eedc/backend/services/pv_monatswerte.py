@@ -83,7 +83,7 @@ async def lade_pv_je_monat(
     3. das Anlagen-Aggregat für alles, was danach noch offen ist.
 
     Das ist keine neue Regel, sondern dieselbe Regel eine Ebene tiefer, und sie
-    ist der Grund, warum ``monats_fakten.py`` das abtretende BKW aus
+    ist der Grund, warum ``monats_fakten/roh.py`` das abtretende BKW aus
     ``bkw_erzeugung`` herausnehmen kann, ohne einen gepflegten Wert zu
     verlieren: er wirkt weiter, nur an der richtigen Stelle. Ohne diese Hälfte
     stünde ``pv_kwh = pv_modul_summe + bkw_erzeugung`` auf der doppelten
@@ -216,7 +216,7 @@ async def _lade_bkw_aggregate(
     """``{(jahr, monat): {bkw_id: kwh}}`` für Balkonkraftwerke MIT Modul-Kindern.
 
     Nur die abtretenden BKW (N-266): ohne Modul-Kinder ist der Wert die
-    Erzeugung des Geräts selbst und wird in ``monats_fakten.py`` als eigener
+    Erzeugung des Geräts selbst und wird in ``monats_fakten/bau.py`` als eigener
     Summand geführt — hier wäre er dann ein zweites Mal drin.
 
     ``{}``, wenn kein Modul der übergebenen Menge einen BKW-Parent hat. Das ist

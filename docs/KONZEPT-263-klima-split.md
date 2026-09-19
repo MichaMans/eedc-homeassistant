@@ -560,7 +560,7 @@ Reine Faltung in `core/berechnungen/modus_split.py` (ADR-001), Lader in
 > zwei trotzdem — eine Aussage über den Code, die von ihrem ersten Tag an falsch war. Sichtbar
 > wurde es beim ersten echten Gerät: kingcap1 ordnete am 19.08. den Modus zu und sah in
 > **allen vier** Sichten nichts. Der zweite Aufrufer sitzt jetzt in
-> `services/monats_fakten.py::_ergaenze_modus_split_ohne_abschluss` — **gespeichert schlägt
+> `services/monats_fakten/laden.py::_ergaenze_modus_split_ohne_abschluss` — **gespeichert schlägt
 > gerechnet**, und die Teilmengen-Invariante gilt dort genauso, sonst käme ein beim Abschluss
 > *verworfener* Split über den Lesepfad zurück.
 >
