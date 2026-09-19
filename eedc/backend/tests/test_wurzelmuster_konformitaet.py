@@ -1400,6 +1400,10 @@ P7_BASELINE_AUSNAHMEN: frozenset[str] = frozenset({
     # `PvModulWert` — das ERGEBNIS der Auflösung. Genau der Weg, den die Regel
     # vorschreibt; die Summe daraus ist die Anlagen-PV.
     "backend/api/routes/cockpit/pv_strings.py::w",
+    # Dito im HA-Statistik-Import (N-533, 19.09.2026): `modulwert` ist das
+    # `PvModulWert` aus `lade_pv_je_monat` (was ist gemessen?) bzw. aus
+    # `resolve_pv_je_modul` (wie viel bekommt jede Lücke vom Anlagen-Zähler?).
+    "backend/api/routes/ha_statistics.py::modulwert",
     # Dito auf der TAGESEBENE (#406): `loese_pv_tageswerte_auf` ruft denselben
     # SoT `resolve_pv_je_modul` mit Tageswerten statt Monatswerten und liest sein
     # Ergebnis (`PvModulWert`). Es gibt dort keine `Monatsdaten`-Zeile — das
@@ -2037,6 +2041,10 @@ P10_SCHREIBEN_IMPORT_CHECKER: frozenset[str] = frozenset({
     # Import / Export / Migration.
     "backend/api/routes/ha_statistics.py::get_import_vorschau",
     "backend/api/routes/ha_statistics.py::import_ha_statistics",
+    # N-533 (19.09.2026): schreibt den Anlagen-PV-Zähler eines Monats als Modulwerte
+    # (Import-Pfad). Lädt die Gerätezeilen des Monats nur, um sie zu BESCHREIBEN;
+    # was gemessen ist, fragt sie bei `lade_pv_je_monat` (P7), nicht selbst.
+    "backend/api/routes/ha_statistics.py::_verteile_anlagen_pv",
     "backend/api/routes/import_export/csv_operations.py::export_csv",
     "backend/api/routes/import_export/json_operations.py::_export_anlage_full_impl",
     "backend/services/migrations/migrate_emob_canonical_source.py::migrate_emob_canonical_source",

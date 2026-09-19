@@ -649,6 +649,8 @@ eedc exportiert berechnete Kennzahlen an einen Broker (HA-Discovery-Konvention).
 
 Jeder Monat ist einzeln per Checkbox wählbar — so bleiben manuell erfasste Daten geschützt.
 
+> **Ein PV-Gesamtzähler der Anlage wird auf die Module verteilt** (seit 4.0.48). Hat deine Anlage nur einen gemeinsamen PV-Zähler in HA (Datenquellen: „Über den Anlagen-Zählerstand abgedeckt“), zeigt die Vorschau ihn als „PV Erzeugung Gesamt“, zählt ihn beim Vergleich mit — ein Monat ohne PV ist kein „stimmt überein“ — und schreibt ihn beim Import wie der Monatsabschluss anteilig nach kWp auf die aktiven Module, als Zerlegung gekennzeichnet; Module mit eigenem Sensor behalten ihren Messwert. Bis 4.0.47 blieb der Zähler im Statistik-Import unbeachtet: die Monate galten als vollständig und hatten keine PV, und der Daten-Checker riet zu genau diesem Import.
+
 > **Voraussetzungen:** zugeordnete HA-Sensoren (siehe [Datenquellen](#7-datenquellen--feld-zentrische-zuordnung)) und Sensoren, die in der HA-Langzeitstatistik geführt werden. Den **Zugang zur Statistik** hat eedc auf drei Wegen, und einer genügt: über die verbundene Home-Assistant-Instanz (Add-on oder Long-Lived-Token — **ohne** jede weitere Einrichtung), über den Lesezugriff des Add-ons auf die Recorder-Datei, oder über `HA_RECORDER_DB_URL` bei MariaDB/MySQL. Wo eine Datenbank erreichbar ist, wird sie bevorzugt; sonst holt eedc dieselben Werte über die HA-API. Bei Tagesreset-Zählern nutzt eedc `MAX(sum) − MIN(sum)` aus HA-Statistics (reset-bereinigt).
 >
 > **Wie weit zurück?** So weit, wie Home Assistant den Sensor selbst führt — die Langzeitstatistik beginnt mit seiner Einrichtung. Für die Zeit davor gibt es den Datei-Import (CSV/Excel); daran ändert auch der API-Weg nichts.
