@@ -541,7 +541,7 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   └── …                     # vollständige Liste: ls eedc/backend/services/
     │   │
     │   ├── tests/                   # ~400 pytest-Dateien, darunter die Wächter:
-    │   │   ├── conftest.py           # die `db`-Fixture (In-Memory je Test) + Netzsperre
+    │   │   ├── conftest.py           # die `db`-Fixture (In-Memory je Test) + Netzsperre + Wegwerf-Produktiv-DB (nie data/eedc.db)
     │   │   ├── factories.py          # Modell-Factories + Szenarien (s. unten)
     │   │   ├── quellbaum.py          # EINE Dateiquelle für alle baumweiten Prüfer (s. unten)
     │   │   ├── ha_lts_helfer.py      # EINE Fassung des HA-Recorder-Schemas (s. unten)
@@ -674,6 +674,14 @@ die **Summenzeile**, nicht die letzte grüne Zeile.
 **Reihenfolge ist nicht beliebig:** `tsc --noEmit` kommt **vor** dem ersten vollen Vitest-Lauf. Ein
 vergessener Import fällt dort in Sekunden auf, im Vitest-Lauf erst nach Minuten und mit
 irreführender Fehlermeldung.
+
+**Der Testlauf berührt `data/eedc.db` nie.** `conftest.py` setzt `DATABASE_URL` auf eine Wegwerf-Datei
+je Worker, *bevor* `backend.core.database` importiert wird, legt dort das Schema an, setzt das
+L2-Cache-Flag des Prognose-Kanons je Test zurück und startet die App-Lifespan ohne Scheduler
+(`EEDC_DISABLE_SCHEDULER`). Bis zum 19.09.2026 schrieb jeder Lauf 12–20 Aktivitätszeilen in die
+Entwickler-Datenbank, und die nie geschlossene Verbindung der Produktiv-Engine war die wandernde
+Warnung „Event loop is closed" (N-414 · N-532). Wer eine Probe mit eigener Engine schreibt, disposed
+sie im `finally` — die `db`-Fixture ist das Vorbild.
 
 ```bash
 # 1. Backend (bei Backend-Arbeit vollständig)

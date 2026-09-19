@@ -49,6 +49,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 - **Intern — `services/daten_checker/datenquelle.py` ist ein Unterpaket (Vorlage 9).** Die 2.031-Zeilen-Mixin-Klasse `DatenquelleChecks` ist in sieben Mixins je Prüf-Familie geteilt, Code 1:1 umgezogen: `quellen.py` (Provenance, Status, Drift), `tage.py`, `speicher.py`, `klima.py`, `connector.py`, `zeitzone.py` und `ruecksprung.py`; die Fassade trägt `DatenquelleChecks` als Verbund weiter, der Daten-Checker komponiert wie bisher. Wächter, ein Patch-Ziel und die Doku folgen den Modulen. ⚠ **Keine Prüfung und keine Meldung ändern sich** — belegt mit einem neuen Golden Master über den Daten-Check je Anlage (`plans/skript-golden-master-daten-checker.py`, drei Bestände bitgleich), der vollen Suite und dem HAOS-Lab.
 
+- **Intern — der Testlauf berührt die Entwickler-Datenbank nicht mehr (N-414).** Die Produktiv-Engine zeigte in Tests auf `data/eedc.db`: das Aktivitätsprotokoll, die echte App-Lifespan eines Tests und der Prognose-Cache schrieben dort je Lauf 12–20 echte Zeilen, und ihre nie geschlossene Verbindung erzeugte die seit Wochen wandernde Warnung „Event loop is closed“ (0–12 je Lauf, je nach Worker-Zuteilung). `conftest.py` gibt der Engine jetzt eine Wegwerf-Datei je Worker, setzt das Cache-Flag je Test zurück und lässt die Lifespan ohne Scheduler starten.
+
 ---
 
 ## [4.0.47] - 2026-09-18 — Der Monatsabschluss sendet wieder, der Community-Vergleich rechnet gleich auf beiden Seiten — und die Ersparnis kennt den Preis der vermiedenen Stunden
