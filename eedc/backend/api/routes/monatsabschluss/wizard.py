@@ -209,6 +209,14 @@ async def _post_save_hintergrund(
                                 if anlage_obj:
                                     anlage_obj.community_hash = result_data["anlage_hash"]
                                     await db.commit()
+                            hinweise = result_data.get("hinweise") or []
+                            if hinweise:
+                                # N-523: ein übersprungener Monat ist kein Fehler des
+                                # Submits, aber eine Nachricht an den Anwender.
+                                logger.warning(
+                                    "Auto-Share für Anlage %s mit Hinweisen: %s",
+                                    anlage_id, "; ".join(str(h) for h in hinweise),
+                                )
                             logger.info(f"Auto-Share für Anlage {anlage_id} erfolgreich")
                         else:
                             logger.warning(f"Auto-Share HTTP {resp.status_code}: {resp.text[:200]}")

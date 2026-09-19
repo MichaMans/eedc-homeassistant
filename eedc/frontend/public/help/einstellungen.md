@@ -210,6 +210,7 @@ Der Schalter zum anonymen Teilen deiner Anlagendaten für den [Community-Verglei
 - **Anonymisierung:** nur Bundesland, keine Adresse/PLZ.
 - **Jederzeit löschbar** — auch rückwirkend (einzelne Monate).
 - Der Teilen-Status ist zusätzlich in der Status-Fußzeile sichtbar.
+- **Ein unplausibler Monat sperrt nicht den ganzen Datensatz** (seit 4.0.48): hält der Community-Server einen Monat für unplausibel (Ertrag 0, Zukunftsmonat, über 180 kWh/kWp), überspringt er ihn und nimmt die übrigen an. Der Block zeigt den Hinweis nach „Jetzt übertragen", das Aktivitätsprotokoll führt ihn mit — prüfe dann den genannten Monat unter Einstellungen → Monatsdaten.
 
 ---
 

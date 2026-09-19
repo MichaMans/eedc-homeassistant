@@ -29,11 +29,17 @@ router = APIRouter(prefix="/community", tags=["Community"])
 
 
 class ShareResponse(BaseModel):
-    """Antwort nach erfolgreicher Übertragung."""
+    """Antwort nach erfolgreicher Übertragung.
+
+    ``hinweise`` (N-523, Server seit 19.09.2026): Klartext je Monat, den der
+    Server übersprungen oder als sehr hoch vermerkt hat — der Rest wurde
+    angenommen. Vorher wies EIN unplausibler Monat den ganzen Datensatz ab.
+    """
     success: bool
     message: str
     anlage_hash: str | None = None
     anzahl_monate: int | None = None
+    hinweise: list[str] = []
     benchmark: dict | None = None
 
 
@@ -138,11 +144,15 @@ async def share_to_community(
 
                 await merke_gesendet(db, anlage_id)
 
+                # N-523: der Server nennt übersprungene Monate im Klartext —
+                # sie gehören ins Protokoll und in die Antwort, nicht ins Nichts.
+                hinweise = [h for h in (result.get("hinweise") or []) if isinstance(h, str)]
                 await log_activity(
                     kategorie="community",
                     aktion="Community-Daten geteilt",
                     erfolg=True,
-                    details=f"{result.get('anzahl_monate', 0)} Monate",
+                    details=f"{result.get('anzahl_monate', 0)} Monate"
+                    + (f" — {'; '.join(hinweise)}" if hinweise else ""),
                     anlage_id=anlage_id,
                     db=db,
                 )
@@ -151,6 +161,7 @@ async def share_to_community(
                     message="Daten erfolgreich geteilt!",
                     anlage_hash=anlage_hash,
                     anzahl_monate=result.get("anzahl_monate"),
+                    hinweise=hinweise,
                     benchmark=result.get("benchmark"),
                 )
             elif response.status_code == 429:
