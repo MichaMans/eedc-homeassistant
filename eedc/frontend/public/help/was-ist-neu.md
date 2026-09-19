@@ -77,6 +77,83 @@ gebaut hat, sieht dieselbe Kurve wie zuvor.
 
 ---
 
+**Monatsdaten speichern und Importe dauern nicht mehr 30 Sekunden**
+
+**Betrifft dich das?** Ja, wenn du Monate unter *Einstellungen → Monatsdaten*
+speicherst oder den Portal-, Cloud- oder Custom-Import nutzt.
+
+**Was war:** Beim Speichern eines Monats (seit 4.0.47) und bei jedem dieser
+Importe wartete eedc 30 Sekunden auf die Antwort, und der Eintrag im
+Aktivitätsprotokoll fehlte danach. Das Protokoll öffnete für seinen Eintrag eine
+zweite Datenbankverbindung, während die erste noch schrieb — und SQLite lässt
+nur einen Schreiber zu.
+
+**Was jetzt:** Das Protokoll schreibt in derselben Verbindung wie die Aktion.
+Speichern und Import antworten sofort, der Protokolleintrag ist da. **Du musst
+nichts tun.**
+
+---
+
+**Community: Ein unplausibler Monat sperrt nicht mehr den ganzen Datensatz**
+
+**Betrifft dich das?** Ja, wenn du deine Anlage mit der Community teilst und
+ein Monat einen spezifischen Ertrag über 180 kWh/kWp trägt — etwa durch einen
+Zähler-Rücksprung, eine falsche Nennleistung oder ein Balkonkraftwerk im
+Hochsommer.
+
+**Was war:** Der Community-Server wies den gesamten Datensatz ab, sobald ein
+einziger Monat unplausibel war. Beim automatischen Teilen sah niemand etwas
+davon, beim Knopf nur „Unrealistischer Ertrag". Eine Installation verlor so
+wochenlang täglich ihren ganzen Vergleichsdatensatz.
+
+**Was jetzt:** Der Server überspringt den Monat, nimmt die übrigen an und nennt
+den Grund. Der Teilen-Block zeigt den Hinweis nach „Jetzt übertragen", das
+Aktivitätsprotokoll führt ihn mit. Prüfe dann den genannten Monat unter
+*Einstellungen → Monatsdaten*. Der 180er-Maßstab selbst ist unverändert.
+
+---
+
+**Statistik-Import und „Aus HA laden" kennen den PV-Gesamtzähler der Anlage**
+
+**Betrifft dich das?** Ja, wenn du in Home Assistant nur einen gemeinsamen
+PV-Zähler hast und mehrere Modulgruppen führst — und wenn du unter
+*Einstellungen → Monatsdaten* den Knopf „Aus HA laden" nutzt.
+
+**Was war:** Der Statistik-Import zeigte den PV-Gesamtzähler in der Vorschau,
+verglich aber nur Einspeisung und Netzbezug und schrieb den Zähler beim Import
+nirgendwohin. Die Monate galten als vollständig, hatten aber keine PV, und der
+Daten-Checker riet zu genau diesem Import. Der Vergleichsdialog hinter „Aus HA
+laden" zeigte für Einspeisung und Netzbezug seit März nur Striche, und das
+Formular dahinter blieb leer. Gemeldet von Frank85.
+
+**Was jetzt:** Ein Monat ohne PV ist im Import ein Import, und der Zähler wird
+wie im Monatsabschluss nach kWp auf die aktiven Module verteilt, als Zerlegung
+gekennzeichnet; Module mit eigenem Sensor behalten ihren Messwert. Der Dialog
+zeigt jedes zugeordnete Zählerfeld samt PV-Gesamtzähler und belegt das Formular
+damit vor. **Wer betroffen ist:** einmal die Vorschau des Statistik-Imports
+öffnen — die Monate ohne PV stehen dann auf „importieren".
+
+---
+
+**Zwei Wartezeiten weniger: HA-Export-Sensoren und eben gespeicherte Komponenten**
+
+**Betrifft dich das?** Ja, wenn Home Assistant die eedc-Sensoren per REST
+abfragt, oder wenn du im Einrichtungsassistenten Komponenten anlegst.
+
+**Was war:** Bei kaltem Prognose-Cache wartete die Sensor-Abfrage bis zu
+30 Sekunden auf eine zufällige Pause vor dem Wetterabruf; Home Assistant brach
+nach 10 Sekunden ab und zeigte die Sensoren einmal je Stunde als nicht
+verfügbar. Und eine eben angelegte Komponente war für einen sofort folgenden
+Aufruf in 0,4 % der Fälle noch nicht da, weil der Datenbank-Commit erst nach
+dem Senden der Antwort lief.
+
+**Was jetzt:** Die Export-Sichten und der Publish-Knopf überspringen die Pause,
+nur der zeitgesteuerte Publish-Job behält sie als Lastverteilung. Jede
+Schreibroute committet, bevor die Antwort den Browser erreicht. **Du musst
+nichts tun.**
+
+---
+
 ## v4.0.47 — 18. September 2026
 
 **Nach dem Monatsabschluss läuft wieder alles nach — und was liegen blieb, wird nachgesendet**
