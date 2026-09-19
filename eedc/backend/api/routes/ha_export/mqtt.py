@@ -100,6 +100,7 @@ async def publish_sensors_mqtt(
         erfolg=pub["failed"] == 0,
         details=f"{pub['success']}/{pub['total']} Sensoren für {anlage.anlagenname}{fehl}{grund}",
         anlage_id=anlage.id,
+        db=db,
     )
 
     return {
@@ -185,6 +186,7 @@ async def remove_sensors_mqtt(
             f"für {anlage.anlagenname}"
         ),
         anlage_id=anlage.id,
+        db=db,
     )
 
     return {

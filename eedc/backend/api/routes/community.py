@@ -144,6 +144,7 @@ async def share_to_community(
                     erfolg=True,
                     details=f"{result.get('anzahl_monate', 0)} Monate",
                     anlage_id=anlage_id,
+                    db=db,
                 )
                 return ShareResponse(
                     success=True,
@@ -188,6 +189,7 @@ async def share_to_community(
             erfolg=False,
             details="Timeout — Server antwortet nicht",
             anlage_id=anlage_id,
+            db=db,
         )
         raise HTTPException(
             status_code=504,
@@ -200,6 +202,7 @@ async def share_to_community(
             erfolg=False,
             details=f"{type(e).__name__}: {e}",
             anlage_id=anlage_id,
+            db=db,
         )
         raise HTTPException(
             status_code=503,
@@ -300,6 +303,7 @@ async def delete_from_community(
                     erfolg=True,
                     details=f"{result_data.get('anzahl_geloeschte_monate', 0)} Monate entfernt",
                     anlage_id=anlage_id,
+                    db=db,
                 )
                 return DeleteResponse(
                     success=True,

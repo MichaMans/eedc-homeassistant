@@ -449,6 +449,7 @@ async def save_monatsabschluss(
         aktion=f"Monatsabschluss {MONAT_NAMEN[monat]} {jahr} gespeichert",
         erfolg=True,
         anlage_id=anlage_id,
+        db=db,
     )
 
     return MonatsabschlussResult(

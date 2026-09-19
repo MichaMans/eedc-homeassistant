@@ -172,6 +172,7 @@ async def set_sensor_abwahl(payload: AbwahlRequest, db: AsyncSession = Depends(g
             f"{entfernt['topics']} Topics zurückgenommen"
             + (f" — {entfernt['fehler']}" if entfernt["fehler"] else "")
         ),
+        db=db,
     )
 
     return {

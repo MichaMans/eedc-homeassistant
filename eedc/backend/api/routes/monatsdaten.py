@@ -1158,6 +1158,7 @@ async def _nachlauf_planen(
         aktion=f"Monatsabschluss {MONAT_NAMEN[md.monat]} {md.jahr} gespeichert",
         erfolg=True,
         anlage_id=md.anlage_id,
+        db=db,
     )
 
 

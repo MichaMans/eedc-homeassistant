@@ -370,6 +370,15 @@ async def create_x(data: XCreate, db: AsyncSession = Depends(get_db)):          
 
 `get_db` committet im Teardown der Dependency. Mit dem FastAPI-Default `scope="request"` läuft der erst, **nachdem** die Antwort gesendet ist — ein sofortiger Folgeaufruf sah die eben angelegte Zeile in 0,4 % der Fälle nicht (gemessen 18.09.2026, N-530: 4 und 5 von 600 Runden POST → GET ohne Pause; der Setup-Wizard kettet genau so). `scope="function"` zieht den Teardown vor das Senden. Leserouten bleiben beim Default (streamende Exporte lesen ihre Session während des Sendens). Wächter: `test_n530_schreibrouten_commit_vor_antwort.py` (baumweit, Baseline 0, prüft auch die Gegenrichtung).
 
+### Aktivitätsprotokoll in der Sitzung des Aufrufers (N-532)
+
+```python
+await log_activity("import", "Portal-Import: 3 Monate", anlage_id=anlage.id, db=db)  # RICHTIG — wer eine Sitzung hält, gibt sie mit
+await log_activity("import", "Portal-Import: 3 Monate", anlage_id=anlage.id)         # FALSCH in einer Funktion mit `db`/`session` oder in einem `get_session()`-Block
+```
+
+SQLite kennt **einen** Schreiber. `log_activity` ohne `db` öffnet eine eigene Verbindung; hält die Sitzung des Aufrufers nach einem `flush()` den Schreib-Lock, wartet die zweite den vollen `busy_timeout` (30 s) ab, scheitert mit „database is locked", und die Zeile ist weg — gemessen 19.09.2026 an einer r28-Kopie: Portal-Import-Apply und `PUT`/`POST /api/monatsdaten` je 30,1 s ohne Protokollzeile, mit übergebener Sitzung 0,03 s. Ohne Sitzung (Scheduler-Job nach seinem `get_session()`-Block, MQTT-Gateway) bleibt die eigene Verbindung richtig. Wächter: `test_n532_aktivitaetsprotokoll_in_der_sitzung.py` (baumweit, 25 Stellen, Baseline 0, mit Gegenprobe an einer Datei-Datenbank). **Und der Testlauf berührt `data/eedc.db` nie** — `conftest.py` gibt der Produktiv-Engine eine Wegwerf-Datei je Worker (N-414).
+
 ### Investitions-Kennwerte nur über den SoT-Helper (ADR-002/P3-a)
 
 SoT ist `eedc/backend/core/investition_kennwerte.py`:

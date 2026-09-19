@@ -340,6 +340,7 @@ async def get_monatswerte(
             erfolg=False,
             details=f"{type(e).__name__}: {e}",
             anlage_id=anlage_id,
+            db=db,
         )
         raise HTTPException(status_code=500, detail=f"Fehler bei DB-Abfrage: {e}")
 
@@ -1129,6 +1130,7 @@ async def import_ha_statistics(
         erfolg=len(fehler) == 0,
         details=f"Importiert: {importiert}, Übersprungen: {uebersprungen}" + (f", Fehler: {len(fehler)}" if fehler else ""),
         anlage_id=anlage_id,
+        db=db,
     )
 
     warnung = warnung_monate_ohne_zaehlerwerte(monate_ohne_zaehlerwerte)

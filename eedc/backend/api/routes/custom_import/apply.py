@@ -420,6 +420,7 @@ async def apply_custom_import(
             "geschuetzt": geschuetzt_count, "fehler": fehler[:5],
         },
         anlage_id=anlage_id,
+        db=db,
     )
 
     return ApplyResponse(

@@ -262,6 +262,7 @@ async def setup_connector(
         erfolg=True,
         details=f"Gerät: {test_result.geraet_name}, SN: {test_result.seriennummer}",
         anlage_id=anlage_id,
+        db=db,
     )
 
     return {
@@ -372,6 +373,7 @@ async def set_connector_mapping(
         erfolg=True,
         details_json=clean_map,
         anlage_id=anlage_id,
+        db=db,
     )
 
     return {"erfolg": True, "field_inv_map": clean_map}
