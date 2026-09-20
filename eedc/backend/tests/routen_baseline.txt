@@ -171,6 +171,7 @@ GET /api/pvgis/optimum/{anlage_id}
 GET /api/pvgis/prognose/{anlage_id}
 GET /api/pvgis/prognose/{anlage_id}/aktiv
 GET /api/pvgis/prognose/{anlage_id}/gespeichert
+GET /api/pvgis/soll/{anlage_id}/{jahr}
 GET /api/redoc
 GET /api/repair/plans
 GET /api/scheduler

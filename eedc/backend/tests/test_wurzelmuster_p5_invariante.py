@@ -52,6 +52,11 @@ from backend.models.pvgis_prognose import (
 # Prognose gelesen wird —, nicht die Kürzung: sie übergibt deshalb bewusst ein
 # volles Fenster, fest verdrahtet statt aus `date.today()` abgeleitet.
 VOLLER_MONAT = monatsfenster(2026, 5, heute=date(2026, 6, 1))
+# Derselbe Stichtag als Datum: `_load_soll_pv` nimmt seit 2026-09-19 das Datum
+# statt eines fertigen Fensters — eine Tageszahl allein genügt nicht, wenn sich
+# Geräte- und Kalenderkante im selben Monat schneiden (s.
+# `test_soll_cockpit_zubau_stichtag.py`).
+STICHTAG_NACH_MAI = date(2026, 6, 1)
 
 AKTIV_ALT_JAHR = 9_600.0
 NEU_JAHR = 19_200.0
@@ -109,7 +114,9 @@ async def _seed(db, *, zwei_aktive: bool) -> int:
         )
         db.add(prognose)
         await db.flush()
-        # Normalisierte Monatszeilen — der Monatsbericht liest sie, nicht das JSON.
+        # Normalisierte Monatszeilen. ⚠ Seit 2026-09-19 liest der Monatsbericht
+        # das **JSON** oben (über `services/pvgis_soll.py`) — beide stehen hier,
+        # weil auch die Produktion beide in derselben Transaktion schreibt.
         db.add(PVGISMonatsprognose(
             prognose_id=prognose.id, monat=MONAT,
             ertrag_kwh=jahr_kwh / 12, einstrahlung_kwh_m2=100.0,
@@ -362,7 +369,7 @@ async def test_monatsbericht_soll_pv_wird_nicht_verdoppelt(db):
     await _index_loeschen(db)
     anlage_id = await _seed(db, zwei_aktive=True)
 
-    soll = await _load_soll_pv(anlage_id, 2026, MONAT, db, VOLLER_MONAT)
+    soll = await _load_soll_pv(anlage_id, 2026, MONAT, db, heute=STICHTAG_NACH_MAI)
     erwartet = round(NEU_JAHR / 12, 1)
     verdoppelt = round((AKTIV_ALT_JAHR + NEU_JAHR) / 12, 1)
     assert soll.anteilig == pytest.approx(erwartet, abs=0.2), (
@@ -400,7 +407,7 @@ async def test_aeltere_aktive_gewinnt_ueber_die_neuere_inaktive(db):
 
     anlage_id = await _seed(db, zwei_aktive=False)
 
-    soll = await _load_soll_pv(anlage_id, 2026, MONAT, db, VOLLER_MONAT)
+    soll = await _load_soll_pv(anlage_id, 2026, MONAT, db, heute=STICHTAG_NACH_MAI)
     assert soll.anteilig == pytest.approx(round(AKTIV_ALT_JAHR / 12, 1), abs=0.2)
 
     strings = await get_pv_strings(anlage_id=anlage_id, jahr=2026, db=db)

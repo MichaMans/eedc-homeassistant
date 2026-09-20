@@ -72,6 +72,23 @@ export interface AktivePrognoseModul {
   }>
 }
 
+/** Eine Zeile aus `GET /pvgis/soll/{anlage_id}/{jahr}`. */
+export interface SollMonat {
+  monat: number
+  /** `null` heißt „kein Maßstab" (kein Erzeuger in diesem Monat, keine aktive
+   *  Prognose) — bewusst nicht 0, weil 0 „nichts erwartet" hieße und eine
+   *  SOLL-Erfüllung von 0 % für einen Monat ergäbe, den es nicht gab. */
+  soll_kwh: number | null
+}
+
+export interface SollJeMonatResponse {
+  anlage_id: number
+  jahr: number
+  monate: SollMonat[]
+  /** Σ der zwölf Monate, datumsbewusst — `null`, wenn kein Monat einen Maßstab hat. */
+  jahr_kwh: number | null
+}
+
 export interface AktivePrognoseResponse {
   id: number
   anlage_id: number
@@ -191,6 +208,19 @@ export const pvgisApi = {
    */
   async getAktivePrognose(anlageId: number): Promise<AktivePrognoseResponse | null> {
     return api.get(`/pvgis/prognose/${anlageId}/aktiv`)
+  },
+
+  /**
+   * Das SOLL eines Jahres je Monat — mit den Geräte-Kanten gekürzt.
+   *
+   * Nicht zu verwechseln mit `getAktivePrognose().monatswerte`: dort steht das
+   * **ungekürzte** Anlagen-SOLL im heutigen Ausbau, auf alle zwölf Monate
+   * gelegt. Wer damit ein Jahr bewertet, in dem die Anlage noch kleiner war,
+   * misst den Zubau statt die Anlage. Gerechnet wird im Backend
+   * (`services/pvgis_soll.py`, ADR-001) — der Client rechnet hier nichts nach.
+   */
+  async getSollJeMonat(anlageId: number, jahr: number): Promise<SollJeMonatResponse> {
+    return api.get(`/pvgis/soll/${anlageId}/${jahr}`)
   },
 
   /**

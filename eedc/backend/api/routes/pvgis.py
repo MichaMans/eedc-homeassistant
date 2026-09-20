@@ -35,6 +35,7 @@ from backend.models.investition import Investition, InvestitionTyp
 from backend.utils.investition_filter import aktiv_jetzt
 from backend.models.pvgis_prognose import PVGISPrognose as PVGISPrognoseModel, PVGISMonatsprognose
 from backend.services.prognose_auswahl import lade_aktive_prognose
+from backend.services.pvgis_soll import lade_erzeuger, lade_soll_quelle, soll_fuer_monat
 from backend.services.pvgis_aktualitaet import pruefe_prognose
 from backend.services.pv_orientation import get_pv_neigung
 from backend.services.wetter.pvgis_kappung import (
@@ -1039,6 +1040,55 @@ async def get_aktive_prognose(
         "monatswerte": prognose.monatswerte,
         "module": module_info,
         "horizont_verwendet": prognose.horizont_verwendet or False,
+    }
+
+
+@router.get("/soll/{anlage_id}/{jahr}")
+async def get_soll_je_monat(
+    anlage_id: int,
+    jahr: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Das PVGIS-SOLL eines Jahres je Monat — mit den Geräte-Kanten gekürzt.
+
+    Der Unterschied zu `monatswerte` aus `/prognose/{id}/aktiv`: dort steht das
+    **ungekürzte** Anlagen-SOLL, also die Erwartung für die Anlage in ihrem
+    heutigen Ausbau, auf alle zwölf Monate gelegt. Wer damit ein Jahr bewertet,
+    in dem die Anlage noch kleiner war, misst den Zubau statt die Anlage: An
+    Michaels Anlage (2026-09-18) hingen bis zum 08.09. nur 0,85 kWp von 5,15 —
+    der Vergleich meldete für Januar bis August „−81 %", gegen die real
+    vorhandene Leistung sind es **+13 %**.
+
+    Gerechnet wird **nicht hier**, sondern in `services/pvgis_soll.py` — dieselbe
+    Stelle, die der Gemeinschaftsdatensatz benutzt (ADR-001: eine Formel, ein
+    Ort). Diese Route ist reine Auslieferung.
+
+    ⚠ **Nur die Geräte-Kanten, nicht der Stichtag.** Ein Monat in der Zukunft
+    trägt sein volles SOLL; das ist die Jahres-**Erwartung**. Die Kürzung auf
+    die abgelaufenen Tage (N-69) ist die andere Datums-Ebene und gehört dem
+    Aufrufer, der eine Erfüllungsquote bildet.
+
+    `soll_kwh` ist `None`, wo es keinen Maßstab gibt (kein Erzeuger in diesem
+    Monat, keine aktive Prognose) — bewusst nicht 0, weil 0 „nichts erwartet"
+    hieße und eine SOLL-Erfüllung von 0 % für einen Monat ergäbe, den es nicht
+    gab.
+    """
+    quelle = await lade_soll_quelle(db, anlage_id)
+    erzeuger = await lade_erzeuger(db, anlage_id)
+
+    monate = [
+        {"monat": monat, "soll_kwh": soll_fuer_monat(quelle, erzeuger, jahr, monat)}
+        for monat in range(1, 13)
+    ]
+    vorhanden = [m["soll_kwh"] for m in monate if m["soll_kwh"] is not None]
+
+    return {
+        "anlage_id": anlage_id,
+        "jahr": jahr,
+        "monate": monate,
+        # `None` statt 0.0, wenn kein einziger Monat einen Maßstab hat — sonst
+        # stünde in der Jahres-Kachel eine 0 für „nicht bewertbar".
+        "jahr_kwh": round(sum(vorhanden), 1) if vorhanden else None,
     }
 
 

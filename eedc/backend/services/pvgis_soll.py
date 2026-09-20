@@ -35,6 +35,7 @@ gemessen wurden ja auch nur die Tage, die es gab. An azywietz' März (19.–31.3
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Mapping, Optional, Sequence
 
 from sqlalchemy import select
@@ -99,11 +100,29 @@ async def lade_soll_quelle(db: AsyncSession, anlage_id: int) -> Optional[SollQue
     )
 
 
+def _obere_kante(stilllegung: Optional[date], bis_stichtag: Optional[date]) -> Optional[date]:
+    """Die frühere der beiden oberen Kanten — oder ``None``, wenn es keine gibt.
+
+    **Warum das hier steht und nicht beim Aufrufer.** Stilllegung und Stichtag
+    schneiden denselben Monat, oft an verschiedenen Enden. Wer sie als zwei
+    fertige ``Monatsfenster`` verrechnet, kann den Schnitt nicht mehr bilden:
+    ein ``Monatsfenster`` trägt eine **Anzahl** Tage, nicht *welche*. Aus „23
+    Tage" und „19 Tage" folgt weder 12 (der Schnitt) noch 19 (das kleinere) —
+    das Produkt der Anteile (0,486) ist wieder etwas Drittes. Als **Datum**
+    weitergereicht erledigt ``monatsfenster_investition`` es in einem Zug, weil
+    es intern ohnehin ``min(Monatsende, bis)`` bildet.
+    """
+    kanten = [d for d in (stilllegung, bis_stichtag) if d is not None]
+    return min(kanten) if kanten else None
+
+
 def soll_fuer_monat(
     quelle: Optional[SollQuelle],
     erzeuger: Sequence[Investition],
     jahr: int,
     monat: int,
+    *,
+    bis_stichtag: Optional[date] = None,
 ) -> Optional[float]:
     """SOLL dieses Monats in kWh — mit tagesgenau gekürzten Geräte-Kanten.
 
@@ -113,6 +132,14 @@ def soll_fuer_monat(
             ``PV_ERZEUGER_TYPEN``, damit ein BHKW den PV-Maßstab nicht anhebt —
             dieselbe Achse wie ``ertrag_kwh`` im Gemeinschaftsdatensatz).
         jahr, monat: der Monat.
+        bis_stichtag: optionale **obere** Kante (inklusive). Gesetzt, kürzt sie
+            zusätzlich auf die bis dahin abgelaufenen Tage — je Gerät als
+            Schnitt mit dessen eigener Kante, nicht als zweite Skalierung
+            (s. :func:`_obere_kante`). Ohne sie ist das Ergebnis die
+            Monats-**Erwartung**, in der ein angefangener Monat voll zählt;
+            das ist die Lesart für Jahres-Sichten und den
+            Gemeinschaftsdatensatz. Mit ihr ist es der Nenner einer
+            Erfüllungsquote (N-69).
 
     Returns:
         kWh oder ``None``, wenn es keinen Maßstab für diesen Monat gibt.
@@ -164,7 +191,7 @@ def soll_fuer_monat(
             fenster = monatsfenster_investition(
                 jahr, monat,
                 ab=getattr(inv, "anschaffungsdatum", None),
-                bis=getattr(inv, "stilllegungsdatum", None),
+                bis=_obere_kante(getattr(inv, "stilllegungsdatum", None), bis_stichtag),
             )
             if fenster.tage == 0:
                 continue
@@ -180,10 +207,14 @@ def soll_fuer_monat(
         inv.anschaffungsdatum for inv in pv
         if getattr(inv, "anschaffungsdatum", None) is not None
     ]
-    if not ab_kandidaten:
+    if not ab_kandidaten and bis_stichtag is None:
         return round(roh, 1)
 
-    fenster = monatsfenster_investition(jahr, monat, ab=min(ab_kandidaten))
+    fenster = monatsfenster_investition(
+        jahr, monat,
+        ab=min(ab_kandidaten) if ab_kandidaten else None,
+        bis=bis_stichtag,
+    )
     if fenster.tage == 0:
         return None
     if not fenster.ist_angefangen:

@@ -35,6 +35,7 @@ from backend.models.anlage import Anlage
 from backend.models.investition import Investition, InvestitionMonatsdaten
 from backend.models.monatsdaten import Monatsdaten
 from backend.services.prognose_auswahl import lade_aktive_monatsprognosen
+from backend.services.pvgis_soll import lade_erzeuger, lade_soll_quelle, soll_fuer_monat
 from backend.core.berechnungen.zeittarif import hat_zeitfenster
 from backend.services.strompreis_aggregator import (
     aufgeloester_monatspreis,
@@ -1388,7 +1389,7 @@ class SollPv(NamedTuple):
 
 
 async def _load_soll_pv(
-    anlage_id: int, jahr: int, monat: int, db: AsyncSession, fenster: Monatsfenster,
+    anlage_id: int, jahr: int, monat: int, db: AsyncSession, *, heute: date,
 ) -> SollPv:
     """Lädt PVGIS SOLL-Wert für den Monat — aus der AKTIVEN Prognose (P5).
 
@@ -1405,15 +1406,31 @@ async def _load_soll_pv(
     Monate auf 119 % kam. Begründung der Kürzung im Layer-Docstring
     (`core/berechnungen/monatsfenster.py`); die Jahres-Sicht summiert diese
     Monatswerte und erbt die Korrektur damit ohne eigene Rechnung.
+
+    ⭐ **Seit 2026-09-19 über den SoT `services/pvgis_soll.py`.** Vorher summierte
+    diese Funktion die Monatsprognose der **Anlage** und kürzte sie nur mit dem
+    Kalender. Ein Gerät, das es in diesem Monat noch gar nicht gab, stand damit
+    voll im Nenner: an Michaels Anlage hingen bis zum 08.09.2026 nur 0,85 von
+    5,15 kWp am Netz, das Cockpit maß Januar–August trotzdem gegen die ganze
+    Anlage („SOLL 3.976 kWh · 19 %"). Der SoT filtert auf `ist_aktiv_im_monat`
+    und kürzt den Anschaffungsmonat tagesgenau — dieselbe Stelle, aus der die
+    Jahres-Route und der Gemeinschaftsdatensatz lesen (ADR-001).
+
+    **Zwei Aufrufe, weil es zwei Lesarten sind** — nicht zwei Rechnungen: mit
+    `bis_stichtag` für den Nenner der Quote, ohne ihn für den Monats-Bezug. Wo
+    beide Kanten in denselben Monat fallen (Zubau im laufenden Monat), bildet
+    der SoT ihren **Schnitt**; das eine Ergebnis mit dem anderen Fenster zu
+    skalieren wäre messbar zu hoch (s. `test_soll_cockpit_zubau_stichtag.py`).
+
+    ⚠ `fenster` ist bewusst **kein** Argument mehr: eine Tageszahl allein genügt
+    für den Schnitt nicht, der SoT braucht das Datum. Die Response-Felder
+    `soll_pv_tage`/`_gesamt` bleiben beim Aufrufer, der das Fenster ohnehin hat.
     """
-    prognosen = await lade_aktive_monatsprognosen(db, anlage_id, monat=monat)
-    if not prognosen:
-        return SollPv(None, None)
-    voll = sum(p.ertrag_kwh for p in prognosen)
-    gekuerzt = anteilig(voll, fenster)
+    quelle = await lade_soll_quelle(db, anlage_id)
+    erzeuger = await lade_erzeuger(db, anlage_id)
     return SollPv(
-        anteilig=round(gekuerzt, 1) if gekuerzt is not None else None,
-        monat=round(voll, 1),
+        anteilig=soll_fuer_monat(quelle, erzeuger, jahr, monat, bis_stichtag=heute),
+        monat=soll_fuer_monat(quelle, erzeuger, jahr, monat),
     )
 
 
@@ -3225,7 +3242,7 @@ async def get_aktueller_monat(
 
     # ── Vergleichsdaten ──
     vorjahr = await _load_vorjahr(anlage_id, investitionen, jahr, monat, db)
-    soll_pv = await _load_soll_pv(anlage_id, jahr, monat, db, fenster)
+    soll_pv = await _load_soll_pv(anlage_id, jahr, monat, db, heute=now.date())
 
     # ── Grundlast (Nacht-Sockel, R12-1: ersetzt PVGIS-SOLL/IST in Cockpit/Monat
     # + Jahr; Formel im Berechnungs-Layer, Median wie der Live-Wert). Im aktuellen

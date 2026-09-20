@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from backend.core.berechnungen import Monatsfenster, anteilig, monatsfenster
-from backend.models import Anlage
+from backend.models import Anlage, Investition
 from backend.models.pvgis_prognose import PVGISMonatsprognose, PVGISPrognose
 
 # Live gemessen an Gernots Anlage (Winterborn, 12,32 kWp) am 2026-08-04.
@@ -118,14 +118,34 @@ def test_monatsfenster_ist_direkt_konstruierbar():
 
 
 async def _seed_prognose(db, *, monat: int, ertrag_kwh: float) -> int:
+    """Anlage + PV-Modul + aktive Prognose — so, wie sie in der DB wirklich steht.
+
+    ⭐ **Zwei Dinge sind hier seit 2026-09-19 anders, beide der Produktion
+    nachgezogen** (die Route liest jetzt über `services/pvgis_soll.py`):
+
+    1. **Ein PV-Erzeuger.** Vorher trug dieser Seed nur Anlage + Prognose. Das
+       kann es in der Anwendung nicht geben: eine Prognose entsteht *aus* den
+       Modulen (`pvgis.py::speichere_prognose` iteriert `prognose.module`), ohne
+       Modul gibt es keine. Der SoT filtert auf `ist_aktiv_im_monat` und liefert
+       ohne Erzeuger konsequent `None`.
+    2. **`monatswerte` als JSON.** Alle drei Schreibpfade — Live-Abruf,
+       Backup-Restore (`json_operations.py`) und Demo-Daten — schreiben JSON
+       **und** normalisierte Zeilen in derselben Transaktion. Dieser Seed
+       schrieb nur die Zeilen, weil der alte Leser nur die las.
+    """
     anlage = Anlage(anlagenname="N69", leistung_kwp=12.32)
     db.add(anlage)
     await db.flush()
+    db.add(Investition(
+        anlage_id=anlage.id, typ="pv-module", bezeichnung="Süd",
+        anschaffungsdatum=date(2024, 1, 1), leistung_kwp=12.32,
+    ))
     prognose = PVGISPrognose(
         anlage_id=anlage.id, latitude=50.9, longitude=7.5,
         neigung_grad=36.0, ausrichtung_grad=0.0, gesamt_leistung_kwp=12.32,
         abgerufen_am=datetime(2026, 1, 1, 12, 0),
         jahresertrag_kwh=12000.0, spezifischer_ertrag_kwh_kwp=974.0,
+        monatswerte=[{"monat": monat, "e_m": ertrag_kwh}],
         ist_aktiv=True,
     )
     db.add(prognose)
@@ -143,7 +163,7 @@ async def test_route_kuerzt_das_soll_des_laufenden_monats(db):
 
     anlage_id = await _seed_prognose(db, monat=8, ertrag_kwh=SOLL_AUGUST_KWH)
     soll = await _load_soll_pv(
-        anlage_id, 2026, 8, db, monatsfenster(2026, 8, heute=HEUTE),
+        anlage_id, 2026, 8, db, heute=HEUTE,
     )
     assert soll.anteilig == 179.1
     # Dieselbe Prognose ungekürzt — die Zahl der Monatsprognose-Kachel
@@ -159,7 +179,7 @@ async def test_route_laesst_abgeschlossene_monate_unveraendert(db):
 
     anlage_id = await _seed_prognose(db, monat=7, ertrag_kwh=1509.0)
     soll = await _load_soll_pv(
-        anlage_id, 2026, 7, db, monatsfenster(2026, 7, heute=HEUTE),
+        anlage_id, 2026, 7, db, heute=HEUTE,
     )
     assert soll.anteilig == 1509.0
     assert soll.monat == 1509.0  # abgeschlossener Monat: beide Lesarten gleich
@@ -173,6 +193,6 @@ async def test_route_ohne_prognose_liefert_none(db):
     db.add(anlage)
     await db.commit()
     soll = await _load_soll_pv(
-        anlage.id, 2026, 8, db, monatsfenster(2026, 8, heute=HEUTE),
+        anlage.id, 2026, 8, db, heute=HEUTE,
     )
     assert soll.anteilig is None and soll.monat is None
