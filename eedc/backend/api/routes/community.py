@@ -15,6 +15,7 @@ from backend.core.exceptions import not_found
 from backend.api.deps import get_db
 from backend.models import Anlage
 from backend.services.activity_service import log_activity
+from backend.services.community_client import community_client
 from backend.services.community_service import (
     prepare_community_data,
     get_community_preview,
@@ -28,11 +29,17 @@ router = APIRouter(prefix="/community", tags=["Community"])
 
 
 class ShareResponse(BaseModel):
-    """Antwort nach erfolgreicher Übertragung."""
+    """Antwort nach erfolgreicher Übertragung.
+
+    ``hinweise`` (N-523, Server seit 19.09.2026): Klartext je Monat, den der
+    Server übersprungen oder als sehr hoch vermerkt hat — der Rest wurde
+    angenommen. Vorher wies EIN unplausibler Monat den ganzen Datensatz ab.
+    """
     success: bool
     message: str
     anlage_hash: str | None = None
     anzahl_monate: int | None = None
+    hinweise: list[str] = []
     benchmark: dict | None = None
 
 
@@ -78,7 +85,7 @@ async def get_share_preview(
 @router.post("/share/{anlage_id}", response_model=ShareResponse)
 async def share_to_community(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Überträgt anonymisierte Anlagendaten an den Community-Server.
@@ -111,7 +118,7 @@ async def share_to_community(
 
     # An Community-Server senden
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.post(
                 f"{COMMUNITY_SERVER_URL}/api/submit",
                 json=data,
@@ -137,18 +144,24 @@ async def share_to_community(
 
                 await merke_gesendet(db, anlage_id)
 
+                # N-523: der Server nennt übersprungene Monate im Klartext —
+                # sie gehören ins Protokoll und in die Antwort, nicht ins Nichts.
+                hinweise = [h for h in (result.get("hinweise") or []) if isinstance(h, str)]
                 await log_activity(
                     kategorie="community",
                     aktion="Community-Daten geteilt",
                     erfolg=True,
-                    details=f"{result.get('anzahl_monate', 0)} Monate",
+                    details=f"{result.get('anzahl_monate', 0)} Monate"
+                    + (f" — {'; '.join(hinweise)}" if hinweise else ""),
                     anlage_id=anlage_id,
+                    db=db,
                 )
                 return ShareResponse(
                     success=True,
                     message="Daten erfolgreich geteilt!",
                     anlage_hash=anlage_hash,
                     anzahl_monate=result.get("anzahl_monate"),
+                    hinweise=hinweise,
                     benchmark=result.get("benchmark"),
                 )
             elif response.status_code == 429:
@@ -187,6 +200,7 @@ async def share_to_community(
             erfolg=False,
             details="Timeout — Server antwortet nicht",
             anlage_id=anlage_id,
+            db=db,
         )
         raise HTTPException(
             status_code=504,
@@ -199,6 +213,7 @@ async def share_to_community(
             erfolg=False,
             details=f"{type(e).__name__}: {e}",
             anlage_id=anlage_id,
+            db=db,
         )
         raise HTTPException(
             status_code=503,
@@ -212,7 +227,7 @@ async def get_community_status():
     Prüft ob der Community-Server erreichbar ist.
     """
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with community_client(timeout=10.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/health")
 
             if response.status_code == 200:
@@ -258,7 +273,7 @@ async def get_nachsende_status(db: AsyncSession = Depends(get_db)):
 @router.delete("/delete/{anlage_id}", response_model=DeleteResponse)
 async def delete_from_community(
     anlage_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Löscht die geteilten Daten vom Community-Server.
@@ -281,7 +296,7 @@ async def delete_from_community(
 
     # Delete-Request an Community-Server senden
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.delete(
                 f"{COMMUNITY_SERVER_URL}/api/submit/{anlage.community_hash}"
             )
@@ -299,6 +314,7 @@ async def delete_from_community(
                     erfolg=True,
                     details=f"{result_data.get('anzahl_geloeschte_monate', 0)} Monate entfernt",
                     anlage_id=anlage_id,
+                    db=db,
                 )
                 return DeleteResponse(
                     success=True,
@@ -342,7 +358,7 @@ async def delete_from_community(
 async def get_monatsbenchmark(jahr: int, monat: int):
     """Öffentlicher Community-Benchmark für einen bestimmten Monat — kein Hash nötig."""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(
                 f"{COMMUNITY_SERVER_URL}/api/benchmark/monat/{jahr}/{monat}"
             )
@@ -396,7 +412,7 @@ async def get_community_benchmark(
         if jahr:
             params["jahr"] = jahr
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(
                 f"{COMMUNITY_SERVER_URL}/api/benchmark/anlage/{anlage.community_hash}",
                 params=params,
@@ -439,7 +455,7 @@ async def get_global_statistics():
     Proxy zum Community-Server.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/statistics/global")
             if response.status_code == 200:
                 return response.json()
@@ -457,7 +473,7 @@ async def get_monthly_averages(
     Proxy zum Community-Server.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(
                 f"{COMMUNITY_SERVER_URL}/api/statistics/monthly-averages",
                 params={"monate": monate}
@@ -476,7 +492,7 @@ async def get_regional_statistics():
     Proxy zum Community-Server.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/statistics/regional")
             if response.status_code == 200:
                 return response.json()
@@ -492,7 +508,7 @@ async def get_regional_details(region: str):
     Proxy zum Community-Server.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/statistics/regional/{region}")
             if response.status_code == 200:
                 return response.json()
@@ -513,7 +529,7 @@ async def get_distribution(
     Metriken: kwp, spez_ertrag, speicher, autarkie
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(
                 f"{COMMUNITY_SERVER_URL}/api/statistics/distributions/{metric}",
                 params={"bins": bins}
@@ -537,7 +553,7 @@ async def get_ranking(
     Kategorien: spez_ertrag, autarkie, eigenverbrauch
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(
                 f"{COMMUNITY_SERVER_URL}/api/statistics/rankings/{category}",
                 params={"limit": limit}
@@ -561,7 +577,7 @@ async def get_speicher_by_class():
     Speicher-Statistiken nach Kapazitätsklasse.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/components/speicher/by-class")
             if response.status_code == 200:
                 return response.json()
@@ -576,7 +592,7 @@ async def get_waermepumpe_by_region():
     Wärmepumpen-Statistiken nach Region.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/components/waermepumpe/by-region")
             if response.status_code == 200:
                 return response.json()
@@ -591,7 +607,7 @@ async def get_eauto_by_usage():
     E-Auto-Statistiken nach Nutzungsintensität.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/components/eauto/by-usage")
             if response.status_code == 200:
                 return response.json()
@@ -614,7 +630,7 @@ async def get_degradation():
     Degradations-Analyse nach Anlagenalter.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/trends/degradation")
             if response.status_code == 200:
                 return response.json()
@@ -629,7 +645,7 @@ async def get_trends(period: TrendPeriod):
     Zeitliche Trends der Community-Daten.
     """
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with community_client(timeout=30.0) as client:
             response = await client.get(f"{COMMUNITY_SERVER_URL}/api/trends/{period}")
             if response.status_code == 200:
                 return response.json()

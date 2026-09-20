@@ -33,7 +33,7 @@ Ein gemeinsamer Aggregat-Helper (z. B. `berechne_finanz_aggregat`) liefert nur d
 1. **Gemeinsamer Eingabe-Builder**, nicht nur ein Formel-Helper. Die Konstruktion des Eingabe-Objekts (inkl. drift-anfälliger Auflösungen wie Tarif-pro-Monat) gehört in **eine** Funktion (DB-I/O → Service-Schicht, nicht core). Beispiel: `services/finanz_zeilen.py` `baue_finanz_zeile`.
 2. **Statischer Wächter**, der die Konstruktion außerhalb des Builders verbietet (analog `test_finanz_monatszeile_nur_im_builder`) — so kann auch **künftiger** Code die zentrale Auflösung nicht umgehen.
 3. **Symmetrie-Test**, der „Site A == Site B == …" für eine realistische Fixture beweist (inkl. der Edge-Cases, die der Default-Pfad umgeht — z. B. mehrere Jahres-Tarife OHNE Monats-Flex-Ø).
-4. **Fakten-Quelle** — der Builder aus Punkt 1 bekommt seine Rohwerte selbst aus **einer** Aufbereitungs-Schicht, nicht aus einer site-eigenen Faltung. Sonst ist nur die letzte Meile zentral: in #326 nutzten alle vier Sichten denselben Aggregat-Helper, und die Drift saß eine Etage tiefer. Heute: `services/monats_fakten.py` für die Monatszeile (ADR-002/**P10**), `services/pv_monatswerte.py` für die PV darin (P7).
+4. **Fakten-Quelle** — der Builder aus Punkt 1 bekommt seine Rohwerte selbst aus **einer** Aufbereitungs-Schicht, nicht aus einer site-eigenen Faltung. Sonst ist nur die letzte Meile zentral: in #326 nutzten alle vier Sichten denselben Aggregat-Helper, und die Drift saß eine Etage tiefer. Heute: `services/monats_fakten/` für die Monatszeile (ADR-002/**P10**), `services/pv_monatswerte.py` für die PV darin (P7).
 
 Symmetrie-Test allein reicht nicht (er kennt nur die eingetragenen Sites); statischer Wächter allein reicht nicht (er fängt Formel-, nicht Wert-Drift). Erst der Builder macht Drift strukturell unmöglich; Wächter + Symmetrie-Test sichern es ab.
 
@@ -70,7 +70,7 @@ Vierter Fall, und er kehrt den dritten um: Hier war die Definition **von Anfang 
 | --- | --- | --- |
 | ROI-Sicht, Aussichten | `berechne_speicher_ersparnis` (Layer) | — (Referenz) |
 | `aktueller_monat.py` T-Konto | `Entladung × Netzbezugspreis` | **+36 %** bei 30/8 ct |
-| `dashboards.py` (2×) | Spread **inline**, auf der *gesamten* Entladung | Netzladung doppelt (s. u.) |
+| `dashboard_speicher.py` (2×, bis 18.09.2026 `dashboards.py`) | Spread **inline**, auf der *gesamten* Entladung | Netzladung doppelt (s. u.) |
 
 Die dritte Zeile ist die interessante: die Inline-Kopie rechnete die *richtige* Formel — aber ohne die Verfeinerung, die der Layer seit Etappe B (#264) trägt (PV-/Netz-Split). Netzgeladene Energie bekam dort den PV-Spread, und der Komponenten-Hub addierte den Arbitrage-Gewinn **zusätzlich**: dieselbe Kilowattstunde zweimal gutgeschrieben. Eine Kopie altert eben nicht mit ihrem Original.
 
@@ -86,7 +86,7 @@ Die Drift-Inventur der Lese-Sichten (2026-07-31) fand über 23 Sichten × 18 kan
 
 Daraus folgt eine Schicht, die es vorher nicht gab, und eine klare Grenze:
 
-| | `core/berechnungen/` | `services/monats_fakten.py`, `services/pv_monatswerte.py`, `services/finanz_zeilen.py` |
+| | `core/berechnungen/` | `services/monats_fakten/`, `services/pv_monatswerte.py`, `services/finanz_zeilen.py` |
 | --- | --- | --- |
 | **Rolle** | die **Formel** — *wie* aus Eingaben ein Wert wird | die **Eingabe-Aufbereitung** — *welche* Rohwerte, kanonisch aufgelöst und gefiltert, überhaupt hineingehen |
 | **DB-I/O** | nie (rein, testbar ohne Session) | ja — genau deshalb liegt sie in `services/` |

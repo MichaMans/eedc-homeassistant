@@ -192,7 +192,7 @@ Die Reihenfolge ist die Abhängigkeitsrichtung — **nach oben wird nie gerufen*
 
 Drei Stellen sind dabei die tragenden **Single Sources of Truth**:
 
-- **`services/monats_fakten.py`** — die Monatszeile wird **einmal** aufgelöst und gefiltert
+- **`services/monats_fakten/`** — die Monatszeile wird **einmal** aufgelöst und gefiltert
   (`aktiv` · Anschaffung · Stilllegung · Dienstwagen), dann ruft sie die Layer-Formeln. Keine
   Read-Site faltet `InvestitionMonatsdaten` mehr selbst (ADR-002/P10,
   [KONZEPT-MONATS-FAKTEN.md](KONZEPT-MONATS-FAKTEN.md)).
@@ -634,7 +634,7 @@ GET /api/cockpit/pv-strings-gesamtlaufzeit/{anlage_id}   # String-Vergleich (Ges
 - Monatsdaten: Einspeisung, Netzbezug
 - InvestitionMonatsdaten: Alle Komponenten-Details
 
-Beides kommt **aufbereitet** aus `services/monats_fakten.py` (s. §7 „Lese-Schichtung"), nicht als Roh-Faltung im Endpoint — dort greifen auch die Zeitfilter. Der Umbau läuft sichtweise (S2–S6); bis dahin faltet ein Teil der Endpoints noch selbst.
+Beides kommt **aufbereitet** aus `services/monats_fakten/` (s. §7 „Lese-Schichtung"), nicht als Roh-Faltung im Endpoint — dort greifen auch die Zeitfilter. Der Umbau läuft sichtweise (S2–S6); bis dahin faltet ein Teil der Endpoints noch selbst.
 
 #### Aussichten (Prognosen)
 
@@ -984,7 +984,7 @@ Zwischen den Tabellen und den auswertenden Endpoints liegen **drei** Schichten, 
 ```
 Monatsdaten · InvestitionMonatsdaten · Strompreise · TagesZusammenfassung
         │
-        ▼   services/monats_fakten.py        ← Aufbereitung  (ADR-002/P10)
+        ▼   services/monats_fakten/        ← Aufbereitung  (ADR-002/P10)
    MonatsFakt je (jahr, monat): zaehler · erzeugung · bkw · speicher · emob ·
    wp · sonstiges · tarif · eeg · kennzahlen · meta
    Hier — und nur hier — greifen die Zeitfilter (aktiv · Anschaffung ·
@@ -1004,7 +1004,7 @@ Monatsdaten · InvestitionMonatsdaten · Strompreise · TagesZusammenfassung
 
 | Schicht | Darf | Darf nicht |
 | --- | --- | --- |
-| `services/monats_fakten.py` | laden, filtern, kanonisch auflösen, Layer-Helfer **rufen** | selbst rechnen (das wäre eine Formel-Duplikation) |
+| `services/monats_fakten/` | laden, filtern, kanonisch auflösen, Layer-Helfer **rufen** | selbst rechnen (das wäre eine Formel-Duplikation) |
 | `core/berechnungen/` | rechnen | eine Session sehen |
 | `api/routes/…` | darstellen, Zeiträume wählen | `InvestitionMonatsdaten` selbst laden und falten (P10) |
 
@@ -1012,13 +1012,13 @@ Ausgenommen von P10 sind die **Schreib-, Import- und Checker-Pfade** — sie sch
 
 > **Migrationsstand:** Die Schicht steht seit S1 mit ihren Einheitstests; die Sichten sind in den Schritten S2–S6 nacheinander umgehängt worden (Reihenfolge und Beweis-Fixture je Schritt in `KONZEPT-MONATS-FAKTEN.md` §5/§10). **Der Bauplan ist mit S6 abgearbeitet — alle sechs Schritte sind gebaut. Seit S5 ist P10 baumweit gewächtert** (`test_wurzelmuster_konformitaet.py::test_p10_*`), nicht mehr nur durch Regressionstests gedeckt. Die danach übrig gebliebene Restschuld ist in vier Nachträgen (C1a–C1d) abgearbeitet und steht seit **C1d (2026-08-04) auf 0** — anlagenweit faltet keine Sicht mehr selbst.
 >
-> **Umgehängt (S2, 2026-07-31):** `api/routes/aussichten.py` (Finanz-Prognose), `services/pdf/builders/jahresbericht.py` und `api/routes/investitionen/crud.py` (ROI-Dashboard) — Befund **F-5**. Der PDF-Builder lädt `InvestitionMonatsdaten` seither gar nicht mehr selbst.
+> **Umgehängt (S2, 2026-07-31):** `api/routes/aussichten/finanzen.py` (Finanz-Prognose; die Monats-Fakten lädt seit 18.09.2026 ihre Phase `finanz_eingaenge.py`), `services/pdf/builders/jahresbericht.py` und `api/routes/investitionen/crud.py` (ROI-Dashboard, seit 18.09.2026 `investitionen/roi.py`) — Befund **F-5**. Der PDF-Builder lädt `InvestitionMonatsdaten` seither gar nicht mehr selbst.
 >
 > **Umgehängt (S3, 2026-07-31):** `cockpit/nachhaltigkeit.py` (CO₂-Zeitreihe) und `cockpit/social.py` (geteilter Monatstext) — Befund **F-1**. Beide hatten **keinen einzigen** Zeilen-SoT benutzt und die Eigenverbrauchs-Formel selbst nachgebaut; CO₂ kommt jetzt zusätzlich aus `berechne_co2_bilanz` (ADR-001/DI-2) statt aus drei lokalen Formeln. Damit ist auch die P7-Ausnahme `cockpit/social.py::md` gestrichen. **Nachtrag (Paket B, 2026-07-31):** `cockpit/social.py` ist danach **ganz zurückgebaut** worden — die Oberfläche dazu ist beim IA-V4-Flip entfallen, der Endpoint hatte keinen Konsumenten mehr. Von den beiden S3-Sichten bleibt die CO₂-Zeitreihe. Nicht betroffen ist das **Community-Teilen** (`api/routes/community.py`) — eine andere Funktion. **Nachtrag (Paket B', 2026-07-31):** die CO₂-Zeitreihe hat jetzt auch einen **Konsumenten** — bis dahin war sie die tote Hälfte des Paares (`getNachhaltigkeit` stand im api-Client, aber keine Sicht rief es). Sie hängt im **Cockpit/Jahr** als Block „CO₂-Bilanz" (`v4/JahrCo2Chart.tsx`), nicht unter Auswertungen: sie ist eine **zeitbezogene** Verlaufssicht, während die CO₂-**Amortisation** (`AuswertungenCo2V4.tsx`, `getCO2Amortisation`) die **Lebensdauer**-Frage beantwortet. Der Endpoint bleibt ohne `?jahr=` — das Jahr filtert die Sicht. **Nachtrag (F-6/N-21, 2026-07-31):** die Zeitreihe hat einen **zweiten** Konsumenten bekommen — **Auswertungen → CO₂** (`v4/AuswertungenCo2V4.tsx`) rechnete bis dahin `Erzeugung × 0,38` im Client und stand damit als zweite Zahl neben dem neuen Cockpit-Block; sie liest ihn jetzt über `useAuswertungBasis().co2` (EIN Abruf, geteilt mit der Werte-Tabelle). Dasselbe Spiegelbild im Backend war `services/energie_profil/tage_werte.py` — auch dort jetzt der Kanon, allerdings bewusst nur der **PV-Anteil** (`co2_pv_kg`), weil WP-Wärme und E-Mob-Kilometer auf Tagesebene nicht gemessen werden. Client-Wächter: `npm run check:co2-roh` (Baseline 0).
 >
-> **Umgehängt (S4, 2026-07-31):** `cockpit/uebersicht.py` und `ha_export.py::calculate_anlage_sensors` — der Schritt **ohne** Inventur-Befund. Beide rechneten richtig und wurden trotzdem umgehängt, weil eine selbst faltende Sicht die nächste Drift-Quelle ist. Der Beweis ist entsprechend negativ (Vier-Wege- und CO₂-Symmetrie unverändert grün, Antworten gegen die Demo-DB wertgleich), plus eine **gemessene** Ladezeit: Cockpit/Übersicht 83 → 60 ms, HA-Export 133 → 115 ms (warm, Median über 10 Läufe) — ein Tarif-Cache statt zwei, §51 als Bulk-Query, vier IMD-Queries weniger. Drei Ränder haben sich dabei doch bewegt, alle drei waren vorher unsichtbar: der Jahres-Filter des Cockpits erfasste `lade_pv_je_monat` nicht, der HA-Export blendete stillgelegte Komponenten rückwirkend aus (`aktiv_jetzt()` als Vorfilter über der Historie) und filterte den Dienstwagen nicht aus der V2H-Bilanz.
+> **Umgehängt (S4, 2026-07-31):** `cockpit/uebersicht.py` und `ha_export/anlage_energie.py::monatsfakten_und_energie` (bis 18.09.2026 `ha_export.py::calculate_anlage_sensors`) — der Schritt **ohne** Inventur-Befund. Beide rechneten richtig und wurden trotzdem umgehängt, weil eine selbst faltende Sicht die nächste Drift-Quelle ist. Der Beweis ist entsprechend negativ (Vier-Wege- und CO₂-Symmetrie unverändert grün, Antworten gegen die Demo-DB wertgleich), plus eine **gemessene** Ladezeit: Cockpit/Übersicht 83 → 60 ms, HA-Export 133 → 115 ms (warm, Median über 10 Läufe) — ein Tarif-Cache statt zwei, §51 als Bulk-Query, vier IMD-Queries weniger. Drei Ränder haben sich dabei doch bewegt, alle drei waren vorher unsichtbar: der Jahres-Filter des Cockpits erfasste `lade_pv_je_monat` nicht, der HA-Export blendete stillgelegte Komponenten rückwirkend aus (`aktiv_jetzt()` als Vorfilter über der Historie) und filterte den Dienstwagen nicht aus der V2H-Bilanz.
 >
-> **Umgehängt (S5, 2026-07-31):** `investitionen/dashboards.py` — Befunde **F-4** (BKW-Wirtschaftlichkeit: 30-ct-Query-Default und bewerteter *gemessener* Eigenverbrauch → im Normalfall 0 € im Hub) und **F-7** (die Datei enthielt keinen einzigen `ist_dienstlich`-Aufruf). Dazu zwei Funde derselben F-5-Klasse, die vor dem Scharfstellen fallen mussten, weil der Wächter sie sonst gemeldet hätte: die beiden Performance-Ratio-Pfade in `aussichten.py` (**N-1**) und der Prognose-vs-IST-Vergleich in `cockpit/prognose.py` (**N-14**, in der Inventur nicht erhoben). Neue Layer-Formel `bkw_eigenverbrauch_anteil` (`core/berechnungen/bkw_finanz.py`): der Eigenverbrauchs-Anteil **eines** Balkonkraftwerks, anteilig an der Erzeugung hinter dem Zähler — und ausdrücklich *nicht bewertbar*, wo mangels Zählerzeile keine Hausbilanz existiert (P4).
+> **Umgehängt (S5, 2026-07-31):** `investitionen/dashboards.py` (seit 18.09.2026 `dashboard_<typ>.py` je Dashboard) — Befunde **F-4** (BKW-Wirtschaftlichkeit: 30-ct-Query-Default und bewerteter *gemessener* Eigenverbrauch → im Normalfall 0 € im Hub) und **F-7** (die Datei enthielt keinen einzigen `ist_dienstlich`-Aufruf). Dazu zwei Funde derselben F-5-Klasse, die vor dem Scharfstellen fallen mussten, weil der Wächter sie sonst gemeldet hätte: die beiden Performance-Ratio-Pfade in `aussichten.py` (**N-1**) und der Prognose-vs-IST-Vergleich in `cockpit/prognose.py` (**N-14**, in der Inventur nicht erhoben). Neue Layer-Formel `bkw_eigenverbrauch_anteil` (`core/berechnungen/bkw_finanz.py`): der Eigenverbrauchs-Anteil **eines** Balkonkraftwerks, anteilig an der Erzeugung hinter dem Zähler — und ausdrücklich *nicht bewertbar*, wo mangels Zählerzeile keine Hausbilanz existiert (P4).
 >
 > **Umgehängt (S6, 2026-07-31):** `services/community_service.py::prepare_community_data` — die letzte Sicht des Bauplans und der einzige befristete Eintrag in `P10_NOCH_NICHT_MIGRIERT`. Sie verlor **drei** Achsen: die P7-Auflösung der PV (**F-5** — eine Anlage, die ihre Erzeugung als Anlagen-Aggregat pflegt, lieferte eine *leere* Monatsliste, und `/community/share` bricht darauf mit HTTP 400 ab: diese Anlagen konnten am Benchmark gar nicht teilnehmen), V2H und den Erzeuger hinter dem Zähler in der Autarkie (**F-1** — der Server bekam 85,7 %, wo das Cockpit derselben Anlage 90,9 % zeigte) und den **Dienstwagen-Filter** (km, Ladung und V2H eines dienstlichen Fahrzeugs gingen in den öffentlichen Benchmark ein). `ertrag_kwh` bleibt bewusst die PV-Achse **ohne** sonstigen Erzeuger — der Server bildet daraus den spezifischen Ertrag je kWp. **Cross-Repo (Konzept §11):** das Datenmodell von `eedc-community` blieb strukturell unverändert (der Payload validiert unverändert gegen `backend/schemas.py`); geändert hat sich die *Bedeutung* dreier Feldgruppen, die deshalb im selben Paket als Vertrag in den Docstring von `MonatswertInput` gewandert ist.
 >
@@ -1520,7 +1520,7 @@ Beim Monatsabschluss werden zwei Schritte ausgeführt:
 - `Monatsdaten` = Nur Zählerwerte (Einspeisung, Netzbezug)
 - `InvestitionMonatsdaten` = Alle Komponenten-Details
 
-**Was diese Trennung NICHT bedeutet** (Lehre aus der Drift-Inventur 2026-07-31): dass jede Read-Site sich ihre Monatszeile selbst aus beiden Tabellen zusammenfaltet. Genau das war jahrelang der Fall und genau daraus entstanden sechs Befunde mit derselben Ursache. Die Auflösung — welcher Wert gilt, welche Lücke wird gefüllt, welche Investition zählt im Monat überhaupt — liegt seit ADR-002/P10 in `services/monats_fakten.py` (§7 „Lese-Schichtung").
+**Was diese Trennung NICHT bedeutet** (Lehre aus der Drift-Inventur 2026-07-31): dass jede Read-Site sich ihre Monatszeile selbst aus beiden Tabellen zusammenfaltet. Genau das war jahrelang der Fall und genau daraus entstanden sechs Befunde mit derselben Ursache. Die Auflösung — welcher Wert gilt, welche Lücke wird gefüllt, welche Investition zählt im Monat überhaupt — liegt seit ADR-002/P10 in `services/monats_fakten/` (§7 „Lese-Schichtung").
 
 ### Warum Parent-Child für PV-Module?
 

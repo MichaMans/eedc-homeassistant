@@ -1,11 +1,292 @@
 # Was ist neu
 
-> **Stand:** September 2026 (v4.0.46) — der Abschnitt ganz oben gilt der **kommenden** Version und trägt ihre Nummer, sobald sie feststeht.
+> **Stand:** September 2026 (v4.0.48) — der Abschnitt ganz oben gilt der **kommenden** Version und trägt ihre Nummer, sobald sie feststeht.
 > **Diese Seite** zeigt pro Version, was sich für dich als Anwender geändert hat — kürzer als der technische [CHANGELOG](https://github.com/supernova1963/eedc-homeassistant/blob/main/CHANGELOG.md), ausführlicher als die Schnellübersicht-Tabelle in der [Übersicht](BENUTZERHANDBUCH.md#was-ist-neu-seit-v316).
 >
 > **Kein Banner, kein Pop-up:** eedc zeigt diese Liste nicht ungefragt an. HA-App-Nutzer sehen den Changelog ohnehin schon im Add-on-Store, GitHub-Releases haben einen eigenen. Wer wissen will, was neu ist, schaut hier rein — Pull statt Push.
 >
 > **Lesehinweis:** Die jüngsten Versionen stehen oben. Jeder Punkt verlinkt entweder auf die zuständige Hilfe-Sektion oder direkt auf die App-Funktion (sofern erreichbar). Anker-URLs (`?doc=was-ist-neu`) sind teilbar.
+
+---
+
+## v4.0.48 — 19. September 2026
+
+**Balkonkraftwerk: Das Formular zeigt die Wechselrichter-Leistung wieder, und der Daten-Checker verlangt keine PV-Module mehr**
+
+**Betrifft dich das?** Ja, wenn du ein Balkonkraftwerk als Komponente führst
+oder einen Verbrauchszähler (Gas, Wasser, Heizöl) unter „Sonstiges" angelegt hast.
+
+**Was war:** Die Wechselrichter-Leistung des Balkonkraftwerks war gespeichert
+und wirkte in der Prognose, aber das Bearbeiten-Formular zeigte das Feld beim
+erneuten Öffnen leer. Bei einem Verbrauchszähler standen beim Öffnen immer
+„Gas" und „m³", egal was du gewählt hattest. Und der Daten-Checker meldete
+bei einem Balkonkraftwerk ohne PV-Module, PVGIS-Prognose und String-Vergleich
+seien nicht verfügbar. Das stimmte seit v4.0.9 nicht mehr.
+
+**Was jetzt:** Beide Formulare zeigen die gespeicherten Werte. Die Meldung des
+Daten-Checkers ist weg: Ein Balkonkraftwerk trägt Nennleistung, Ausrichtung
+und Neigung selbst und bekommt sein eigenes Soll. Wann du die Module eines
+Balkonkraftwerks trotzdem einzeln erfassen solltest, sagt das Handbuch unter
+*Einstellungen → 3.5*: immer dann, wenn dein Wechselrichter die Strings
+getrennt liefert. Dann vergleicht eedc jeden String mit seinem eigenen Soll.
+**Du musst nichts tun.**
+
+---
+
+**Ost-West-Anlagen: Die Wetterprognose rechnet jetzt wie PVGIS mit zwei halben Anlagen**
+
+**Betrifft dich das?** Ja, wenn eine deiner PV-Komponenten oder dein Balkonkraftwerk die
+Ausrichtung „Ost-West (gemischt)" trägt, oder wenn du dein Balkonkraftwerk im
+Einrichtungsassistenten angelegt hast.
+
+**Was war:** Die PVGIS-Prognose rechnete Ost-West richtig als eine halbe Anlage nach Ost und
+eine nach West. Die Wetterprognose dagegen — Live, 14 Tage, die Prognosesensoren in Home
+Assistant — kannte den Wert nicht und rechnete Süd: eine Mittagsspitze, die deine Anlage
+nicht hat, und eine zu hohe Tagessumme. Ein Balkonkraftwerk aus dem Einrichtungsassistenten
+wurde in der PVGIS-Prognose ebenfalls als Süd gerechnet, weil seine Ausrichtung an einer
+Stelle lag, die die Prognose nicht las.
+
+**Was jetzt:** Beide Prognosen rechnen Ost-West als zwei halbe Anlagen mit derselben Neigung,
+und das Balkonkraftwerk aus dem Assistenten mit seiner gepflegten Ausrichtung. ⚠ **Die
+Prognosesensoren einer Ost-West-Anlage sinken nach dem Update einmalig** — auf das Niveau,
+das die Anlage wirklich liefert. Bei fester Ausrichtung ändert sich keine Zahl. **Du musst
+nichts tun.**
+
+---
+
+**Die Amortisationskurve zeigt gewachsene Anlagen als Treppe**
+
+**Betrifft dich das?** Ja, wenn du deine Anlage über mehrere Jahre erweitert
+hast — PV zuerst, später Speicher, Wärmepumpe oder Wallbox — und in
+*Auswertungen → ROI* die Break-Even-Kurve liest.
+
+**Was war:** Die Kurve nahm deinen gesamten Kapitaleinsatz ab der frühesten
+Anschaffung und rechnete die heutige Jahres-Einsparung von dort an durch. Sie
+zählte also Geld, das du damals noch nicht ausgegeben hattest, und Einsparung
+von Komponenten, die es damals noch nicht gab. Der Satz darunter nannte das
+Jahr deshalb „eher optimistisch".
+
+**Was jetzt:** Jede Komponente zählt ihre Kosten und ihre Einsparung erst ab
+ihrem eigenen Anschaffungsjahr. Die Investitionslinie steigt bei jeder
+Anschaffung eine Stufe; eine Reparatur hebt sie im Jahr der Buchung, eine
+Förderung senkt sie dort. Das Break-Even-Jahr in der Kachel „Amortisation" ist
+der Schnittpunkt dieser Treppe — bei einer gewachsenen Anlage später als bisher,
+und zwar das richtige Jahr. ⛔ **Die Dauer in Jahren daneben ändert sich nicht**,
+ebenso wenig HA-Sensoren, PDF-Berichte und die Aussichten. Wer alles auf einmal
+gebaut hat, sieht dieselbe Kurve wie zuvor.
+
+---
+
+**Monatsdaten speichern und Importe dauern nicht mehr 30 Sekunden**
+
+**Betrifft dich das?** Ja, wenn du Monate unter *Einstellungen → Monatsdaten*
+speicherst oder den Portal-, Cloud- oder Custom-Import nutzt.
+
+**Was war:** Beim Speichern eines Monats (seit 4.0.47) und bei jedem dieser
+Importe wartete eedc 30 Sekunden auf die Antwort, und der Eintrag im
+Aktivitätsprotokoll fehlte danach. Das Protokoll öffnete für seinen Eintrag eine
+zweite Datenbankverbindung, während die erste noch schrieb — und SQLite lässt
+nur einen Schreiber zu.
+
+**Was jetzt:** Das Protokoll schreibt in derselben Verbindung wie die Aktion.
+Speichern und Import antworten sofort, der Protokolleintrag ist da. **Du musst
+nichts tun.**
+
+---
+
+**Community: Ein unplausibler Monat sperrt nicht mehr den ganzen Datensatz**
+
+**Betrifft dich das?** Ja, wenn du deine Anlage mit der Community teilst und
+ein Monat einen spezifischen Ertrag über 180 kWh/kWp trägt — etwa durch einen
+Zähler-Rücksprung, eine falsche Nennleistung oder ein Balkonkraftwerk im
+Hochsommer.
+
+**Was war:** Der Community-Server wies den gesamten Datensatz ab, sobald ein
+einziger Monat unplausibel war. Beim automatischen Teilen sah niemand etwas
+davon, beim Knopf nur „Unrealistischer Ertrag". Eine Installation verlor so
+wochenlang täglich ihren ganzen Vergleichsdatensatz.
+
+**Was jetzt:** Der Server überspringt den Monat, nimmt die übrigen an und nennt
+den Grund. Der Teilen-Block zeigt den Hinweis nach „Jetzt übertragen", das
+Aktivitätsprotokoll führt ihn mit. Prüfe dann den genannten Monat unter
+*Einstellungen → Monatsdaten*. Der 180er-Maßstab selbst ist unverändert.
+
+---
+
+**Statistik-Import und „Aus HA laden" kennen den PV-Gesamtzähler der Anlage**
+
+**Betrifft dich das?** Ja, wenn du in Home Assistant nur einen gemeinsamen
+PV-Zähler hast und mehrere Modulgruppen führst — und wenn du unter
+*Einstellungen → Monatsdaten* den Knopf „Aus HA laden" nutzt.
+
+**Was war:** Der Statistik-Import zeigte den PV-Gesamtzähler in der Vorschau,
+verglich aber nur Einspeisung und Netzbezug und schrieb den Zähler beim Import
+nirgendwohin. Die Monate galten als vollständig, hatten aber keine PV, und der
+Daten-Checker riet zu genau diesem Import. Der Vergleichsdialog hinter „Aus HA
+laden" zeigte für Einspeisung und Netzbezug seit März nur Striche, und das
+Formular dahinter blieb leer. Gemeldet von Frank85.
+
+**Was jetzt:** Ein Monat ohne PV ist im Import ein Import, und der Zähler wird
+wie im Monatsabschluss nach kWp auf die aktiven Module verteilt, als Zerlegung
+gekennzeichnet; Module mit eigenem Sensor behalten ihren Messwert. Der Dialog
+zeigt jedes zugeordnete Zählerfeld samt PV-Gesamtzähler und belegt das Formular
+damit vor. **Wer betroffen ist:** einmal die Vorschau des Statistik-Imports
+öffnen — die Monate ohne PV stehen dann auf „importieren".
+
+---
+
+**Zwei Wartezeiten weniger: HA-Export-Sensoren und eben gespeicherte Komponenten**
+
+**Betrifft dich das?** Ja, wenn Home Assistant die eedc-Sensoren per REST
+abfragt, oder wenn du im Einrichtungsassistenten Komponenten anlegst.
+
+**Was war:** Bei kaltem Prognose-Cache wartete die Sensor-Abfrage bis zu
+30 Sekunden auf eine zufällige Pause vor dem Wetterabruf; Home Assistant brach
+nach 10 Sekunden ab und zeigte die Sensoren einmal je Stunde als nicht
+verfügbar. Und eine eben angelegte Komponente war für einen sofort folgenden
+Aufruf in 0,4 % der Fälle noch nicht da, weil der Datenbank-Commit erst nach
+dem Senden der Antwort lief.
+
+**Was jetzt:** Die Export-Sichten und der Publish-Knopf überspringen die Pause,
+nur der zeitgesteuerte Publish-Job behält sie als Lastverteilung. Jede
+Schreibroute committet, bevor die Antwort den Browser erreicht. **Du musst
+nichts tun.**
+
+---
+
+## v4.0.47 — 18. September 2026
+
+**Nach dem Monatsabschluss läuft wieder alles nach — und was liegen blieb, wird nachgesendet**
+
+**Betrifft dich das?** Ja, wenn du Monate über das Monatsformular abschließt und
+deine Anlage mit der **Community** teilst, die Monatswerte per **MQTT** an Home
+Assistant weitergibst oder das **Energieprofil** nutzt.
+
+**Was war:** Seit dem Oberflächen-Umbau im Juli speicherte das Formular deine
+Werte — aber die drei Schritte danach blieben aus, ohne Meldung: kein
+automatisches Teilen, keine MQTT-Monatswerte, kein Nachfüllen der Tages- und
+Stundenwerte des abgeschlossenen Monats aus der Home-Assistant-Statistik. Deine
+Anlage stand auf „teilen", der Community-Server kannte sie trotzdem nur bis zum
+letzten Monat vor dem Umbau.
+
+**Was jetzt:** Alle drei laufen bei jedem Speichern. ⭐ **Wer automatisch teilt,
+muss nichts tun:** eedc sendet nach dem Update einmal alle seit Juli
+liegengebliebenen Monate von selbst nach. Wer nicht automatisch teilt, findet
+unter *Community* einen Hinweis mit Knopf. ⛔ Ohne aktives Teilen passiert
+nichts — eedc nimmt keinen neuen Kontakt nach außen auf.
+
+---
+
+**„Tag neu aggregieren" nennt jetzt den richtigen Zähler**
+
+**Betrifft dich das?** Ja, wenn deine PV-Erzeugung über **einen** Gesamtzähler
+für alle Module zugeordnet ist — seit v4.0.39.
+
+**Was war:** Die Rückmeldung sagte „ohne Wert blieb: pv", obwohl der PV-Wert
+geschrieben war und im Cockpit stand. Wer sich darauf verließ, suchte einen
+Fehler, den es nicht gab. Im Tag-Status stand bei manchen Anlagen „HA hat
+nichts", obwohl Home Assistant Werte hatte.
+
+**Was jetzt:** „3 von 3 Komponenten neu geschrieben", und der Zähler heißt wie
+in der Zuordnung: „PV gesamt" mit seinen kWh. ⛔ **An deinen Tageswerten ändert
+sich nichts** — sie waren richtig.
+
+---
+
+**Community-Vergleich: Teiljahre werden hochgerechnet, und jede Kachel sagt, mit wie vielen Anlagen sie vergleicht**
+
+**Betrifft dich das?** Ja, wenn du deine Anlage mit der Community teilst.
+
+**Was war:** Drei Dinge. **(1)** Eine Anlage mit weniger als zwölf Monaten bekam
+Platz 1 ohne Vergleichswert — oder gar keinen Jahreswert, mit dem Hinweis
+„fehlen noch abgeschlossene Monate". **(2)** Bei E-Auto, Wallbox,
+Balkonkraftwerk und Wärmepumpe rechnete der Community-Durchschnitt über alle
+Jahre samt laufendem Monat, dein eigener Wert über die letzten zwölf
+abgeschlossenen — zwei Zahlen, die nicht dasselbe maßen, in einer Kachel.
+**(3)** Im Monatsvergleich stand ohne Community-Monatsmittel ein Zwölftel des
+Jahreswerts: Die Farbe des Balkens zeigte die Jahreszeit, nicht deine Leistung.
+
+**Was jetzt:** Dein Teiljahr wird saisonal gegen die Solarprognose deines
+Standorts hochgerechnet, darunter steht „hochgerechnet aus X von 12 Monaten";
+ohne Vergleichswert gibt es keinen Rang. Fehlt der Jahreswert, steht der
+Handgriff daneben (Solarprognose anlegen, erneut teilen). Durchschnitt und
+eigener Wert rechnen im selben Fenster, und neben „+12,3 % vs. Ø" steht
+„Ø von 17 Anlagen". Die Zyklen deines Speichers sagen, aus wie vielen Monaten
+sie hochgerechnet sind. ⚠ Die Server-Seite ist seit dem 18. September live —
+die neuen Angaben in deinen Kacheln siehst du nach dem Update.
+
+---
+
+**Ersparnis bei dynamischem Tarif: Monat und Jahr rechnen jetzt wie der Tag**
+
+**Betrifft dich das?** Nur mit **dynamischem Stromtarif** (Tibber, aWATTar,
+EPEX & Co.) und zugeordnetem Preissensor. Bei Festpreis bewegt sich **keine
+Zahl** — das ist geprüft, nicht bloß beabsichtigt.
+
+**Was war:** Seit v4.0.46 bewertet der **Tag** deinen Eigenverbrauch mit dem
+Preis der Stunden, in denen du den Netzbezug vermieden hast. Monat, Jahr,
+Netto-Ertrag, die PDF-Berichte und der Home-Assistant-Sensor rechneten weiter
+mit dem Durchschnittspreis deines Netzbezugs — und der ist höher, weil du
+abends beziehst und mittags vermeidest. Die Ersparnis stand also zu hoch.
+
+**Was jetzt:** Derselbe Preis auf jeder Ebene. ⚠ **Dein Netto-Ertrag sinkt
+dadurch einmalig — auch im HA-Sensor `netto_ertrag_euro` und in ROI und
+Amortisation.** Das ist keine schlechtere Anlage, sondern die richtige Zahl.
+Ein selbst gepflegter Abrechnungs-Durchschnitt bleibt für deinen Netzbezug
+maßgeblich; für die Ersparnis zählt darunter die Messung. Außerdem ist
+„Ø Netzpreis" im Fuß von *Auswertungen → Tabelle* jetzt nach Menge gewichtet,
+und unter der Tages-Tabelle steht, warum die Summe der Tage nicht der Monat ist.
+
+---
+
+**Wärme/Klima: „kein Heizbetrieb" heißt jetzt auch im Monat und im Jahr so**
+
+**Betrifft dich das?** Ja, wenn an deiner Wärmepumpe ein Wärmemengenzähler
+zugeordnet ist und in einem Zeitraum nicht geheizt wurde — im Sommer also fast
+immer.
+
+**Was war:** Der Tag sagte „kein Heizbetrieb in diesem Zeitraum", Monat und Jahr
+sagten „kein Wärmemengenzähler zugeordnet" und schickten dich in die
+Datenquellen — zu einer Zuordnung, die du längst hast.
+
+**Was jetzt:** Monat und Jahr unterscheiden gemessene Null und fehlenden Zähler,
+getrennt für Heizen und Warmwasser.
+
+---
+
+**Der Datenquellen-Status sagt, wenn deine Recorder-Adresse nicht erreichbar ist**
+
+**Betrifft dich das?** Ja, wenn du eine eigene Recorder-Datenbank (PostgreSQL,
+MariaDB, Timescale) unter *Einstellungen → Datenquellen* eingetragen hast.
+
+**Was war:** Bei einem Verbindungsfehler wich eedc auf die Datei
+`home-assistant_v2.db` aus — richtig so —, zeigte aber nur „SQLite". Dass deine
+Adresse nicht wirkte, stand nirgends; nach einem Recorder-Wechsel kann diese
+Datei alt sein.
+
+**Was jetzt:** Der Status nennt den Rückfall und den Fehler: „SQLite (Rückfall —
+die eingetragene Recorder-Adresse ist nicht erreichbar: …)".
+
+---
+
+**Der Sensor „Speicher voll um" nennt sein Verbrauchsprofil**
+
+**Betrifft dich das?** Nur, wenn du `eedc_speicher_voll_um` in einer Automation
+neben `eedc_verbrauchsprognose_heute_kwh` verwendest.
+
+**Was war:** Die beiden Sensoren rechnen mit verschiedenen Verbrauchsmodellen
+(gewichtete acht Wochen gegen sieben Tage) — und nur einer sagte es.
+
+**Was jetzt:** Beide tragen ihre Annahme als Attribute: Profiltyp, Wochen,
+Kaskadenstufe und den angenommenen Verbrauch. ⛔ Am Wert ändert sich nichts.
+
+---
+
+**Kleineres:** Die MQTT-Dokumentation führt `ladung_pv_kwh` und die übrigen
+Felder der Topic-Registry als lieferbar — sie standen fälschlich unter „nicht per
+MQTT lieferbar", der selbst errechnete PV-Ladezähler steht als Beispiel drin
+(Discussion #414). eedc nennt dem Community-Server seine Variante und Version
+mit; nichts daran macht deine Installation wiedererkennbar (Handbuch §5.3).
 
 ---
 
@@ -1293,6 +1574,12 @@ abgerechneten Ø ein, gilt er rückwirkend für jeden Tag des Monats — damit d
 Summe der Tage den Monat trifft. Der Wert springt dabei beim Abschluss wie
 bisher, nur weniger weit: Vorher stand dort schon ein gemessener statt eines
 geschätzten Preises.
+
+> ⛔ **Aufgehoben mit v4.0.46 (17. September 2026):** Seitdem gilt *„Tage sind
+> Messung, Monate sind Abrechnung"* — ein später eingetragener Monats-Ø ändert
+> den Monatsbetrag, deine Tage bleiben, wie sie gemessen wurden. Die Summe der
+> Tage kann deshalb vom Monat abweichen; das ist gewollt. Siehe den Abschnitt zu
+> v4.0.46 weiter oben.
 
 **Betrifft dich das?** Jeden mit dynamischem Strompreis-Sensor.
 **Was du tun musst:** nichts.
@@ -7524,6 +7811,13 @@ schickte eine leere Monatsliste los und bekam vom Community-Server „Keine Mona
 zuerst Daten erfassen." zurück — auch dann, wenn jahrelang gepflegte Werte vorlagen. Beim automatischen
 Teilen nach dem Monatsabschluss passierte dasselbe stillschweigend. Dieselbe Ursache wie im Punkt
 darüber; jetzt sind diese Anlagen im Benchmark dabei.
+
+> ⚠ **Nachträglich richtiggestellt (September 2026):** Das automatische Teilen nach dem
+> Monatsabschluss lief seit dem Oberflächen-Umbau v4.0.0 für niemanden — das neue Monatsformular
+> speicherte über einen Weg, an dem dieser Nachlauf nicht hing, ebenso wenig die MQTT-Monatswerte
+> und das Nachfüllen des Energieprofils. Unauffällig blieb das, weil das Speichern selbst gelang
+> und eine ausbleibende Übertragung nirgends gemeldet wurde. Wer automatisch teilt, sendet die
+> liegengebliebenen Monate nach dem Update einmalig von selbst nach.
 
 **Die geteilte Autarkie stimmt wieder mit dem Bildschirm überein.** Wer ein E-Auto mit **V2H**
 (Entladung ins Haus) oder einen **weiteren Erzeuger** hinter dem Hauszähler (BHKW, Mini-KWK) hat, hat

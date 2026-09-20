@@ -100,7 +100,7 @@ async def baue_finanz_zeile(
     # gemessenen Netzbezug gewichtete Arbeitspreis; ohne Fenster liefert der
     # Helfer die Spalte unveraendert. Ohne eigenen Cache — diese Funktion baut
     # EINE Zeile. Warum er auch nicht im `tarif_cache` mitreist, steht in
-    # `monats_fakten.py` im Block ueber `_komponenten_preis`.
+    # `monats_fakten/tarif.py` im Block ueber `_komponenten_preis`.
     # ⭐ **Die ganze Kaskade an einer Stelle** (#412, 11.09.2026): gepflegt →
     # gemessen → Zeitfenster → Stamm. Bis dahin standen hier zwei Schritte —
     # `wirksamer_arbeitspreis_cent` (Zeitfenster) und darunter der
@@ -128,7 +128,15 @@ async def baue_finanz_zeile(
         abgabe_dritte_kwh=eingabe.abgabe_dritte_kwh or 0,
         bkw_eigenverbrauch_kwh=eingabe.bkw_eigenverbrauch_kwh or 0,
         netzbezug_preis_cent=preis.cent,
-        ev_preis_cent=eingabe.ev_preis_cent,
+        # A-2 auf JEDER Ebene (seit 18.09.2026): kennt der Aufrufer den
+        # EV-gewichteten Preis (Tagesebene), gilt seiner; sonst der aus der
+        # Monatsmessung — damit rechnen Cockpit → Monat/Jahr, Aussichten, PDF
+        # und HA-Export dieselbe Ersparnis wie die Summe der Tage es tut. Ohne
+        # Messung bleibt ``None`` und der Aggregat-Helper nimmt den Bezugspreis
+        # (Prüfstein 2: bei Festpreis bewegt sich keine Zahl).
+        ev_preis_cent=(
+            eingabe.ev_preis_cent if eingabe.ev_preis_cent is not None else preis.ev_cent
+        ),
         netzbezug_preis_herkunft=preis.herkunft,
         einspeiseverguetung_cent=verg_cent,
         neg_preis_kwh=eingabe.neg_preis_kwh,

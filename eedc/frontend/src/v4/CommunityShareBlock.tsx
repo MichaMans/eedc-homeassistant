@@ -206,6 +206,7 @@ export function CommunityShareBlockInhalt() {
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [laden, setLaden] = useState(false)
   const [uebertrage, setUebertrage] = useState(false)
+  const [teilenHinweise, setTeilenHinweise] = useState<string[]>([])
   // #387 Schritt 3: Steht diese Anlage noch aus? Nur Anlagen OHNE Auto-Share
   // stehen hier — die anderen senden beim nächsten Start von selbst nach.
   const [nachsendenOffen, setNachsendenOffen] = useState(false)
@@ -255,7 +256,8 @@ export function CommunityShareBlockInhalt() {
     if (selectedAnlageId == null) return
     setUebertrage(true)
     try {
-      await communityApi.share(selectedAnlageId)
+      const antwort = await communityApi.share(selectedAnlageId)
+      setTeilenHinweise(antwort.hinweise ?? [])
       setNachsendenOffen(false) // der Server hat die Anlage soeben vermerkt
       await refresh() // setzt community_hash → Vorschau lädt via Dep neu
     } catch {
@@ -368,17 +370,18 @@ export function CommunityShareBlockInhalt() {
                 </Button>
               </div>
             ) : nachsendenOffen ? (
-              /* #387 Schritt 3: Seit dieser Version geht die Ertragserwartung
-                 deines Standorts mit — der Community-Vergleich stellt am
-                 1.9.2026 darauf um. Wer automatisch teilt, sendet von selbst
-                 nach; hier steht nur, wer es einmal von Hand tun muss. Der
-                 Knopf ist derselbe wie oben (Voll-Submit), es entsteht keine
-                 zweite Übertragungsart. */
+              /* #387 Schritt 3 (v4.0.22) und F-73 (17.09.2026): Wer automatisch
+                 teilt, sendet nach einem Update mit neuem Schema-Stand von
+                 selbst nach; hier steht nur, wer es einmal von Hand tun muss.
+                 Der Knopf ist derselbe wie oben (Voll-Submit), es entsteht
+                 keine zweite Übertragungsart. Der Text nennt bewusst keinen
+                 Termin und kein Feld mehr — beim ersten Lauf stand hier
+                 „ab dem 1. September", und der Satz überlebte den Termin. */
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                  Neu: eedc kann jetzt auch die Ertragserwartung deines Standorts mitschicken.
-                  Der Community-Vergleich rechnet damit ab dem 1. September fairer — für Anlagen,
-                  die noch kein volles Jahr gemessen haben. Einmal übertragen genügt.
+                  Seit deinem letzten Teilen hat sich geändert, was eedc der Community mitschickt
+                  oder was seither hätte gesendet werden sollen. Einmal übertragen bringt deinen
+                  Datensatz wieder auf den aktuellen Stand — danach verschwindet dieser Hinweis.
                 </p>
                 <Button variant="secondary" size="sm" loading={uebertrage} onClick={jetztUebertragen}>
                   Jetzt übertragen
@@ -390,6 +393,23 @@ export function CommunityShareBlockInhalt() {
                   ? `${fmtZahl(preview.anzahl_monate, 0)} Monatswerte ${teiltAuto ? 'werden' : 'würden'} geteilt.`
                   : 'Noch keine Monatswerte zum Teilen vorhanden.'}
               </p>
+            )}
+
+            {/* N-523: Der Server nimmt den Datensatz an und nennt, was er dabei
+                übersprungen hat — vorher wies EIN unplausibler Monat alles ab. */}
+            {teilenHinweise.length > 0 && (
+              <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">
+                <p className="font-medium">Der Community-Server hat Hinweise zu deinen Monatswerten:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {teilenHinweise.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-xs">
+                  Ein übersprungener Monat wird nicht übertragen; die übrigen Monate sind angekommen.
+                  Prüfe den Monat unter Einstellungen → Monatsdaten.
+                </p>
+              </div>
             )}
 
             {/* Vollständige Feldliste — Rainer-Transparenz 2026-07-04 */}

@@ -24,11 +24,11 @@
 > **kostet**, statt zu verdienen (v4.0.5, `core/berechnungen/dienstliche_ladekosten.py`) — die
 > vierte Stelle, an der E-Auto-Ladung in Geld umgerechnet wird, im ursprünglichen Entwurf nicht
 > vorgesehen. Und die Monatszeile wird genau einmal aufbereitet (ADR-002/P10): Read-Sites lesen
-> sie aus `services/monats_fakten.py`, statt `InvestitionMonatsdaten` selbst zu falten.
+> sie aus `services/monats_fakten/`, statt `InvestitionMonatsdaten` selbst zu falten.
 >
 > ⚠ **Sprachliche Altlast:** Wo unten „Wallbox-Dashboard" steht, ist die Wallbox-Fläche des
 > **Komponenten-Hubs** gemeint (`frontend/src/v4/WallboxHubBloecke.tsx`); die Backend-Route heißt
-> weiterhin `api/routes/investitionen/dashboards.py`.
+> weiterhin `api/routes/investitionen/dashboard_wallbox.py` und `dashboard_eauto.py` (bis 18.09.2026 `dashboards.py`).
 
 ---
 
@@ -116,7 +116,7 @@ evcc/loadpoints/1/pvCharged → 732 kWh   evcc/vehicles/BMW/pvCharged   → 520 
 > ⚠ **2026-08-08: Die Sichten heißen seit v4.0.0 anders.** „Wallbox-Dashboard" ist heute die
 > **Wallbox-Fläche des Komponenten-Hubs** (`frontend/src/v4/WallboxHubBloecke.tsx`),
 > „E-Auto-Dashboard" die **E-Auto-Fläche** (`v4/EAutoHubBloecke.tsx`). Die Backend-Route heißt
-> weiterhin `api/routes/investitionen/dashboards.py`. Die Skizzen darunter beschreiben den
+> weiterhin `api/routes/investitionen/dashboard_wallbox.py` und `dashboard_eauto.py`. Die Skizzen darunter beschreiben den
 > **Inhalt**, nicht das heutige Layout — wer sie umsetzt, tut das im Hub und nach Regel 0a.
 
 ### Wallbox-Dashboard
@@ -356,7 +356,7 @@ erledigt — hier stand bis 2026-08-28 „noch nicht gebaut".
 >
 > ⚠ **Zwei Etappen-Angaben trugen nicht** (am Code geprüft, statt sie abzuarbeiten): Etappe 1
 > nennt „Response-Model" und `core/field_definitions.py`. Das Response-Model führt `parameter` als
-> freies `dict[str, Any]` (`investitionen/crud.py`), es strippt nichts; und `field_definitions.py`
+> freies `dict[str, Any]` (`investitionen/schemas.py`), es strippt nichts; und `field_definitions.py`
 > ist die Registry der **Monatsdaten-** und Live-Felder, nicht der Investitions-Parameter — ein
 > Eintrag dort wäre am falschen Ort. Die tatsächlichen Pflicht-Stellen für einen
 > `parameter`-Schlüssel sind `core/investition_parameter.py` **und** sein Frontend-Spiegel
@@ -379,7 +379,7 @@ von beiden wirkt, erzeugt genau die Drift-Klasse, die dieses Projekt wiederholt 
 | Achse | Ort | Rechnet mit | Wer liest sie |
 | --- | --- | --- | --- |
 | **IST** (Vergangenheit) | `services/eauto_wirtschaftlichkeit.py` | **gemessenen** `km_gefahren` + **tatsächlicher** Ladung + `vergleich_verbrauch_l_100km` | Komponenten-Hub, Cockpit, Monatsbericht, HA-Export, Aussichten-Historie, CO₂ |
-| **Prognose/ROI** (Zukunft) | `core/calculations.py:310-364` (`berechne_eauto_einsparung`) | **geplanter** `jahresfahrleistung_km` × `verbrauch_kwh_100km` × `pv_ladeanteil_prozent` | ausschließlich `api/routes/investitionen/crud.py:1508` (ROI-Tabelle) |
+| **Prognose/ROI** (Zukunft) | `core/calculations.py:310-364` (`berechne_eauto_einsparung`) | **geplanter** `jahresfahrleistung_km` × `verbrauch_kwh_100km` × `pv_ladeanteil_prozent` | ausschließlich `api/routes/investitionen/roi.py::get_roi_dashboard` (ROI-Tabelle) |
 
 Beide müssen den Anteil kennen — **aber sie bestimmen ihn verschieden**, weil die Zukunft keine
 Messung hat. Das ist kein Sonderfall, sondern die schon bestehende Trennung des Systems.
@@ -410,8 +410,8 @@ Schema-Erweiterung für die Messung**, und keine Schätzung — das ist die Zusa
 was es ist.**
 Neuer Parameter **`eigener_verbrauch_l_100km`**. Das bestehende Feld beschreibt einen **fiktiven
 Vergleichs-Benziner** („was hätte ein gleichwertiges Verbrenner-Fahrzeug gebraucht", Default 7,5)
-und hat **sieben** Produktions-Leser (`aussichten.py` ×2 · `ha_export.py` ×2 ·
-`cockpit/nachhaltigkeit.py` · `investitionen/crud.py` · `eauto_wirtschaftlichkeit.py`). Es beim
+und hat **sieben** Produktions-Leser (`aussichten/finanz_eingaenge.py` · `finanz_prognose.py` · `ha_export/anlage_komponenten.py` · `investition_sensoren.py` ·
+`cockpit/nachhaltigkeit.py` · `investitionen/roi.py` · `eauto_wirtschaftlichkeit.py`). Es beim
 PHEV umzudeuten würde Zahlen bei allen Nicht-PHEV-Nutzern bewegen und wäre dieselbe Doppelbelegung,
 die bei `verbrauch_kwh` als **Schwäche A** dokumentiert ist und dort einen Daten-Checker-Fehlalarm
 erzeugt hat. **Zwei Bedeutungen brauchen zwei Felder.**
@@ -560,7 +560,7 @@ Drei Stellen, in dieser Reihenfolge:
    `stunde_aus_bilanzwerten`, **nicht** ein Ausdruck in der Schleife (Begründung unten).
 2. **`TagesZusammenfassung`** — zwei Spalten `emob_ladung_{pv,netz}_abgeleitet_kwh` + Migration +
    `source_provenance`-Marke (Rahmenbedingung 4).
-3. **`services/monats_fakten.py`** — `EmobFakten` zieht den Wert heran, wo kein gepflegter existiert,
+3. **`services/monats_fakten/`** — `EmobFakten` zieht den Wert heran, wo kein gepflegter existiert,
    und weist das mit `ladung_anteil_abgeleitet` aus (Rahmenbedingung 1).
 
 **Zwei Befunde haben die Bauform gegenüber dem Schnitt vom Vormittag geändert:**
@@ -601,15 +601,15 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 > Stand nach `a7a50abc` beschreibt; was tatsächlich galt, steht hier.
 >
 > **Der Fehler war die Methode, nicht die Formulierung.** Die Wirkungen waren aus der **Bauabsicht**
-> geschrieben, nicht aus den **Lesestellen** ausgezählt. Die Ableitung saß in `monats_fakten.py`
+> geschrieben, nicht aus den **Lesestellen** ausgezählt. Die Ableitung saß in `monats_fakten/` (damals `monats_fakten/`)
 > *oberhalb* von `get_emob_heimladung_canonical` und traf damit nur die Felder
 > `EmobFakten.ladung_pv_kwh`/`ladung_netz_kwh`. Von **achtzehn** Lesestellen sahen sie **vier**:
 >
 > - **„Der Komponenten-Hub zeigt statt 0 % einen Wert"** traf eine **andere** Sicht — *Auswertungen
->   → Komponenten* (`cockpit/komponenten.py`). Der **Hub** selbst (`investitionen/dashboards.py`)
+>   → Komponenten* (`cockpit/komponenten.py`). Der **Hub** selbst (`investitionen/dashboard_wallbox.py`, `dashboard_eauto.py`)
 >   liest `InvestitionMonatsdaten` direkt und blieb bei 0 %.
 > - **„Die E-Auto-Ersparnis steigt"** traf **keine** Sicht. Alle drei Ersparnis-Rechner
->   (`cockpit/uebersicht.py`, `investitionen/dashboards.py`, `aussichten.py`) poolen die Rohzeilen
+>   (`cockpit/uebersicht.py`, `investitionen/dashboard_eauto.py` und `dashboard_wallbox.py`, `aussichten/finanz_eingaenge.py`) poolen die Rohzeilen
 >   neu; keiner las `EmobFakten.ladung_netz_kwh`.
 > - **„Die E-Mob-Netzladung in der CO₂-Bilanz sinkt"** war die einzige zutreffende Aussage.
 >
@@ -629,10 +629,10 @@ gepflegt wird, steht die Prognose-Achse neben der neuen Rechnung.
 > gepflegte 0.
 >
 > ⚑ **Rahmenbedingung 7 (N-188) ist damit erledigt.** Die Prognose rät den Anteil nicht mehr:
-> `investitionen/crud.py` nimmt den IST-Anteil aus den Monats-Fakten
+> `investitionen/roi.py` nimmt den IST-Anteil aus den Monats-Fakten
 > (`monats_fakten.ist_pv_ladeanteil_prozent`), wenn kein `pv_ladeanteil_prozent` gepflegt ist —
 > Default 60 % nur noch, wenn auch das IST schweigt. Die **zweite**, im ursprünglichen Text nicht
-> genannte Prognose-Quelle (`aussichten.py`, leitet die Quote aus der Historie ab) zieht über
+> genannte Prognose-Quelle (`aussichten/finanz_prognose.py`, leitet die Quote aus der Historie ab) zieht über
 > dieselbe Anreicherung mit.
 >
 > ⚑ **Wertänderung an einem ausgelieferten HA-Sensor:** `e_auto_pv_anteil_prozent` springt bei

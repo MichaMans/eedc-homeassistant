@@ -54,7 +54,7 @@ Anlage. **Die Infothek-Frage ist erledigt und nicht neu aufzurollen.**
 
 | Was | Stand | Fundstelle |
 | --- | --- | --- |
-| **Die Monatsdaten** | ✅ vollständig da, **für jeden beliebigen Monat** | `api/routes/aktueller_monat.py:1270` — `jahr` und `monat` sind **bereits Parameter**, nicht nur „aktueller Monat" |
+| **Die Monatsdaten** | ✅ vollständig da, **für jeden beliebigen Monat** | `api/routes/aktueller_monat/__init__.py::get_aktueller_monat` — `jahr` und `monat` sind **bereits Parameter**, nicht nur „aktueller Monat" |
 | **Der Ort** | ✅ da, an der Anlage | `components/DokumentationsDialog.tsx`, geöffnet aus `pages/AnlagenTeile.tsx:256` und `v4/EinstellungenV4.tsx:287` |
 | **Die Monatsauswahl** | ✅ Muster da | derselbe Dialog trägt seit jeher eine **Jahresauswahl** für den Jahresbericht (`:189` ff.) |
 | **Der Renderweg** | ✅ da | `services/pdf/engine.py::render_document` + seit `56a8d3fc` `render_html`; Auslieferung als `Response(media_type=…)` in `routes/dokumentation.py:48` ff. |
@@ -71,9 +71,9 @@ Keine neue Datenschicht, kein neuer Ort, keine neue Navigation.
 
 > ⛔ **Hier stand bis 2026-08-30: „trägt bereits **alles**, was der Bericht zeigen soll."**
 > **Am Code widerlegt, und der Bau ist dem Satz gefolgt.** Negativbeweis über
-> `api/routes/aktueller_monat.py`: `typisches_tagesprofil` · `peak_netzbezug` ·
+> `api/routes/aktueller_monat/__init__.py`: `typisches_tagesprofil` · `peak_netzbezug` ·
 > `peak_einspeisung` · `kategorien` → **je 0 Treffer**. Diese Größen liegen in
-> `energie_profil/views.py::get_monatsauswertung` (`:873`), die Tagesreihe des *Verlaufs* im
+> `energie_profil/monat.py::get_monatsauswertung` (bis 18.09.2026 in `views.py`), die Tagesreihe des *Verlaufs* im
 > Service `services/energie_profil/tage_werte.py::baue_tage_werte`. **Sechs der vierzehn
 > Anzeigen der Monatsfläche speisen sich also aus zwei anderen Quellen** (fünf aus der
 > Monatsauswertung, der Verlauf aus den Tageswerten) — der Bestand hat **eine** Quelle
@@ -237,7 +237,7 @@ ist es eine Zeile.
 | #110 §Anlassbezogen, Punkt „Monatsbericht als PDF" | **hält ein** — „zuerst überhaupt erzeugen können, Ablage ist die kleinere Hälfte" |
 | Commit `07682e14` (Rückbau Social-Vorlage) + **N-7** | **weicht ab von der ersten Idee** — ein zweiter Text mit eigenen Formeln ist ausgeschlossen; daher ein Context, zwei Renderer |
 | Tor-3-Regel „kein zweiter Turm" (29.08.) | **angewandt** — ein zweiter Bericht wäre einer, zwei Formate eines Berichts nicht |
-| `aktueller_monat.py:1270` (jahr/monat als Parameter) | **weicht ab von #110s Eindruck** — die Datenschicht ist da, es fehlt nur der Renderer |
+| `aktueller_monat/__init__.py::get_aktueller_monat` (jahr/monat als Parameter) | **weicht ab von #110s Eindruck** — die Datenschicht ist da, es fehlt nur der Renderer |
 | `DokumentationsDialog.tsx` | **hält ein** — der Ort existiert und hängt an der Anlage |
 | **N-289** (Drafts als SoT) | **angewandt** — dieses Dokument geht nach der Abnahme in `docs/`, nicht in `docs/drafts/` |
 | ADR-002/**P10** | **angewandt** — der Builder ruft die Monats-Aufbereitung, er faltet nicht selbst |

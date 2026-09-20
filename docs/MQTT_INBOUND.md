@@ -97,7 +97,11 @@ Die Felder unter `energy/inv/{id}_{name}/` entsprechen den Monatsdaten-Feldern d
 | **E-Auto** | `km_gefahren` | km | **Tachostand** (Odometer) — eedc bildet die gefahrenen Kilometer daraus |
 | **E-Auto** | `v2h_entladung_kwh` | kWh | Vehicle-to-Home Entladung |
 | **Wallbox** | `ladung_kwh` | kWh | Ladung gesamt |
+| **Wallbox** | `ladung_pv_kwh` | kWh | PV-Anteil der Ladung — **auch als Zaehlerstand**, eedc bildet die Monatsdifferenz daraus (s. Kasten unten) |
 | **Wallbox** | `ladevorgaenge` | Anzahl | **Fortlaufender Zaehler** der Ladevorgaenge — eedc bildet die Anzahl im Monat daraus |
+| **E-Auto** | `ladung_pv_kwh` / `ladung_netz_kwh` | kWh | PV-/Netz-Anteil der Ladung (nur ohne Wallbox — mit Wallbox liegt die Heimladung dort) |
+| **E-Auto** | `ladung_extern_kwh` / `ladung_extern_euro` | kWh / EUR | Externe Ladung (Menge und Kosten) |
+| **Speicher** | `ladung_netz_kwh` | kWh | Netz-Anteil der Ladung (Arbitrage) |
 | **BKW** | `pv_erzeugung_kwh` | kWh | BKW-Erzeugung |
 | **BKW** | `eigenverbrauch_kwh` | kWh | Eigenverbrauch |
 | **BKW** | `speicher_ladung_kwh` | kWh | BKW-Speicher Ladung |
@@ -105,10 +109,15 @@ Die Felder unter `energy/inv/{id}_{name}/` entsprechen den Monatsdaten-Feldern d
 | **Sonstiges** | `erzeugung_kwh` | kWh | Erzeugung (Erzeuger/Speicher) |
 | **Sonstiges** | `verbrauch_sonstig_kwh` | kWh | Verbrauch (Verbraucher/Speicher) |
 
+> ⭐ **Ein selbst errechneter PV-Ladezaehler (Discussion #414).** Liefert die Wallbox oder evcc
+> keinen eigenen PV-Zaehlerstand, sondern nur einen Solar-Anteil in Prozent, laesst sich
+> `ladung_pv_kwh` als Produkt *Gesamtzaehler × kumulierter Solaranteil* bilden — **aber nur,
+> wenn Prozent und Zaehler dieselbe Energiebasis haben** (derselbe Zaehler seit demselben Tag).
+> eedc bildet aus diesem Stand die Monatsdifferenz wie aus jedem anderen. Die Monatswerte zeigen
+> dann den **Anteil des jeweiligen Monats** (Sommer nahe 100 %, Winter nahe 0 %), nicht den
+> kumulierten Durchschnitt, den evcc anzeigt — die Summe ueber die Monate trifft ihn wieder.
+
 **Nicht per MQTT lieferbar** (werden im Monatsabschluss manuell eingegeben oder berechnet):
-- `ladung_pv_kwh` / `ladung_netz_kwh` (PV/Netz-Aufteilung bei Speicher, E-Auto, Wallbox)
-- `batterie_ladung_netz_kwh` (Arbitrage-Anteil)
-- `ladung_extern_kwh` / `ladung_extern_euro` (externe Ladung E-Auto)
 - Wetterdaten (`globalstrahlung`, `sonnenstunden`, `temperatur`)
 - `sonderkosten_euro`, `notizen`
 

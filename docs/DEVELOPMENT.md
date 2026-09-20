@@ -303,7 +303,7 @@ Eintrag in der Ausnahmen-Liste.
 
 ### Monatswerte nur aus den Monats-Fakten (ADR-002/P10)
 
-SoT ist `eedc/backend/services/monats_fakten.py`. Wer eine abgeleitete Monatsgröße auswertet,
+SoT ist `eedc/backend/services/monats_fakten/`. Wer eine abgeleitete Monatsgröße auswertet,
 faltet `InvestitionMonatsdaten` **nicht selbst** — Zeitfilter, Dienstwagen-Filter und Auflösung
 sind dort schon drin:
 
@@ -430,22 +430,45 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   ├── main.py                  # Entry Point + alle include_router-Aufrufe
     │   ├── requirements.txt
     │   ├── api/routes/
-    │   │   ├── aktueller_monat.py       # Cockpit → Monat (laufender + gespeicherter Monat)
+    │   │   ├── aktueller_monat/         # Cockpit → Monat — Paket seit 18.09.2026: __init__ (Router, Sammler, Endpunkt als Orchestrator, Antwort) · schemas · vergleich · tkonto · aggregation · finanzen · waerme · komponenten
     │   │   ├── anlagen.py               # Anlagen-CRUD + Anlagenfoto
-    │   │   ├── aussichten.py            # Prognose-Aussichten (Kurz/Lang/Trend/Finanzen)
+    │   │   ├── aussichten/              # Prognose-Aussichten — Paket seit 18.09.2026 (Vorlage 7)
+    │   │   │   ├── __init__.py          # Fassade: Router-Bündel + Re-Export
+    │   │   │   ├── prognose.py · trend.py · wetter.py   # kurzfristig/langfristig · Trend · Wettervorhersage
+    │   │   │   ├── finanzen.py          # Finanz-Prognose (Auswertungen → Finanzen) — Orchestrator seit 18.09.2026 (Vorlage 7b)
+    │   │   │   ├── finanz_eingaenge.py · finanz_rueckblick.py · finanz_prognose.py · finanz_zerlegung.py   # seine zehn Phasen
+    │   │   │   └── schemas.py · basis.py   # Antwortmodelle · Konstanten, Anlagen-Lader
     │   │   ├── prognosen.py             # Prognose-Vergleich, Genauigkeits-Tracking
     │   │   ├── cockpit.py + cockpit/    # Übersicht · Komponenten · Nachhaltigkeit · Jahr
     │   │   ├── monatsdaten.py           # Monatsdaten-CRUD + Aggregation
     │   │   ├── monatsabschluss/         # Monatsabschluss-Formular + Datenquellen-Status
     │   │   ├── investitionen/           # Komponenten, ROI, Stilllegung, Kennwerte
+    │   │   │   ├── crud.py              # CRUD-Routen, Parent-Regel; hängt roi.py ein, re-exportiert (seit 18.09.2026, Vorlage 5)
+    │   │   │   ├── schemas.py · roi.py  # Investitions-Schemas · ROI-Dashboard (Orchestrator), Gruppierung, Kennwert-Auflöser
+    │   │   │   ├── roi_eingaenge.py · roi_pv.py · roi_standalone.py   # die Phasen des ROI-Dashboards (Vorlage 5b, 18.09.2026)
+    │   │   │   ├── dashboards.py        # Fassade: Monatsdaten je Monat, CO2-Amortisation, Hub-Leer-Grund; hängt die Typ-Dashboards ein
+    │   │   │   ├── dashboard_<typ>.py   # eauto · waermepumpe · speicher · wallbox · balkonkraftwerk · sonstiges (Vorlage 6, 18.09.2026)
+    │   │   │   ├── dashboard_basis.py   # Preis-Mittelung, Monatsdaten-Response
+    │   │   │   └── speicher_potential.py · speicher_sizing.py
     │   │   ├── strompreise.py           # Tarife, Spezialtarife, Gültigkeitsfenster
     │   │   ├── energie_profil/          # Tages-/Stundenprofile, Reaggregation
+    │   │   │   ├── views.py             # Fassade: Router-Bündel + Re-Export (seit 18.09.2026, Vorlage 4)
+    │   │   │   ├── tage.py · serien.py  # Tagesreihen · Stunden-/Serienreihen
+    │   │   │   ├── tag.py · monat.py    # Tag-Detail/-Status · Monatsauswertung + ENERGIE_KATEGORIEN
+    │   │   │   ├── waerme.py · prognose.py · diagnose.py
+    │   │   │   ├── repair.py            # Reparatur-/Schreib-Endpunkte
+    │   │   │   └── _shared.py           # Antwortmodelle, SerieInfo-Auflösung
     │   │   ├── live_dashboard.py        # Live-Kern (Fluss, Tagesverlauf, Börsenpreise)
     │   │   ├── live_mqtt_inbound.py · live_wetter.py
     │   │   ├── mqtt_gateway.py · mqtt_presets.py   # beide unter /api/live eingehängt
     │   │   ├── datenquellen.py          # Datenquellen-Fläche (ein Feld = eine Quelle)
     │   │   ├── sensor_mapping.py        # HA-Sensor-Zuordnung (nur HA_MODE)
-    │   │   ├── ha_integration.py · ha_statistics.py · ha_export.py · ha_remote.py
+    │   │   ├── ha_integration.py · ha_statistics.py · ha_remote.py
+    │   │   ├── ha_export/               # HA-Sensor-Export — Paket seit 18.09.2026 (Vorlage 8)
+    │   │   │   ├── __init__.py          # Fassade: Router (Präfix /ha/export) + Re-Export
+    │   │   │   ├── anlage_sensoren.py · investition_sensoren.py   # die zwei Rechenkerne (Anlage: Orchestrator seit 18.09.2026, Vorlage 8b)
+    │   │   │   ├── anlage_energie.py · anlage_komponenten.py · anlage_sensorwerte.py   # seine neun Phasen
+    │   │   │   └── schemas.py · emob.py · konfig.py · sensoren.py · mqtt.py   # Modelle · E-Mob-Pool · Routen
     │   │   ├── connector.py             # Geräte-Connectors (lokales Netz)
     │   │   ├── cloud_import.py          # Cloud-API-Import
     │   │   ├── custom_import/ · data_import.py · import_export/   # CSV/JSON/Demo/PDF
@@ -476,7 +499,7 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   │   ├── datenquellen.py · invarianten.py
     │   │   ├── investition_kennwerte.py # SoT für kWp/kWh je Typ (ADR-002/P3-a)
     │   │   ├── investition_parameter.py # gemeinsame Parameter-Keys mit dem Frontend
-    │   │   ├── monats_luecken.py · source_priority.py · field_definitions.py
+    │   │   ├── monats_luecken.py · source_priority.py · field_definitions/ (Paket seit 18.09.2026: keys · registry · bedingungen · karten · auswahl · reader · wp_strom, Fassade __init__)
     │   │   ├── wirtschaftlichkeit_defaults.py · ha_integrations_wissen.py
     │   │   ├── exceptions.py · log_buffer.py · calculations.py
     │   │
@@ -492,12 +515,21 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   ├── activity_log.py · data_provenance_log.py
     │   │
     │   ├── services/                # ~70 Module + Unterpakete
-    │   │   ├── monats_fakten.py      # ADR-002/P10: die Monatszeile wird EINMAL aufbereitet
+    │   │   ├── monats_fakten/        # ADR-002/P10: die Monatszeile wird EINMAL aufbereitet — seit 19.09.2026 ein Paket:
+    │   │   │   ├── __init__.py       #   Fassade + Re-Exporte (lade_monats_fakten, MonatsFakt, WpFakten, …)
+    │   │   │   ├── fakten.py         #   die Feldgruppen (Konzept §3) und MonatsFakt
+    │   │   │   ├── fakten_wp.py      #   WpFakten
+    │   │   │   ├── roh.py            #   _RohMonat (falte) und die Lader
+    │   │   │   ├── tarif.py          #   Monatstarif je Stichtag (P8)
+    │   │   │   ├── bau.py            #   _baue_fakt: Rohmonat → Fakt
+    │   │   │   ├── laden.py          #   lade_monats_fakten (Orchestrator)
+    │   │   │   └── ableitungen.py    #   finanz_zeile_eingabe, Kennzahlen, PV-Hinweis, PV-Ladeanteil
     │   │   ├── pv_monatswerte.py     # P7: lade_pv_je_monat / pv_summe_je_monat
     │   │   ├── preis_tag.py          # eine Schicht für Preis-Chart UND HA-Sensoren
     │   │   ├── energie_profil/       # Tages-Aggregation, Monats-Rollup, Tag-Status
     │   │   ├── snapshot/             # 5-Min-/Stunden-Snapshots + aggregator.py
     │   │   ├── daten_checker/        # Kategorien der Datenqualitäts-Prüfung
+    │   │   │   └── datenquelle/      # Quellen · Tage · Speicher · Klima · Connector · Zeitzone · Rücksprung — Unterpaket seit 18.09.2026 (Vorlage 9)
     │   │   ├── cloud_import/         # Cloud-Provider (registry.py = SoT der Liste,
     │   │   │                         #   quellen.py = mehrere Quellen je Anlage, je mit Ziel-Gerät)
     │   │   ├── erzeuger_ziel.py      # SoT: welche Investition darf Ziel einer Quelle sein
@@ -517,7 +549,7 @@ eedc-homeassistant/                  ← Source of Truth (alle Änderungen hier)
     │   │   └── …                     # vollständige Liste: ls eedc/backend/services/
     │   │
     │   ├── tests/                   # ~400 pytest-Dateien, darunter die Wächter:
-    │   │   ├── conftest.py           # die `db`-Fixture (In-Memory je Test) + Netzsperre
+    │   │   ├── conftest.py           # die `db`-Fixture (In-Memory je Test) + Netzsperre + Wegwerf-Produktiv-DB (nie data/eedc.db)
     │   │   ├── factories.py          # Modell-Factories + Szenarien (s. unten)
     │   │   ├── quellbaum.py          # EINE Dateiquelle für alle baumweiten Prüfer (s. unten)
     │   │   ├── ha_lts_helfer.py      # EINE Fassung des HA-Recorder-Schemas (s. unten)
@@ -651,6 +683,14 @@ die **Summenzeile**, nicht die letzte grüne Zeile.
 vergessener Import fällt dort in Sekunden auf, im Vitest-Lauf erst nach Minuten und mit
 irreführender Fehlermeldung.
 
+**Der Testlauf berührt `data/eedc.db` nie.** `conftest.py` setzt `DATABASE_URL` auf eine Wegwerf-Datei
+je Worker, *bevor* `backend.core.database` importiert wird, legt dort das Schema an, setzt das
+L2-Cache-Flag des Prognose-Kanons je Test zurück und startet die App-Lifespan ohne Scheduler
+(`EEDC_DISABLE_SCHEDULER`). Bis zum 19.09.2026 schrieb jeder Lauf 12–20 Aktivitätszeilen in die
+Entwickler-Datenbank, und die nie geschlossene Verbindung der Produktiv-Engine war die wandernde
+Warnung „Event loop is closed" (N-414 · N-532). Wer eine Probe mit eigener Engine schreibt, disposed
+sie im `finally` — die `db`-Fixture ist das Vorbild.
+
 ```bash
 # 1. Backend (bei Backend-Arbeit vollständig)
 cd eedc && source backend/venv/bin/activate && python -m pytest backend/tests -q
@@ -684,7 +724,7 @@ from backend.tests.quellbaum import produktivbaum   # alles ohne tests/, venv/, 
 from backend.tests.quellbaum import probenbaum      # der Testbaum
 
 for datei in produktivbaum():
-    datei.rel      # "services/monats_fakten.py" — der Name, den der Prüfer meldet
+    datei.rel      # "services/monats_fakten/laden.py" — der Name, den der Prüfer meldet
     datei.quelle   # Quelltext
     datei.baum     # fertiger ast.Module — NICHT selbst parsen
 ```

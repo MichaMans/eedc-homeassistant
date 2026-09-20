@@ -688,9 +688,17 @@ Zwei klar getrennte Sichten statt vieler paralleler ROI-Zahlen ohne Bezug:
 
 > **Mit Kalenderjahr** (Forum-Wunsch Radiocarbonat): Neben der Dauer steht das voraussichtliche
 > Break-Even-**Jahr** — in der Kachel „Amortisation", unter der Kurve und als X-Achsen-Beschriftung
-> (Kalenderjahre statt Jahres-Index). Anker ist das **früheste Anschaffungsjahr** deiner Komponenten;
-> ohne gepflegtes Anschaffungsdatum bleibt es beim Jahres-Index. Verteilen sich die Anschaffungen über
-> mehrere Jahre, ist das genannte Jahr **optimistisch** — der Text sagt das dazu.
+> (Kalenderjahre statt Jahres-Index). Die Kurve beginnt mit dem **frühesten Anschaffungsjahr** deiner
+> Komponenten; ohne gepflegtes Anschaffungsdatum bleibt es beim Jahres-Index.
+>
+> **Gewachsene Anlagen zeigen eine Treppe:** Jede Komponente zählt ihre Kosten und ihre Einsparung
+> erst ab ihrem eigenen Anschaffungsjahr — die Investitionslinie steigt bei jeder Anschaffung eine
+> Stufe, sonstige Ausgaben (Reparatur) heben sie im Jahr der Buchung, sonstige Erträge (Förderung)
+> senken sie dort. Das Break-Even-Jahr ist das erste Jahr, ab dem die Einsparung dauerhaft über der
+> Investition liegt; die Dauer in Jahren daneben rechnet weiter mit der heutigen Jahres-Einsparung
+> und ist deshalb bei einer über Jahre gewachsenen Anlage kürzer als der Abstand zum Break-Even-Jahr.
+> Ein PV-System (Wechselrichter mit Modulen und Speicher) hat eine gemeinsame Einsparung: ein später
+> ergänztes Modulfeld stuft die Kosten, die Einsparung des Systems läuft ab seiner ersten Komponente.
 
 **Zwei Amortisations-Kacheln, die sich ergänzen** (neu, nach dem V4-Flip zurückgeholt):
 
@@ -933,6 +941,8 @@ Der Community-Bereich hat **sechs Reiter**: **Übersicht · PV-Ertrag · Kompone
 
 **PV-Ertrag** — dein spezifischer Ertrag (kWh/kWp) vs. Community-Durchschnitt, monatlicher Vergleich und ein Histogramm deiner Einordnung in der Verteilung.
 
+> **Woraus der Jahreswert entsteht.** Aus deinen **zwölf lückenlosen** jüngsten abgeschlossenen Monaten. Hat deine Anlage weniger, rechnet der Community-Server **saisonal** hoch — mit der PVGIS-Ertragserwartung deines Standorts als Maßstab, nicht mit dem Faktor zwölf — und eedc schreibt *„hochgerechnet aus 5 von 12 Monaten"* unter die Zahl. Ein Frühling zählt so als Frühling. Ohne aktive **Solarprognose** (Einstellungen → Solarprognose) fehlt dieser Maßstab, und unter zwölf Monaten gibt es dann keinen Jahreswert und keinen Rang; eedc sagt es dir an dieser Stelle. Die **monatlichen** Vergleiche gelten unabhängig davon. Ein Monat ohne Community-Mittel bekommt keinen Vergleichsbalken — vorher stand dort ein Zwölftel des Jahreswerts, das im Winter jede Anlage rot und im Sommer jede grün färbte.
+
 **Komponenten** — Benchmarks je Komponente:
 
 | Komponente | Kennzahlen |
@@ -954,6 +964,7 @@ Der Community-Bereich hat **sechs Reiter**: **Übersicht · PV-Ertrag · Kompone
 - Nur aggregierte Statistiken werden angezeigt; kein Rückschluss auf einzelne Anlagen.
 - Daten sind jederzeit — auch rückwirkend — wieder löschbar.
 - Server: https://energy.raunet.eu (Open Source).
+- Bei jedem Aufruf des Community-Servers nennt eedc **Produktvariante und Version** (`eedc-homeassistant/4.0.47` oder `eedc/4.0.47`), so wie ein Browser seinen Namen mitschickt. Damit lässt sich im Zugriffsprotokoll des Servers zählen, wie viele Installationen aktiv sind und welche Versionen laufen. Es geht keine Kennung deiner Installation mit, und es entsteht kein zusätzlicher Kontakt: Die Angabe steckt nur in Aufrufen, die es vorher schon gab.
 
 ---
 

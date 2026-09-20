@@ -141,7 +141,7 @@ cd eedc/frontend && npm run test              # faehrt seit E8/M14 ALLE 25 Quell
 > * **HA-Add-on** — der Supervisor reicht die in HA eingestellte Zone durch. Das steht nicht nur
 >   in der HA-Doku, sondern im eigenen Produkt: der Daten-Checker sagt es dem Anwender wörtlich
 >   („Das Add-on übernimmt die Zeitzone beim Start von Home Assistant").
-> * **Abweichung** — `daten_checker/datenquelle.py` (Kategorie `ZEITZONE_ABWEICHUNG`) holt
+> * **Abweichung** — `daten_checker/datenquelle/zeitzone.py` (Kategorie `ZEITZONE_ABWEICHUNG`) holt
 >   `/config` von HA, vergleicht `time_zone` mit der eigenen und warnt samt Reparaturweg.
 >
 > **Was die Prozesszone überhaupt entscheidet, und was nicht.** HA liefert absolute
@@ -294,7 +294,7 @@ cd website && npm run build  # Synct automatisch docs/ → website/ (prebuild: w
 2. **Datenquellen getrennt:** `Monatsdaten` = Zählerwerte, `InvestitionMonatsdaten` = Komponenten-Details
 3. **Legacy-Felder NICHT verwenden:** `Monatsdaten.batterie_*` und das computed-Trio (`eigenverbrauch_kwh`, `direktverbrauch_kwh`, `gesamtverbrauch_kwh`) → erst `InvestitionMonatsdaten`, Legacy nur als expliziter Fallback
 4. **`Monatsdaten.pv_erzeugung_kwh` ist KEIN Legacy-Feld, aber auch keine Lesequelle** (Gernot 2026-07-29, ADR-002/**P7**): manuelles bzw. importiertes Anlagen-Aggregat und **ausschließlich Eingang** von `resolve_pv_je_modul` — geladen über `services/pv_monatswerte.py`, nie direkt verrechnet. Einzelwerte und ihre Summe haben immer Vorrang; das Aggregat füllt nur die Lücken der Module **ohne** eigenen Wert. Programmatisch füllen bleibt verboten. Der baumweite Wächter ist `test_wurzelmuster_konformitaet.py::test_p7_*` (Baseline 0). Detail: [BERECHNUNGEN §1](docs/BERECHNUNGEN.md), [ADR-002](docs/ADR-002-WURZELMUSTER.md)
-5. **Die Monatszeile wird genau einmal aufbereitet** (ADR-002/**P10**): `services/monats_fakten.py` löst auf, filtert (`aktiv` · Anschaffung · Stilllegung · Dienstwagen) und **ruft** die Layer-Formeln — keine Read-Site faltet `InvestitionMonatsdaten` mehr selbst. Verallgemeinerung von P7 von einer Größe auf die ganze Zeile; Auslöser war die Drift-Inventur 2026-07-31 (sechs Befunde, **kein** Rechenfehler im Layer). **Seit S5 baumweit gewächtert** (`test_wurzelmuster_konformitaet.py::test_p10_*`, funktions-granular, Baseline 0); **der Bauplan ist mit S6 abgearbeitet**, und mit **C1d** (04.08.) steht `P10_NOCH_NICHT_MIGRIERT` auf **0** — **die anlagenweite Restschuld ist getilgt**, der Test hält die Liste jetzt leer statt sie zu deckeln. Detail: [KONZEPT-MONATS-FAKTEN](docs/KONZEPT-MONATS-FAKTEN.md), [ARCHITEKTUR §7](docs/ARCHITEKTUR.md)
+5. **Die Monatszeile wird genau einmal aufbereitet** (ADR-002/**P10**): `services/monats_fakten/` löst auf, filtert (`aktiv` · Anschaffung · Stilllegung · Dienstwagen) und **ruft** die Layer-Formeln — keine Read-Site faltet `InvestitionMonatsdaten` mehr selbst. Verallgemeinerung von P7 von einer Größe auf die ganze Zeile; Auslöser war die Drift-Inventur 2026-07-31 (sechs Befunde, **kein** Rechenfehler im Layer). **Seit S5 baumweit gewächtert** (`test_wurzelmuster_konformitaet.py::test_p10_*`, funktions-granular, Baseline 0); **der Bauplan ist mit S6 abgearbeitet**, und mit **C1d** (04.08.) steht `P10_NOCH_NICHT_MIGRIERT` auf **0** — **die anlagenweite Restschuld ist getilgt**, der Test hält die Liste jetzt leer statt sie zu deckeln. Detail: [KONZEPT-MONATS-FAKTEN](docs/KONZEPT-MONATS-FAKTEN.md), [ARCHITEKTUR §7](docs/ARCHITEKTUR.md)
 
 ## Drei SoT-Regime — nicht mischen
 
@@ -307,6 +307,8 @@ cd website && npm run build  # Synct automatisch docs/ → website/ (prebuild: w
 > **Backend-Wächter sind pytest, keine `check:*`-Skripte** — alle `check:*` sind Frontend-Node-Skripte. **Vier** Ausnahmen mit eigener Begründung, alle bewachen die Client-Hälfte einer Backend-Regel: `check:kennwert-roh` für ADR-002/P3-a, `check:co2-roh` für ADR-001/DI-2 (der Client konstruiert keine CO₂-Menge; `CO2_FAKTOR_KG_KWH` darf nur noch *angezeigt* werden), `check:cop-roh` für ADR-002/P12 (keine Arbeitszahl im Client) und `check:bauart-roh` für ADR-002/P13 (die Bauart einer Wärmepumpe entscheidet keine Größe — SOLL Wärme/Klima R1; jede Datei, die `wp_art` liest, ist klassifiziert).
 >
 > ADR-002 trägt die Pflicht-Spalte **„gesichert durch"** mit der Unterscheidung **Wächter** (baumweit, fängt auch eine Stelle, die es heute noch nicht gibt) und **Regression** (schützt nur die namentlich aufgerufenen Stellen). Wer die Spalte fortschreibt, trägt die Art der Deckung mit ein — eine Regel ohne Code-Beleg gilt als nicht gesichert.
+>
+> **Flächen-Konzept Flex-Tarife:** [`docs/KONZEPT-FLEX-TARIFE.md`](docs/KONZEPT-FLEX-TARIFE.md) — welchen Preis eedc einer Kilowattstunde zuordnet, auf welcher Ebene, aus welcher Quelle (Slot · Tag · Monat; Kaskade gepflegt → gemessen → Zeitfenster → Stamm; EV-Ersparnis mit dem Preis der vermiedenen Stunden). Abgenommen und gebaut 18.09.2026.
 >
 > **Flächen-Konzept Wärme/Klima:** [`docs/KONZEPT-WAERME-KLIMA.md`](docs/KONZEPT-WAERME-KLIMA.md) — Heizen · Warmwasser · Kühlen an einem Ort (Grundsatz R1/R2, Erfassungs-Kanon K1–K5, Kennzahlen, Sichten, #263 als Kapitel 8, Wächter-Tabelle mit derselben Spalte); es **setzt die drei Regime oben um** und ersetzt keines.
 
@@ -324,7 +326,7 @@ Bei **allem mit Darstellung** (Seite, Komponente, Chart, Tabelle, Tooltip, Butto
 
 ### Monatswerte nur aus den Monats-Fakten (ADR-002/P10)
 
-SoT ist `eedc/backend/services/monats_fakten.py`. Wer eine abgeleitete Monatsgröße auswertet, faltet `InvestitionMonatsdaten` **nicht selbst**:
+SoT ist `eedc/backend/services/monats_fakten/`. Wer eine abgeleitete Monatsgröße auswertet, faltet `InvestitionMonatsdaten` **nicht selbst**:
 
 ```python
 from backend.services.monats_fakten import lade_monats_fakten, finanz_zeile_eingabe
@@ -340,7 +342,7 @@ for imd in await db.execute(select(InvestitionMonatsdaten)...):
     summe += (imd.verbrauch_daten or {}).get("pv_erzeugung_kwh", 0)
 ```
 
-Ausgenommen sind **Schreib-, Import- und Checker-Pfade**. Der baumweite Wächter ist **seit S5 scharf** (`test_wurzelmuster_konformitaet.py::test_p10_*`) — **funktions-granular**, damit eine ausgenommene Datei nicht als Ganzes freigestellt ist, mit drei getrennt klassifizierten Ausnahme-Kategorien (`SCHREIBEN_IMPORT_CHECKER` · `PER_INVESTITION` · `NOCH_NICHT_MIGRIERT`, letztere mit Obergrenze im Test). **Umgehängt seit S2:** Aussichten, Jahresbericht-PDF, Investitions-ROI; **S3** Cockpit/CO₂ + Social; **S4** Cockpit/Übersicht + HA-Export; **S5** Komponenten-Dashboards, dazu die PR-Pfade der Aussichten und Prognose-vs-IST; **S6** Community-Payload — damit ist der Bauplan abgearbeitet. **Teil-migriert** — Monatsgrößen ja, per-Investition-Aggregate nein: `aussichten.py`, `ha_export.py`, `investitionen/crud.py`, `dashboards.py`. **C1a** (03.08.) hat `monatsdaten.py::list_monatsdaten_aggregiert` umgehängt — *Auswertungen → Tabelle* und *Cockpit → Jahr*; **C1b** (03.08.) `cockpit/komponenten.py::get_komponenten_zeitreihe` — *Auswertungen → Komponenten*; **C1c** (03.08.) den DB-Zweig von `aktueller_monat.py` — *Cockpit → Monat* (`_collect_saved_data` + `_load_vorjahr` + Sonstige-Positionen; die Präzedenz der vier Quellen bleibt in der Route). **C1d** (04.08.) hat den letzten Posten getilgt — den **Komponenten-Detailblock** von `aktueller_monat.py::get_aktueller_monat` (N-107). **Die anlagenweite Restschuld ist damit 0**, und der Wächter hält die Liste leer statt sie zu deckeln: `test_wurzelmuster_konformitaet.py` führt `P10_NOCH_NICHT_MIGRIERT` ohne Eintrag und prüft `len(...) == 0` (`:2010`). *Hier stand bis 2026-08-22 „Noch anlagenweit selbst faltend (offene Schuld, 1)“ — eine Doku-Zeile gegen einen scharfen Test, gefunden bei der Fundregister-Inventur.*
+Ausgenommen sind **Schreib-, Import- und Checker-Pfade**. Der baumweite Wächter ist **seit S5 scharf** (`test_wurzelmuster_konformitaet.py::test_p10_*`) — **funktions-granular**, damit eine ausgenommene Datei nicht als Ganzes freigestellt ist, mit drei getrennt klassifizierten Ausnahme-Kategorien (`SCHREIBEN_IMPORT_CHECKER` · `PER_INVESTITION` · `NOCH_NICHT_MIGRIERT`, letztere mit Obergrenze im Test). **Umgehängt seit S2:** Aussichten, Jahresbericht-PDF, Investitions-ROI; **S3** Cockpit/CO₂ + Social; **S4** Cockpit/Übersicht + HA-Export; **S5** Komponenten-Dashboards, dazu die PR-Pfade der Aussichten und Prognose-vs-IST; **S6** Community-Payload — damit ist der Bauplan abgearbeitet. **Teil-migriert** — Monatsgrößen ja, per-Investition-Aggregate nein: `aussichten/finanz_eingaenge.py` (Lade-Phase der Finanz-Prognose, bis 18.09.2026 `aussichten/finanzen.py`), `ha_export/anlage_komponenten.py` + `investition_sensoren.py` (bis 18.09.2026 `ha_export.py`), `investitionen/roi.py` (bis 18.09.2026 `crud.py`), `investitionen/dashboard_<typ>.py` (bis 18.09.2026 `dashboards.py`). **C1a** (03.08.) hat `monatsdaten.py::list_monatsdaten_aggregiert` umgehängt — *Auswertungen → Tabelle* und *Cockpit → Jahr*; **C1b** (03.08.) `cockpit/komponenten.py::get_komponenten_zeitreihe` — *Auswertungen → Komponenten*; **C1c** (03.08.) den DB-Zweig von `aktueller_monat/` (heute `vergleich.py::_load_vorjahr` und die Fassade) — *Cockpit → Monat* (`_collect_saved_data` + `_load_vorjahr` + Sonstige-Positionen; die Präzedenz der vier Quellen bleibt in der Route). **C1d** (04.08.) hat den letzten Posten getilgt — den **Komponenten-Detailblock** von `aktueller_monat/__init__.py::get_aktueller_monat` (N-107). **Die anlagenweite Restschuld ist damit 0**, und der Wächter hält die Liste leer statt sie zu deckeln: `test_wurzelmuster_konformitaet.py` führt `P10_NOCH_NICHT_MIGRIERT` ohne Eintrag und prüft `len(...) == 0` (`:2010`). *Hier stand bis 2026-08-22 „Noch anlagenweit selbst faltend (offene Schuld, 1)“ — eine Doku-Zeile gegen einen scharfen Test, gefunden bei der Fundregister-Inventur.*
 
 ### SQLAlchemy JSON-Felder
 
@@ -357,6 +359,25 @@ db.commit()
 # FALSCH: if val:     → 0 wird als False gewertet
 # RICHTIG: if val is not None:
 ```
+
+### Schreibrouten committen vor der Antwort (N-530)
+
+```python
+@router.post("/")
+async def create_x(data: XCreate, db: AsyncSession = Depends(get_db, scope="function")):  # RICHTIG
+async def create_x(data: XCreate, db: AsyncSession = Depends(get_db)):                    # FALSCH bei POST/PUT/PATCH/DELETE
+```
+
+`get_db` committet im Teardown der Dependency. Mit dem FastAPI-Default `scope="request"` läuft der erst, **nachdem** die Antwort gesendet ist — ein sofortiger Folgeaufruf sah die eben angelegte Zeile in 0,4 % der Fälle nicht (gemessen 18.09.2026, N-530: 4 und 5 von 600 Runden POST → GET ohne Pause; der Setup-Wizard kettet genau so). `scope="function"` zieht den Teardown vor das Senden. Leserouten bleiben beim Default (streamende Exporte lesen ihre Session während des Sendens). Wächter: `test_n530_schreibrouten_commit_vor_antwort.py` (baumweit, Baseline 0, prüft auch die Gegenrichtung).
+
+### Aktivitätsprotokoll in der Sitzung des Aufrufers (N-532)
+
+```python
+await log_activity("import", "Portal-Import: 3 Monate", anlage_id=anlage.id, db=db)  # RICHTIG — wer eine Sitzung hält, gibt sie mit
+await log_activity("import", "Portal-Import: 3 Monate", anlage_id=anlage.id)         # FALSCH in einer Funktion mit `db`/`session` oder in einem `get_session()`-Block
+```
+
+SQLite kennt **einen** Schreiber. `log_activity` ohne `db` öffnet eine eigene Verbindung; hält die Sitzung des Aufrufers nach einem `flush()` den Schreib-Lock, wartet die zweite den vollen `busy_timeout` (30 s) ab, scheitert mit „database is locked", und die Zeile ist weg — gemessen 19.09.2026 an einer r28-Kopie: Portal-Import-Apply und `PUT`/`POST /api/monatsdaten` je 30,1 s ohne Protokollzeile, mit übergebener Sitzung 0,03 s. Ohne Sitzung (Scheduler-Job nach seinem `get_session()`-Block, MQTT-Gateway) bleibt die eigene Verbindung richtig. Wächter: `test_n532_aktivitaetsprotokoll_in_der_sitzung.py` (baumweit, 25 Stellen, Baseline 0, mit Gegenprobe an einer Datei-Datenbank). **Und der Testlauf berührt `data/eedc.db` nie** — `conftest.py` gibt der Produktiv-Engine eine Wegwerf-Datei je Worker (N-414).
 
 ### Investitions-Kennwerte nur über den SoT-Helper (ADR-002/P3-a)
 

@@ -11,7 +11,7 @@
 > | --- | --- |
 > | Die Regel selbst + „gesichert durch" je Schritt | [`docs/ADR-002-WURZELMUSTER.md`](ADR-002-WURZELMUSTER.md), Zeile **P10** |
 > | Migrationsstand + die drei Wächter-Kategorien mit ihren Zahlen | [`docs/ARCHITEKTUR.md`](ARCHITEKTUR.md) §7 |
-> | Der Kontrakt für Aufrufer (`lade_monats_fakten`, Feldgruppen, Fallen) | Modul- und Dataclass-Docstrings in `eedc/backend/services/monats_fakten.py` |
+> | Der Kontrakt für Aufrufer (`lade_monats_fakten`, Feldgruppen, Fallen) | Modul- und Dataclass-Docstrings in `eedc/backend/services/monats_fakten/` |
 > | Die gezählte Restschuld | `P10_NOCH_NICHT_MIGRIERT` im Wächter selbst — **0 seit C1d** (2026-08-04); der Test hält die Liste leer, statt sie zu deckeln |
 > | Nebenfunde N-2 … N-17 (Runde nach S6) | **abgearbeitet** — am 2026-08-04 einzeln am Code nachgeprüft und geschlossen; keiner ist offen geblieben. Was danach auffällt, gehört ins laufende Fund-Register, nicht hierher |
 >
@@ -173,7 +173,7 @@ Befunde erst möglich gemacht hat.
 
 Bauform wie ADR-002/P9, aber auf der Eingabe-Ebene statt feldweise:
 
-- **AST, baumweit:** außerhalb von `services/monats_fakten.py` (und der benannten
+- **AST, baumweit:** außerhalb von `services/monats_fakten/` (und der benannten
   Schreibpfade) darf keine Produktivdatei mehr `InvestitionMonatsdaten` selbst
   laden und zu `(jahr, monat)` falten. Baseline wird mit klassifizierten Ausnahmen
   bei 0 gesetzt — die Ausnahmen sind die Schreib-/Import-/Checker-Pfade.
@@ -212,7 +212,7 @@ Als neue **ADR-002/P10** eintragen, mit „gesichert durch"-Spalte.
 >    Obergrenze ist damit eine Gleichheit geworden — die Liste bleibt leer,
 >    ein neuer Eintrag eröffnet die Schuld neu.
 >
-> Der **Tages-Pfad** (`energie_profil/views.py`, `energie_profil/tage_werte.py`)
+> Der **Tages-Pfad** (`api/routes/energie_profil/tag.py::get_tag_detail`, `services/energie_profil/tage_werte.py`)
 > baut eine `FinanzZeileEingabe` und ist trotzdem klassifizierte Ausnahme: seine
 > Mengen kommen aus `bilanz_aus_stundenrows`, `jahr`/`monat` trägt er nur für den
 > Tarif-Stichtag (P8) und §51. Ihn auf die Schicht zu ziehen wäre kein Fix,
@@ -283,7 +283,7 @@ welchen Schritt baut, zieht **im selben Paket** nach:
 | --- | --- | --- |
 | `docs/ADR-002-WURZELMUSTER.md` | **P10** als Regel + „gesichert durch"-Spalte (Wächter/Regression getrennt); Titel/Zählung von „Neun" auf „Zehn" | Schritt 1 |
 | `docs/ADR-001-BERECHNUNGS-LAYER.md` | Die Schicht ist **Eingabe-Aufbereitung, nicht Formel** — Abgrenzung zu `core/berechnungen/` explizit; die Drei-Punkte-Pflicht (Builder + Wächter + Symmetrie-Test) um „Fakten-Quelle" erweitern | Schritt 1 |
-| `docs/ARCHITEKTUR.md` | `services/monats_fakten.py` in der Schichtenübersicht; die Aussage „jede Read-Site aggregiert selbst" ist danach falsch | Schritt 1 |
+| `docs/ARCHITEKTUR.md` | `services/monats_fakten/` in der Schichtenübersicht; die Aussage „jede Read-Site aggregiert selbst" ist danach falsch | Schritt 1 |
 | `docs/BERECHNUNGEN.md` | §1 nennt heute nur `lade_pv_je_monat` als Lesequelle (P7). Ergänzen: die Monats-Fakten sind ab jetzt **die** Lesequelle, PV darin ein Feld | Schritt 2 |
 | `CLAUDE.md` | SoT-Regime-Tabelle (P1–P10) · „Kritische Code-Patterns" um den Fakten-Zugriff ergänzen · Digest-Eintrag beim Release | Schritt 1 + Release |
 | `CHANGELOG.md` / WAS-IST-NEU | Anwender-Sicht: **welche Zahlen sich bewegen und warum** (ROI, Amortisation, Jahresbericht, CO₂) | beim Release |
