@@ -41,6 +41,7 @@ import pytest
 from backend.api.routes.pvgis import get_soll_je_monat
 from backend.models import Anlage, Investition
 from backend.models.pvgis_prognose import PVGISPrognose
+from backend.services.pvgis_soll import lade_erzeuger
 
 # Runde Zahlen, damit die Erwartung im Kopf nachrechenbar bleibt.
 BKW_JE_MONAT = 100.0     # 0,85 kWp, seit 2023-09-01
@@ -195,3 +196,143 @@ async def test_ohne_aktive_prognose_kein_soll(db):
     antwort = await get_soll_je_monat(anlage_id=anlage_id, jahr=2026, db=db)
     assert all(m["soll_kwh"] is None for m in antwort["monate"])
     assert antwort["jahr_kwh"] is None
+
+
+# ============================================================================
+# Drei Stufen — BKW, dann Wechselrichter + String 1, drei Monate später String 2
+# ============================================================================
+#
+# Der Fall oben hat genau EINE Kante. Eine Anlage wächst aber in Etappen, und
+# jede Etappe verschiebt den Maßstab erneut. Geprüft wird hier zweierlei: dass
+# jeder Monat den Ausbau kennt, der IHN betrifft — und dass eine gleichbleibend
+# gute Anlage über alle Etappen dieselbe Quote zeigt, statt an jeder Kante zu
+# springen.
+#
+# Der Wechselrichter läuft bewusst mit. Er ist eine Investition wie die anderen,
+# trägt aber kein SOLL; stünde er im Maßstab, wäre jede Zahl dahinter zu hoch.
+
+S1_JE_MONAT = 400.0                  # String 1, ab 01.01.2026
+S2_JE_MONAT = 200.0                  # String 2, ab 10.04.2026
+S2_AB = date(2026, 4, 10)
+# April hat 30 Tage; ab dem 10. sind das 21 (der 10. zählt mit).
+S2_IM_ZUBAU_MONAT = S2_JE_MONAT * 21 / 30           # 140,0
+
+STUFE_1 = BKW_JE_MONAT                              # 100 — nur BKW (bis 2025)
+STUFE_2 = BKW_JE_MONAT + S1_JE_MONAT                # 500 — Jan–Mär 2026
+STUFE_2_PLUS = STUFE_2 + S2_IM_ZUBAU_MONAT          # 640 — April 2026
+STUFE_3 = BKW_JE_MONAT + S1_JE_MONAT + S2_JE_MONAT  # 700 — ab Mai 2026
+
+
+async def _seed_drei_stufen(db) -> int:
+    anlage = Anlage(anlagenname="Drei Stufen", leistung_kwp=6.85,
+                    installationsdatum=date(2023, 9, 1))
+    db.add(anlage)
+    await db.flush()
+
+    bkw = Investition(anlage_id=anlage.id, typ="balkonkraftwerk", bezeichnung="BKW",
+                      anschaffungsdatum=date(2023, 9, 1), leistung_kwp=0.85)
+    wr = Investition(anlage_id=anlage.id, typ="wechselrichter", bezeichnung="WR 12 kW",
+                     anschaffungsdatum=date(2026, 1, 1))
+    s1 = Investition(anlage_id=anlage.id, typ="pv-module", bezeichnung="String 1",
+                     anschaffungsdatum=date(2026, 1, 1), leistung_kwp=4.0)
+    s2 = Investition(anlage_id=anlage.id, typ="pv-module", bezeichnung="String 2",
+                     anschaffungsdatum=S2_AB, leistung_kwp=2.0)
+    db.add_all([bkw, wr, s1, s2])
+    await db.flush()
+
+    db.add(PVGISPrognose(
+        anlage_id=anlage.id, latitude=50.8, longitude=6.2,
+        neigung_grad=23.0, ausrichtung_grad=0.0, gesamt_leistung_kwp=6.85,
+        abgerufen_am=datetime(2026, 9, 17, 23, 39),
+        jahresertrag_kwh=STUFE_3 * 12,
+        spezifischer_ertrag_kwh_kwp=1000.0,
+        monatswerte=_monatswerte(STUFE_3),
+        module_monatswerte={
+            str(bkw.id): _monatswerte(BKW_JE_MONAT),
+            str(s1.id): _monatswerte(S1_JE_MONAT),
+            str(s2.id): _monatswerte(S2_JE_MONAT),
+        },
+        ist_aktiv=True,
+    ))
+    await db.commit()
+    return anlage.id
+
+
+async def test_jeder_monat_kennt_seinen_ausbaustand(db):
+    """Jan–Mär 500 · April 640 (String 2 anteilig) · ab Mai 700."""
+    anlage_id = await _seed_drei_stufen(db)
+    antwort = await get_soll_je_monat(anlage_id=anlage_id, jahr=2026, db=db)
+
+    for monat in (1, 2, 3):
+        assert _soll(antwort, monat) == pytest.approx(STUFE_2), f"Monat {monat}"
+    assert _soll(antwort, 4) == pytest.approx(STUFE_2_PLUS, abs=0.05)
+    for monat in range(5, 13):
+        assert _soll(antwort, monat) == pytest.approx(STUFE_3), f"Monat {monat}"
+
+
+async def test_jahressumme_addiert_die_stufen(db):
+    """3×500 + 640 + 8×700 = 7.740 — weder 6.000 (alter Stand) noch 8.400 (neuer)."""
+    anlage_id = await _seed_drei_stufen(db)
+    antwort = await get_soll_je_monat(anlage_id=anlage_id, jahr=2026, db=db)
+
+    assert antwort["jahr_kwh"] == pytest.approx(
+        3 * STUFE_2 + STUFE_2_PLUS + 8 * STUFE_3, abs=0.1)
+    assert STUFE_2 * 12 < antwort["jahr_kwh"] < STUFE_3 * 12
+
+
+async def test_vorjahr_kennt_nur_das_balkonkraftwerk(db):
+    """2025: beide Strings gibt es noch nicht — 100 je Monat, nicht 700."""
+    anlage_id = await _seed_drei_stufen(db)
+    antwort = await get_soll_je_monat(anlage_id=anlage_id, jahr=2025, db=db)
+
+    assert all(_soll(antwort, m) == pytest.approx(STUFE_1) for m in range(1, 13))
+    assert antwort["jahr_kwh"] == pytest.approx(STUFE_1 * 12)
+
+
+async def test_der_wechselrichter_hebt_den_massstab_nicht(db):
+    """Er ist eine Investition, aber kein Erzeuger — er trägt kein SOLL.
+
+    ``lade_erzeuger`` filtert auf ``PV_ERZEUGER_TYPEN``; stünde der
+    Wechselrichter in der Menge, käme er über ``erzeuger_traeger`` in den
+    Maßstab und jede Zahl dahinter wäre zu hoch.
+    """
+    anlage_id = await _seed_drei_stufen(db)
+    erzeuger = await lade_erzeuger(db, anlage_id)
+
+    assert sorted(inv.typ for inv in erzeuger) == [
+        "balkonkraftwerk", "pv-module", "pv-module"]
+
+
+async def test_gleichbleibende_anlagenguete_ergibt_konstante_quote(db):
+    """Die Kohärenz-Probe: eine Anlage auf 110 % zeigt 110 % — in JEDEM Monat.
+
+    Der IST kommt hier aus den **bekannten Ausbaustufen**, nicht aus der
+    Antwort — sonst wäre die Probe tautologisch: ein SOLL, gegen das man sein
+    eigenes Vielfaches hält, ergibt immer dieselbe Quote, auch ein falsches.
+
+    **Die Gegenprobe steckt in derselben Schleife:** gegen das UNGEKÜRZTE
+    Anlagen-SOLL (700 in jedem Monat — der Stand vor dem Fix) springt dieselbe
+    Messung von 79 % auf 110 %. Ein Sprung, den niemand an der Anlage
+    wiederfindet, weil er nur den Zubau abbildet.
+    """
+    anlage_id = await _seed_drei_stufen(db)
+    antwort = await get_soll_je_monat(anlage_id=anlage_id, jahr=2026, db=db)
+
+    # Was eine gleichbleibend gute Anlage in diesem Ausbau wirklich liefert.
+    ist_je_monat = {m: STUFE_2 * 1.1 for m in (1, 2, 3)}
+    ist_je_monat[4] = STUFE_2_PLUS * 1.1
+    ist_je_monat.update({m: STUFE_3 * 1.1 for m in range(5, 13)})
+
+    quoten_neu, quoten_alt = [], []
+    for monat in range(1, 13):
+        ist = ist_je_monat[monat]
+        quoten_neu.append(ist / _soll(antwort, monat))
+        quoten_alt.append(ist / STUFE_3)  # ungekürzt, wie vor dem Fix
+
+    assert max(quoten_neu) - min(quoten_neu) < 1e-6, f"Quoten springen: {quoten_neu}"
+    assert quoten_neu[0] == pytest.approx(1.1, abs=1e-6)
+
+    # Der alte Weg: Januar 0,786 gegen Dezember 1,1 — über 30 Prozentpunkte
+    # Spanne ohne jede Änderung an der Anlage.
+    assert max(quoten_alt) - min(quoten_alt) > 0.3
+    assert quoten_alt[0] == pytest.approx(STUFE_2 * 1.1 / STUFE_3, abs=1e-9)
